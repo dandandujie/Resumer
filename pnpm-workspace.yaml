@@ -2,14 +2,5 @@ packages:
   - .
 
 allowBuilds:
-  esbuild: set this to true or false
-  msw: set this to true or false
-
-onlyBuiltDependencies:
-  - better-sqlite3
-  - '@swc/core'
-  - sharp
-  - unrs-resolver
-  - esbuild
-  - '@parcel/watcher'
-  - vite
+  esbuild: true
+  msw: false
