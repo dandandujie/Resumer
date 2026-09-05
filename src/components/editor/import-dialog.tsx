@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useResumeStore } from '@/stores/resume-store';
+import { normalizeResumeDates } from '@/lib/resume-date';
 import {
   Upload,
   Loader2,
@@ -97,7 +98,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
         ...currentResume,
         title: data.title ?? currentResume.title,
         themeConfig: data.themeConfig ?? currentResume.themeConfig,
-        sections: data.sections,
+        sections: normalizeResumeDates(data.sections),
       });
 
       // Mark dirty and save

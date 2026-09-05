@@ -1,9 +1,9 @@
 import { isSectionEmpty } from '@/components/preview/utils';
 import {
-  DEFAULT_THEME_FONT_SIZE,
   resolveCssFontScale,
   resolveThemeFontSize,
   resolveThemeFontStack,
+  resolveTheme,
 } from '@/lib/theme-config';
 import type {
   CertificationsContent,
@@ -45,16 +45,7 @@ const QR_TILE_HEIGHT = 112;
 const QR_TILE_WIDTH = 96;
 const QR_GAP = 12;
 
-const DEFAULT_THEME: ThemeConfig = {
-  primaryColor: '#1a1a1a',
-  accentColor: '#3b82f6',
-  fontFamily: 'Inter',
-  fontSize: DEFAULT_THEME_FONT_SIZE,
-  lineSpacing: 1.5,
-  margin: { top: 20, right: 20, bottom: 20, left: 20 },
-  sectionSpacing: 8,
-  avatarStyle: 'oneInch',
-};
+const estimateDefaultTheme = resolveTheme();
 
 export interface ClassicPageEstimate {
   totalHeight: number;
@@ -517,10 +508,10 @@ function estimateQrHeight(itemCount: number, contentWidth: number) {
 }
 
 export function estimateClassicPages(pretext: PretextModule, resume: Resume): ClassicPageEstimate {
-  const theme = { ...DEFAULT_THEME, ...(resume.themeConfig || {}) };
+  const theme = { ...estimateDefaultTheme, ...(resume.themeConfig || {}) };
   const fontScale = resolveCssFontScale(theme.fontSize);
   const bodySize = resolveThemeFontSize(theme.fontSize);
-  const family = resolveThemeFontStack(theme.fontFamily);
+  const family = resolveThemeFontStack(theme.fontScheme);
   const bodyLineHeight = clamp(bodySize * theme.lineSpacing, bodySize);
   const h1Size = parseFloat(fontScale.h1);
   const h2Size = parseFloat(fontScale.h2);
@@ -662,12 +653,12 @@ export function calculateOptimalFit(pretext: PretextModule, resume: Resume): The
     try {
       testResume.themeConfig = JSON.parse(testResume.themeConfig);
     } catch {
-      testResume.themeConfig = { ...DEFAULT_THEME };
+      testResume.themeConfig = { ...estimateDefaultTheme };
     }
   } else if (!testResume.themeConfig) {
-    testResume.themeConfig = { ...DEFAULT_THEME };
+    testResume.themeConfig = { ...estimateDefaultTheme };
   } else {
-    testResume.themeConfig = { ...DEFAULT_THEME, ...testResume.themeConfig };
+    testResume.themeConfig = { ...estimateDefaultTheme, ...testResume.themeConfig };
   }
 
   // First check if it fits with max font size

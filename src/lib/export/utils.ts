@@ -1,4 +1,4 @@
-import { DEFAULT_THEME_FONT_SIZE, resolveCssFontScale, resolveExportFontStack } from '@/lib/theme-config';
+import { buildThemeCss, resolveTheme } from '@/lib/theme-config';
 import type {
   PersonalInfoContent,
   SkillsContent,
@@ -107,81 +107,6 @@ export function buildQrCodesHtml(section: Section): string {
 
 // ─── Theme CSS for HTML export ────────────────────────────────
 
-export const DEFAULT_THEME = {
-  primaryColor: '#1a1a1a',
-  accentColor: '#3b82f6',
-  fontFamily: 'Inter',
-  fontSize: DEFAULT_THEME_FONT_SIZE,
-  lineSpacing: 1.5,
-  margin: { top: 20, right: 20, bottom: 20, left: 20 },
-  sectionSpacing: 8,
-  avatarStyle: 'oneInch' as const,
-};
-
-function isDark(hex: string): boolean {
-  const c = hex.replace('#', '');
-  const r = parseInt(c.substring(0, 2), 16) / 255;
-  const g = parseInt(c.substring(2, 4), 16) / 255;
-  const b = parseInt(c.substring(4, 6), 16) / 255;
-  return 0.299 * r + 0.587 * g + 0.114 * b < 0.4;
-}
-
-export function buildExportThemeCSS(theme: typeof DEFAULT_THEME): string {
-  const fs = resolveCssFontScale(theme.fontSize);
-  const m = theme.margin;
-  const sel = '.resume-export';
-  const primaryIsDark = isDark(theme.primaryColor);
-  return `
-    ${sel} > div {
-      font-family: ${resolveExportFontStack(theme.fontFamily)} !important;
-      line-height: ${theme.lineSpacing} !important;
-      padding-top: ${m.top}px !important;
-      padding-right: ${m.right}px !important;
-      padding-bottom: ${m.bottom}px !important;
-      padding-left: ${m.left}px !important;
-      --base-body-size: ${fs.body};
-      --base-h1-size: ${fs.h1};
-      --base-h2-size: ${fs.h2};
-      --base-h3-size: ${fs.h3};
-      --base-line-spacing: ${theme.lineSpacing};
-      --base-section-spacing: ${theme.sectionSpacing}px;
-      --base-margin-top: ${m.top}px;
-      --base-margin-right: ${m.right}px;
-      --base-margin-bottom: ${m.bottom}px;
-      --base-margin-left: ${m.left}px;
-      --needs-padding: 1;
-    }
-    ${sel} p, ${sel} li, ${sel} span, ${sel} td, ${sel} a, ${sel} div {
-      font-size: ${fs.body} !important;
-      line-height: ${theme.lineSpacing} !important;
-    }
-    ${sel} h1:not([style*="color"]) { color: ${theme.primaryColor} !important; font-size: ${fs.h1} !important; line-height: ${theme.lineSpacing} !important; }
-    ${sel} h1[style*="color"] { font-size: ${fs.h1} !important; line-height: ${theme.lineSpacing} !important; }
-    ${sel} h2:not([style*="color"]) { color: ${theme.primaryColor} !important; font-size: ${fs.h2} !important; line-height: ${theme.lineSpacing} !important; border-color: ${theme.accentColor} !important; }
-    ${sel} h2[style*="color"] { font-size: ${fs.h2} !important; line-height: ${theme.lineSpacing} !important; border-color: ${theme.accentColor} !important; }
-    ${sel} h3:not([style*="color"]) { color: ${theme.primaryColor} !important; font-size: ${fs.h3} !important; line-height: ${theme.lineSpacing} !important; }
-    ${sel} h3[style*="color"] { font-size: ${fs.h3} !important; line-height: ${theme.lineSpacing} !important; }
-    ${sel} [class*="border-b-2"], ${sel} [class*="border-b-"] { border-color: ${theme.accentColor} !important; }
-    ${sel} [class*="bg-blue-"], ${sel} [class*="bg-indigo-"],
-    ${sel} [class*="bg-slate-800"], ${sel} [class*="bg-zinc-800"],
-    ${sel} [class*="bg-teal-"], ${sel} [class*="bg-emerald-"] {
-      background-color: ${theme.accentColor} !important;
-    }
-    ${sel} [data-section] { margin-bottom: ${theme.sectionSpacing}px !important; }
-    ${primaryIsDark ? `
-    ${sel} [style*="background"][style*="#"] h1:not([style*="color"]),
-    ${sel} [style*="background"][style*="#"] h2:not([style*="color"]),
-    ${sel} [style*="background"][style*="#"] h3:not([style*="color"]),
-    ${sel} [style*="background"][style*="rgb"] h1:not([style*="color"]),
-    ${sel} [style*="background"][style*="rgb"] h2:not([style*="color"]),
-    ${sel} [style*="background"][style*="rgb"] h3:not([style*="color"]),
-    ${sel} [style*="background"][style*="linear-gradient"] h1:not([style*="color"]),
-    ${sel} [style*="background"][style*="linear-gradient"] h2:not([style*="color"]),
-    ${sel} [style*="background"][style*="linear-gradient"] h3:not([style*="color"]),
-    ${sel} .bg-black h1:not([style*="color"]),
-    ${sel} .bg-black h2:not([style*="color"]),
-    ${sel} .bg-black h3:not([style*="color"]) {
-      color: #ffffff !important;
-    }` : ''}
-  `;
+export function buildExportThemeCSS(rawTheme: Parameters<typeof resolveTheme>[0]): string {
+  return buildThemeCss('.resume-export', resolveTheme(rawTheme), { export: true });
 }

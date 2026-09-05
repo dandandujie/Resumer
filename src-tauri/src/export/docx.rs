@@ -1,6 +1,7 @@
 use docx_rs::{Docx, Paragraph, Run, RunFonts, LineSpacing, AlignmentType, PageMargin};
 use serde_json::Value;
 use std::path::Path;
+use super::date::{format_range, DateStyle};
 
 // A4 page in twips (1/1440 inch): 210mm x 297mm. Set explicitly so Microsoft
 // Office (which defaults to US Letter) and WPS (which defaults to A4) produce
@@ -60,7 +61,7 @@ fn bullet(text: &str) -> Paragraph {
     Paragraph::new().add_run(run(&format!("• {}", text), 20))
 }
 
-pub fn generate_docx(resume_title: &str, sections: &[Value], output_path: &Path) -> Result<(), String> {
+pub fn generate_docx(resume_title: &str, sections: &[Value], language: &str, output_path: &Path) -> Result<(), String> {
     let mut docx = Docx::new()
         .default_fonts(fonts())
         .default_size(20)
@@ -129,10 +130,11 @@ pub fn generate_docx(resume_title: &str, sections: &[Value], output_path: &Path)
                         "Present".to_string()
                     } else { gstr(item, "endDate").into() };
                     let location = gstr(item, "location");
+                    let range = format_range(start, &end, item.get("current").and_then(|v| v.as_bool()).unwrap_or(false), DateStyle::Dot, language);
                     let date_line = if location.is_empty() {
-                        format!("{} - {}", start, end)
+                        range
                     } else {
-                        format!("{} - {} | {}", start, end, location)
+                        format!("{} | {}", range, location)
                     };
                     docx = docx.add_paragraph(para(&date_line));
 
@@ -156,7 +158,7 @@ pub fn generate_docx(resume_title: &str, sections: &[Value], output_path: &Path)
                     docx = docx.add_paragraph(subheading(&format!("{} in {}, {}", degree, field, inst)));
                     let start = gstr(item, "startDate");
                     let end = gstr(item, "endDate");
-                    docx = docx.add_paragraph(para(&format!("{} - {}", start, end)));
+                    docx = docx.add_paragraph(para(&format_range(start, end, false, DateStyle::Dot, language)));
                     let gpa = gstr(item, "gpa");
                     if !gpa.is_empty() {
                         docx = docx.add_paragraph(para(&format!("GPA: {}", gpa)));
@@ -248,7 +250,7 @@ mod tests {
                  "description":"负责分布式系统开发。","highlights":["优化性能 30%","主导架构升级"]}]}}),
         ];
         let out = std::env::temp_dir().join("reseumer-docx-test.docx");
-        generate_docx("测试简历 Resume", &sections, &out).expect("generate_docx failed");
+        generate_docx("测试简历 Resume", &sections, "zh", &out).expect("generate_docx failed");
         assert!(out.exists());
         // A valid .docx is a non-trivial zip.
         assert!(std::fs::metadata(&out).unwrap().len() > 500);

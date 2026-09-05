@@ -14,7 +14,8 @@
     "build:win": "tauri build --target x86_64-pc-windows-msvc",
     "build:mac": "tauri build --target aarch64-apple-darwin",
     "lint": "eslint",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test:date": "tsx scripts/test-resume-date.ts"
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.5",

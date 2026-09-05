@@ -1,4 +1,5 @@
 use serde_json::Value;
+use super::date::{format_range, DateStyle};
 
 fn safe(v: Option<&str>) -> String {
     v.unwrap_or("").to_string()
@@ -19,7 +20,7 @@ fn garr_str(v: &Value, key: &str) -> Vec<String> {
 }
 
 /// Generate plain text from a resume's sections array.
-pub fn generate_plain_text(sections: &[Value]) -> String {
+pub fn generate_plain_text(sections: &[Value], style: DateStyle, lang: &str) -> String {
     let mut lines: Vec<String> = Vec::new();
 
     for section in sections {
@@ -70,13 +71,9 @@ pub fn generate_plain_text(sections: &[Value]) -> String {
                 for item in garr(&content, "items") {
                     lines.push(format!("- {} at {}", safe(item.get("position").and_then(|v| v.as_str())), safe(item.get("company").and_then(|v| v.as_str()))));
                     let start = gstr(item, "startDate");
-                    let end = if item.get("current").and_then(|v| v.as_bool()) == Some(true) {
-                        "Present".to_string()
-                    } else {
-                        gstr(item, "endDate").to_string()
-                    };
+                    let end = gstr(item, "endDate");
                     let location = gstr(item, "location");
-                    lines.push(format!("  {} - {}{}", start, end, if !location.is_empty() { format!(" | {}", location) } else { "".into() }));
+                    lines.push(format!("  {}{}", format_range(start, end, item.get("current").and_then(|v| v.as_bool()).unwrap_or(false), style, lang), if !location.is_empty() { format!(" | {}", location) } else { "".into() }));
                     let desc = gstr(item, "description");
                     if !desc.is_empty() { lines.push(format!("  {}", desc)); }
                     for h in garr_str(item, "highlights") {
@@ -95,7 +92,7 @@ pub fn generate_plain_text(sections: &[Value]) -> String {
                     let start = gstr(item, "startDate");
                     let end = gstr(item, "endDate");
                     let location = gstr(item, "location");
-                    lines.push(format!("  {} - {}{}", start, end, if !location.is_empty() { format!(" | {}", location) } else { "".into() }));
+                    lines.push(format!("  {}{}", format_range(start, end, item.get("current").and_then(|v| v.as_bool()).unwrap_or(false), style, lang), if !location.is_empty() { format!(" | {}", location) } else { "".into() }));
                     let gpa = gstr(item, "gpa");
                     if !gpa.is_empty() { lines.push(format!("  GPA: {}", gpa)); }
                     for h in garr_str(item, "highlights") {

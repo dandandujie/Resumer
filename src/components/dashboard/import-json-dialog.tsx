@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import * as api from '@/lib/tauri-api';
+import { normalizeResumeDates } from '@/lib/resume-date';
 import {
   Dialog,
   DialogContent,
@@ -96,7 +97,7 @@ export function ImportJsonDialog({ open, onOpenChange }: ImportJsonDialogProps) 
       const newResumeId = await api.createResume({
         title: data.title || 'Imported Resume',
         themeConfig: data.themeConfig,
-        sections: data.sections,
+        sections: normalizeResumeDates(data.sections),
       });
 
       setState('success');

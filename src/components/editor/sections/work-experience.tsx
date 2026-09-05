@@ -70,7 +70,7 @@ export function WorkExperienceSection({ section, onUpdate }: Props) {
             </FieldWrapper>
             <FieldWrapper>
               <EditableDate label={t('startDate')} value={item.startDate} onChange={(v) => updateItem(index, { startDate: v })} />
-              <EditableDate label={t('endDate')} value={item.endDate || ''} onChange={(v) => updateItem(index, { endDate: v || null, current: !v })} />
+              <EditableDate label={t('endDate')} value={item.endDate || ''} current={item.current} allowCurrent onCurrentChange={(current) => updateItem(index, { current, endDate: current ? null : item.endDate })} onChange={(v) => updateItem(index, { endDate: v || null, current: false })} />
             </FieldWrapper>
             <EditableRichText label={t('description')} value={item.description} onChange={(v) => updateItem(index, { description: v })} />
             <EditableList label={t('technologies')} items={item.technologies || []} onChange={(v) => updateItem(index, { technologies: v })} />

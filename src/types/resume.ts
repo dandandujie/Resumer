@@ -166,14 +166,34 @@ export interface ResumeSection {
 }
 
 export interface ThemeConfig {
+  primaryColor?: string;
+  accentColor?: string;
+  bodyColor?: string;
+  fontFamily?: string;
+  fontScheme?: import('@/lib/theme-config').FontSchemeId;
+  fontSize?: ThemeFontSize;
+  lineSpacing?: number;
+  margin?: { top: number; right: number; bottom: number; left: number };
+  sectionSpacing?: number;
+  dateStyle?: 'dot' | 'dash' | 'cn';
+  headingStyle?: 'underline' | 'plain' | 'filled';
+  avatarStyle?: 'circle' | 'oneInch';
+  infoLayout?: 'inline' | 'grid';
+}
+
+export interface ResolvedTheme {
   primaryColor: string;
   accentColor: string;
-  fontFamily: string;
-  fontSize: ThemeFontSize;
+  bodyColor: string;
+  fontScheme: import('@/lib/theme-config').FontSchemeId;
+  fontSize: number;
   lineSpacing: number;
   margin: { top: number; right: number; bottom: number; left: number };
   sectionSpacing: number;
-  avatarStyle?: 'circle' | 'oneInch';
+  dateStyle: 'dot' | 'dash' | 'cn';
+  headingStyle: 'underline' | 'plain' | 'filled';
+  avatarStyle: 'circle' | 'oneInch';
+  infoLayout: 'inline' | 'grid';
 }
 
 export type LegacyFontSize = 'small' | 'medium' | 'large';

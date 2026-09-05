@@ -6,6 +6,7 @@ import { generateQrSvg } from '@/lib/qrcode';
 
 interface QrCodesPreviewProps {
   items: QrCodeItem[];
+  svgs?: Record<string, string>;
 }
 
 function isValidUrl(str: string): boolean {
@@ -21,11 +22,12 @@ function isValidUrl(str: string): boolean {
   }
 }
 
-export function QrCodesPreview({ items }: QrCodesPreviewProps) {
+export function QrCodesPreview({ items, svgs: initialSvgs }: QrCodesPreviewProps) {
   const filtered = items.filter((q) => isValidUrl(q.url));
-  const [svgs, setSvgs] = useState<Record<string, string>>({});
+  const [svgs, setSvgs] = useState<Record<string, string>>(initialSvgs || {});
 
   useEffect(() => {
+    if (initialSvgs) return;
     if (filtered.length === 0) {
       setSvgs({});
       return;

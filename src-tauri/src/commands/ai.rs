@@ -5,6 +5,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use crate::ai::{self, provider::{AIConfig, ChatMessage}};
 use crate::db::AppDb;
 use crate::db::repo::{resume as resume_repo, analysis as analysis_repo};
+use crate::export::date::normalize_value_fields;
 use super::CommandError;
 
 fn cfg_from(config: Value) -> AIConfig {
@@ -293,7 +294,7 @@ pub async fn ai_generate_resume(
     let sections = parsed.get("sections").and_then(|v| v.as_array()).cloned().unwrap_or_default();
 
     let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
-    let theme = json!({});
+    let theme = json!({"fontScheme":"yahei","fontSize":14,"lineSpacing":1.35,"sectionSpacing":6,"margin":{"top":18,"right":18,"bottom":18,"left":18},"primaryColor":"#1a1a1a","accentColor":"#1a1a1a","bodyColor":"#1a1a1a","dateStyle":"dot","headingStyle":"underline","avatarStyle":"oneInch","infoLayout":"inline"});
     let resume_id = resume_repo::create(&conn, &user_id, &title, "classic", &lang, &theme)
         .map_err(|e| CommandError { message: e.to_string() })?;
 
@@ -301,7 +302,8 @@ pub async fn ai_generate_resume(
         let sec_type = sec.get("type").and_then(|v| v.as_str()).unwrap_or("custom").to_string();
         let sec_title = sec.get("title").and_then(|v| v.as_str()).unwrap_or("").to_string();
         let content = sec.get("content").cloned().unwrap_or(Value::Object(Default::default()));
-        let _ = resume_repo::create_section(&conn, &resume_id, &sec_type, &sec_title, i as i32, true, &content);
+        resume_repo::create_section(&conn, &resume_id, &sec_type, &sec_title, i as i32, true, &content)
+            .map_err(|e| CommandError { message: e.to_string() })?;
     }
 
     Ok(resume_id)
@@ -383,14 +385,15 @@ pub async fn parse_resume_file(
         });
     };
 
-    let parsed = ai::extract_json::extract_json(&extracted_text)
+    let mut parsed = ai::extract_json::extract_json(&extracted_text)
         .map_err(|e| CommandError { message: e })?;
+    normalize_value_fields(&mut parsed);
 
     let title = parsed.get("title").and_then(|v| v.as_str()).unwrap_or("未命名简历").to_string();
     let sections = parsed.get("sections").and_then(|v| v.as_array()).cloned().unwrap_or_default();
 
     let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
-    let theme = json!({});
+    let theme = json!({"fontScheme":"yahei","fontSize":14,"lineSpacing":1.35,"sectionSpacing":6,"margin":{"top":18,"right":18,"bottom":18,"left":18},"primaryColor":"#1a1a1a","accentColor":"#1a1a1a","bodyColor":"#1a1a1a","dateStyle":"dot","headingStyle":"underline","avatarStyle":"oneInch","infoLayout":"inline"});
     let resume_id = resume_repo::create(&conn, &user_id, &title, "classic", &lang, &theme)
         .map_err(|e| CommandError { message: e.to_string() })?;
 
@@ -398,7 +401,8 @@ pub async fn parse_resume_file(
         let sec_type = sec.get("type").and_then(|v| v.as_str()).unwrap_or("custom").to_string();
         let sec_title = sec.get("title").and_then(|v| v.as_str()).unwrap_or("").to_string();
         let content = sec.get("content").cloned().unwrap_or(Value::Object(Default::default()));
-        let _ = resume_repo::create_section(&conn, &resume_id, &sec_type, &sec_title, i as i32, true, &content);
+        resume_repo::create_section(&conn, &resume_id, &sec_type, &sec_title, i as i32, true, &content)
+            .map_err(|e| CommandError { message: e.to_string() })?;
     }
 
     Ok(resume_id)

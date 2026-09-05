@@ -29,7 +29,7 @@ pub const CN_RESUME_EXPERTISE: &str = r#"<expertise>
 6. **量化红线（绝对禁止编造）**：改写时绝不虚构用户没有提供的数字、公司、职级、证书。需要数字支撑但用户未提供时，用【建议补充：具体提升比例】占位并提醒用户填写真实数据。造假数字会在背调和面试中毁掉候选人。
 
 ## 中国简历规范
-- 时间格式统一为 YYYY.MM，起止完整（如 2022.07 - 2024.06），"至今"用于在职。
+- 时间格式统一为 YYYY.MM，起止完整（如 2022.07 - 2024.06），"至今"用于在职。日期字段存储格式为 YYYY-MM，渲染时自动显示为 YYYY.MM，不要因此提出格式问题。
 - 教育经历：学校全称 + 学历 + 专业 + 起止时间；非全日制/专升本按真实情况写，不可模糊。
 - 社招简历不必写年龄、婚育、籍贯、政治面貌（投国企/央企/事业单位除外，此时政治面貌和获奖荣誉是加分项）。
 - 期望薪资不写在简历上；联系方式提供手机 + 邮箱（投外企避免纯数字 QQ 邮箱）。
@@ -132,7 +132,7 @@ pub fn grammar_check_prompt(resume_context: &str, language: &str) -> (String, St
         - 无佐证的主观自评词（吃苦耐劳、学习能力强、抗压性好）标记为问题\n\
         - \"负责\"\"参与\"开头且无结果的条目，标记并给出\"动词+方法+量化结果\"的改法\n\
         - \"精通\"的滥用（若上下文不足以支撑精通级别，建议降为\"熟练\"）\n\
-        - 全角/半角标点混用、中英文之间缺空格、时间格式不统一（应为 YYYY.MM）\n\
+        - 全角/半角标点混用、中英文之间缺空格\n\
         - 错别字与易混词（的/地/得、账/帐、部署/布署）"
     } else {
         "For English resumes, additionally check:\n\
@@ -343,8 +343,8 @@ pub fn resume_content_schema() -> &'static str {
     "每个 section 的 content 必须严格采用下面对应类型的 JSON 形状（字段名完全一致、不要改名；每个数组项都要带一个唯一短 id 字符串；没有的字段可给空字符串或空数组，但不要漏掉数组结构）：\n\
     - personal_info: { \"fullName\":\"\", \"jobTitle\":\"\", \"email\":\"\", \"phone\":\"\", \"location\":\"\", \"age\":\"\", \"gender\":\"\", \"yearsOfExperience\":\"\", \"educationLevel\":\"\", \"wechat\":\"\", \"website\":\"\", \"linkedin\":\"\", \"github\":\"\" }\n\
     - summary: { \"text\":\"\" }\n\
-    - work_experience: { \"items\":[ { \"id\":\"\", \"company\":\"\", \"position\":\"\", \"location\":\"\", \"startDate\":\"YYYY.MM\", \"endDate\":\"YYYY.MM 或 null\", \"current\":false, \"description\":\"\", \"technologies\":[], \"highlights\":[\"逐条成就/职责，每条一句\"] } ] }\n\
-    - education: { \"items\":[ { \"id\":\"\", \"institution\":\"\", \"degree\":\"\", \"field\":\"专业\", \"location\":\"\", \"startDate\":\"YYYY.MM\", \"endDate\":\"YYYY.MM\", \"gpa\":\"\", \"highlights\":[] } ] }\n\
+    - work_experience: { \"items\":[ { \"id\":\"\", \"company\":\"\", \"position\":\"\", \"location\":\"\", \"startDate\":\"YYYY-MM\", \"endDate\":\"YYYY-MM 或 null\", \"current\":false, \"description\":\"\", \"technologies\":[], \"highlights\":[\"逐条成就/职责，每条一句\"] } ] }\n\
+    - education: { \"items\":[ { \"id\":\"\", \"institution\":\"\", \"degree\":\"\", \"field\":\"专业\", \"location\":\"\", \"startDate\":\"YYYY-MM\", \"endDate\":\"YYYY-MM\", \"gpa\":\"\", \"highlights\":[] } ] }\n\
     - skills: { \"categories\":[ { \"id\":\"\", \"name\":\"分类名\", \"skills\":[\"技能\"] } ] }\n\
     - projects: { \"items\":[ { \"id\":\"\", \"name\":\"\", \"url\":\"\", \"startDate\":\"\", \"endDate\":\"\", \"description\":\"\", \"technologies\":[], \"highlights\":[] } ] }\n\
     - certifications: { \"items\":[ { \"id\":\"\", \"name\":\"\", \"issuer\":\"\", \"date\":\"\", \"url\":\"\" } ] }\n\
@@ -359,7 +359,7 @@ pub fn parse_resume_prompt(extracted_text: &str, language: &str) -> (String, Str
         "You are a resume parsing expert. Extract structured data from the given resume text in {}.\n\
         Rules:\n\
         - Extract FAITHFULLY: preserve the candidate's original wording, numbers, and dates exactly; do NOT rewrite, embellish, or invent content\n\
-        - Normalize date formats to YYYY.MM where the original is unambiguous\n\
+        - Normalize date formats to YYYY-MM where the original is unambiguous\n\
         - Map content to the closest section type; use \"custom\" only when nothing fits\n\
         - If the text is garbled or clearly not a resume, still return valid JSON with whatever fields are recoverable\n\
         CRITICAL: Return a single valid JSON object. No markdown, no code fences.\n\

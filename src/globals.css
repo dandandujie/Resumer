@@ -2,6 +2,12 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+@font-face { font-family: 'Reseumer Hei'; src: url('/fonts/NotoSansSC-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Reseumer Hei'; src: url('/fonts/NotoSansSC-Bold.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'Reseumer Song'; src: url('/fonts/NotoSerifSC-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Reseumer Song'; src: url('/fonts/NotoSerifSC-Bold.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'Reseumer Kai'; src: url('/fonts/LXGWWenKai-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+
 /* Keep the class-based dark variant registered so stray `dark:` utilities in
    components stay inert (the app is deliberately light-only — the `.dark`
    class is never applied). Without this, Tailwind's default media-query dark

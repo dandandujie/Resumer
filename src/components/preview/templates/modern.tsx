@@ -17,6 +17,8 @@ import type {
   GitHubContent,
 } from '@/types/resume';
 import { isSectionEmpty, md } from '../utils';
+import { formatDateRange } from '@/lib/resume-date';
+import { resolveTheme } from '@/lib/theme-config';
 import { AvatarImage } from '../avatar-image';
 import { QrCodesPreview } from '../qr-codes-preview';
 import { useEditorStore } from '@/stores/editor-store';
@@ -40,10 +42,8 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-function getDateRange(startDate?: string, endDate?: string | null, presentLabel = 'Present') {
-  if (!startDate) return '';
-  const tail = endDate || presentLabel;
-  return tail ? `${startDate} - ${tail}` : startDate;
+function getDateRange(startDate?: string, endDate?: string | null, current = false, style: any = 'dot', lang = 'en') {
+  return formatDateRange(startDate, endDate, { current, style, lang });
 }
 
 function EmptySectionPlaceholder({ lang, dark }: { lang?: string; dark?: boolean }) {
@@ -58,7 +58,7 @@ function EmptySectionPlaceholder({ lang, dark }: { lang?: string; dark?: boolean
     >
       <div className={cn('h-2.5 w-24 rounded-full', dark ? 'bg-white/25' : 'bg-zinc-200/80')} />
       <div className={cn('mt-2 h-2.5 w-full max-w-[16rem] rounded-full', dark ? 'bg-white/15' : 'bg-zinc-100')} />
-      <p className={cn('mt-3 text-xs', dark ? 'text-white/70' : 'text-zinc-400')}>
+      <p className={cn('mt-3 text-xs', dark ? 'text-white/70' : 'text-[var(--resume-body-color)]')}>
         {lang === 'zh' ? '填写后会显示在这里' : 'Content will appear here'}
       </p>
     </div>
@@ -68,6 +68,8 @@ function EmptySectionPlaceholder({ lang, dark }: { lang?: string; dark?: boolean
 export function ModernTemplate({ resume, interactive, onReorderSections }: { resume: Resume; interactive?: boolean; onReorderSections?: (sections: ResumeSection[]) => void }) {
   const personalInfo = resume.sections.find((s) => s.type === 'personal_info');
   const pi = (personalInfo?.content || {}) as PersonalInfoContent;
+  const theme = resolveTheme(resume.themeConfig);
+  const isZh = resume.language !== 'en';
   const { selectedSectionId, selectSection } = useEditorStore();
   const pendingProposals = useProposalsStore((s) =>
     interactive ? s.proposals : null
@@ -145,10 +147,10 @@ export function ModernTemplate({ resume, interactive, onReorderSections }: { res
       lang={resume.language}
       pendingChange={pendingSectionChanges.get(section.id)}
       compact={compact}
+      theme={theme}
     />
   );
 
-  const isZh = resume.language !== 'en';
   // Full personal-info field list (matches classic), shown as plain "label: value"
   // text lines — no icons — per the requested style.
   const personalFields: [keyof PersonalInfoContent, string][] = [
@@ -187,7 +189,7 @@ export function ModernTemplate({ resume, interactive, onReorderSections }: { res
                 className="mx-auto mb-4 block ring-4 ring-white/20"
               />
             )}
-            <h1 className="mb-1 text-2xl font-bold tracking-tight">{pi.fullName || 'Your Name'}</h1>
+            <h1 className="mb-1 text-2xl font-bold tracking-tight">{pi.fullName || (isZh ? '姓名' : 'Your Name')}</h1>
             {pi.jobTitle && <p className="text-sm font-medium text-slate-300">{pi.jobTitle}</p>}
           </div>
 
@@ -238,6 +240,7 @@ function PreviewSection({
   lang,
   pendingChange,
   compact = false,
+  theme,
 }: {
   section: ResumeSection;
   dndEnabled?: boolean;
@@ -246,6 +249,7 @@ function PreviewSection({
   lang?: string;
   pendingChange?: 'added' | 'modified' | 'removed';
   compact?: boolean;
+  theme: ReturnType<typeof resolveTheme>;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: section.id,
@@ -274,13 +278,13 @@ function PreviewSection({
         <button
           {...attributes}
           {...listeners}
-          className="absolute -left-6 top-0 hidden cursor-grab p-1 text-zinc-400 hover:text-zinc-600 group-hover:block active:cursor-grabbing"
+          className="absolute -left-6 top-0 hidden cursor-grab p-1 text-[var(--resume-body-color)] hover:text-[var(--resume-body-color)] group-hover:block active:cursor-grabbing"
         >
           <GripVertical className="h-4 w-4" />
         </button>
       )}
 
-      <h3 className={cn("font-bold uppercase tracking-wide", compact ? "text-xs mb-2 text-white/90" : "text-sm mb-3 text-zinc-800 border-b-2 border-zinc-300 pb-1")}>
+      <h3 className={cn("font-bold", compact ? "text-xs mb-2 text-white/90" : "text-sm mb-3 text-[var(--resume-body-color)] border-b-2 border-zinc-300 pb-1")}>
         {section.title}
       </h3>
 
@@ -289,19 +293,19 @@ function PreviewSection({
       ) : (
         <div className={compact ? "text-white/80 space-y-2" : "space-y-3"}>
           {section.type === 'summary' && (
-            <div className="text-sm leading-relaxed text-zinc-700" dangerouslySetInnerHTML={{ __html: md((content as SummaryContent).text || '') }} />
+            <div className="text-sm leading-relaxed text-[var(--resume-body-color)]" dangerouslySetInnerHTML={{ __html: md((content as SummaryContent).text || '') }} />
           )}
           {section.type === 'work_experience' && (
             (content as WorkExperienceContent).items?.map((item: any) => (
               <div key={item.id} className={compact ? "space-y-0.5" : "space-y-1"}>
                 <div className="flex items-baseline justify-between">
                   <span className="font-semibold">{item.position}</span>
-                  <span className={cn("text-xs", compact ? "text-white/60" : "text-zinc-500")}>{getDateRange(item.startDate, item.endDate, item.current ? (lang === 'zh' ? '至今' : 'Present') : undefined)}</span>
+                  <span className={cn("text-xs", compact ? "text-white/60" : "text-[var(--resume-body-color)]")}>{getDateRange(item.startDate, item.endDate, Boolean(item.current), theme.dateStyle, lang)}</span>
                 </div>
-                <div className={cn("text-xs", compact ? "text-white/70" : "text-zinc-600")}>{item.company}{item.location && ` · ${item.location}`}</div>
-                {item.description && <div className="text-xs text-zinc-500" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
+                <div className={cn("text-xs", compact ? "text-white/70" : "text-[var(--resume-body-color)]")}>{item.company}{item.location && ` · ${item.location}`}</div>
+                {item.description && <div className="text-xs text-[var(--resume-body-color)]" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
                 {item.highlights && item.highlights.length > 0 && (
-                  <ul className="ml-4 list-disc space-y-0.5 text-xs text-zinc-600">
+                  <ul className="ml-4 list-disc space-y-0.5 text-xs text-[var(--resume-body-color)]">
                     {item.highlights.map((h: string, i: number) => <li key={i} dangerouslySetInnerHTML={{ __html: md(h) }} />)}
                   </ul>
                 )}
@@ -313,19 +317,19 @@ function PreviewSection({
               <div key={item.id} className="space-y-0.5">
                 <div className="flex items-baseline justify-between">
                   <span className="font-semibold text-sm">{item.degree}</span>
-                  <span className={cn("text-xs", compact ? "text-white/60" : "text-zinc-500")}>{getDateRange(item.startDate, item.endDate)}</span>
+                  <span className={cn("text-xs", compact ? "text-white/60" : "text-[var(--resume-body-color)]")}>{getDateRange(item.startDate, item.endDate, Boolean(item.current), theme.dateStyle, lang)}</span>
                 </div>
-                <div className={cn("text-xs", compact ? "text-white/70" : "text-zinc-600")}>{item.institution}{item.field && ` · ${item.field}`}</div>
+                <div className={cn("text-xs", compact ? "text-white/70" : "text-[var(--resume-body-color)]")}>{item.institution}{item.field && ` · ${item.field}`}</div>
               </div>
             ))
           )}
           {section.type === 'skills' && (
             (content as SkillsContent).categories?.map((cat: any) => (
               <div key={cat.id} className="space-y-1">
-                <div className={cn("font-semibold text-xs", compact ? "text-white/90" : "text-zinc-700")}>{cat.name}</div>
+                <div className={cn("font-semibold text-xs", compact ? "text-white/90" : "text-[var(--resume-body-color)]")}>{cat.name}</div>
                 <div className={cn("flex flex-wrap gap-1.5", compact && "text-xs")}>
                   {cat.skills?.map((skill: string, i: number) => (
-                    <span key={i} className={cn("rounded px-2 py-0.5 text-xs font-medium", compact ? "bg-white/10 text-white/80" : "bg-zinc-100 text-zinc-700")}>
+                    <span key={i} className={cn("rounded px-2 py-0.5 text-xs font-medium", compact ? "bg-white/10 text-white/80" : "bg-zinc-100 text-[var(--resume-body-color)]")}>
                       {skill}
                     </span>
                   ))}
@@ -337,11 +341,11 @@ function PreviewSection({
             (content as ProjectsContent).items?.map((item: any) => (
               <div key={item.id} className="space-y-1">
                 <div className="font-semibold text-sm">{item.name}</div>
-                {item.description && <div className="text-xs text-zinc-600" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
+                {item.description && <div className="text-xs text-[var(--resume-body-color)]" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
                 {item.technologies && item.technologies.length > 0 && (
                   <div className="flex flex-wrap gap-1">
                     {item.technologies.map((tech: string, i: number) => (
-                      <span key={i} className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600">{tech}</span>
+                      <span key={i} className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-[var(--resume-body-color)]">{tech}</span>
                     ))}
                   </div>
                 )}
@@ -352,7 +356,7 @@ function PreviewSection({
             (content as LanguagesContent).items?.map((item: any) => (
               <div key={item.id} className="flex items-baseline justify-between text-xs">
                 <span className="font-medium">{item.language}</span>
-                <span className={compact ? "text-white/60" : "text-zinc-500"}>{item.proficiency}</span>
+                <span className={compact ? "text-white/60" : "text-[var(--resume-body-color)]"}>{item.proficiency}</span>
               </div>
             ))
           )}
@@ -360,7 +364,7 @@ function PreviewSection({
             (content as CertificationsContent).items?.map((item: any) => (
               <div key={item.id} className="space-y-0.5">
                 <div className="font-semibold text-sm">{item.name}</div>
-                <div className={cn("text-xs", compact ? "text-white/70" : "text-zinc-600")}>{item.issuer}{item.date && ` · ${item.date}`}</div>
+                <div className={cn("text-xs", compact ? "text-white/70" : "text-[var(--resume-body-color)]")}>{item.issuer}{item.date && ` · ${item.date}`}</div>
               </div>
             ))
           )}
@@ -368,19 +372,19 @@ function PreviewSection({
             (content as CustomContent).items?.map((item: any) => (
               <div key={item.id} className="space-y-1">
                 <div className="font-semibold text-sm">{item.title}</div>
-                {item.subtitle && <div className="text-xs text-zinc-600">{item.subtitle}</div>}
-                {item.description && <div className="text-sm text-zinc-700" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
+                {item.subtitle && <div className="text-xs text-[var(--resume-body-color)]">{item.subtitle}</div>}
+                {item.description && <div className="text-sm text-[var(--resume-body-color)]" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
               </div>
             ))
           )}
-          {section.type === 'qr-codes' && <QrCodesPreview items={(content as any).items || []} />}
+          {section.type === 'qr-codes' && <QrCodesPreview items={(content as any).items || []} svgs={(content as any)._qrSvgs} />}
           {section.type === 'github' && (
             <div className="space-y-2">
               {(content as GitHubContent).items?.map((repo: any) => (
                 <div key={repo.id} className="space-y-1">
                   <div className="font-semibold text-sm">{repo.name}</div>
-                  {repo.description && <div className="text-xs text-zinc-600">{repo.description}</div>}
-                  <div className="flex items-center gap-3 text-[10px] text-zinc-500">
+                  {repo.description && <div className="text-xs text-[var(--resume-body-color)]">{repo.description}</div>}
+                  <div className="flex items-center gap-3 text-[10px] text-[var(--resume-body-color)]">
                     {repo.language && <span>● {repo.language}</span>}
                     {repo.stars != null && <span>⭐ {repo.stars}</span>}
                   </div>

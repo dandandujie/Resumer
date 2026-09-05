@@ -5,7 +5,7 @@ use tauri_plugin_dialog::DialogExt;
 
 use crate::db::AppDb;
 use crate::db::repo::resume as resume_repo;
-use crate::export::{pdf, txt, md, docx};
+use crate::export::{pdf, txt, md, docx, date::{DateStyle}};
 use super::CommandError;
 
 #[derive(serde::Deserialize)]
@@ -105,7 +105,8 @@ pub async fn export_txt(
     };
 
     let sections_values: Vec<Value> = resume.sections.iter().map(|s| serde_json::to_value(s).unwrap_or_default()).collect();
-    let text = txt::generate_plain_text(&sections_values);
+    let style = match resume.resume.theme_config.get("dateStyle").and_then(|v| v.as_str()) { Some("dash") => DateStyle::Dash, Some("cn") => DateStyle::Cn, _ => DateStyle::Dot };
+    let text = txt::generate_plain_text(&sections_values, style, &resume.resume.language);
 
     let default_name = filename.unwrap_or_else(|| format!("{}.txt", resume.resume.title));
     let path = pick_save_path(&app, &default_name, "txt").await;
@@ -133,7 +134,8 @@ pub async fn export_markdown(
     };
 
     let sections_values: Vec<Value> = resume.sections.iter().map(|s| serde_json::to_value(s).unwrap_or_default()).collect();
-    let text = md::generate_markdown(&sections_values);
+    let style = match resume.resume.theme_config.get("dateStyle").and_then(|v| v.as_str()) { Some("dash") => DateStyle::Dash, Some("cn") => DateStyle::Cn, _ => DateStyle::Dot };
+    let text = md::generate_markdown(&sections_values, style, &resume.resume.language);
 
     let default_name = filename.unwrap_or_else(|| format!("{}.md", resume.resume.title));
     let path = pick_save_path(&app, &default_name, "md").await;
@@ -196,7 +198,7 @@ pub async fn export_docx(
         None => return Ok(None),
     };
 
-    docx::generate_docx(&resume.resume.title, &sections_values, &path)
+    docx::generate_docx(&resume.resume.title, &sections_values, &resume.resume.language, &path)
         .map_err(|e| CommandError { message: e })?;
 
     Ok(Some(path.to_string_lossy().to_string()))

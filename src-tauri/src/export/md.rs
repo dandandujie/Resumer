@@ -1,4 +1,5 @@
 use serde_json::Value;
+use super::date::{format_range, DateStyle};
 
 fn gstr<'a>(v: &'a Value, key: &str) -> &'a str {
     v.get(key).and_then(|x| x.as_str()).unwrap_or("")
@@ -14,23 +15,18 @@ fn garr_str(v: &Value, key: &str) -> Vec<String> {
     }).unwrap_or_default()
 }
 
-fn date_range(item: &Value) -> String {
+fn date_range(item: &Value, style: DateStyle, lang: &str) -> String {
     let start = gstr(item, "startDate");
     let end = if item.get("current").and_then(|v| v.as_bool()) == Some(true) {
         "至今".to_string()
     } else {
         gstr(item, "endDate").to_string()
     };
-    match (start.is_empty(), end.is_empty()) {
-        (true, true) => String::new(),
-        (false, true) => start.to_string(),
-        (true, false) => end,
-        (false, false) => format!("{} – {}", start, end),
-    }
+    format_range(start, &end, item.get("current").and_then(|v| v.as_bool()).unwrap_or(false), style, lang)
 }
 
 /// Generate GitHub-flavored Markdown from a resume's sections array.
-pub fn generate_markdown(sections: &[Value]) -> String {
+pub fn generate_markdown(sections: &[Value], style: DateStyle, lang: &str) -> String {
     let mut out: Vec<String> = Vec::new();
 
     for section in sections {
@@ -72,7 +68,7 @@ pub fn generate_markdown(sections: &[Value]) -> String {
                 for item in garr(&content, "items") {
                     let position = gstr(item, "position");
                     let company = gstr(item, "company");
-                    let range = date_range(item);
+                    let range = date_range(item, style, lang);
                     let location = gstr(item, "location");
                     let mut head = format!("### {}", position);
                     if !company.is_empty() { head.push_str(&format!(" · {}", company)); }
@@ -97,7 +93,7 @@ pub fn generate_markdown(sections: &[Value]) -> String {
                     let field = gstr(item, "field");
                     let head: Vec<String> = [inst, degree, field].into_iter().filter(|s| !s.is_empty()).map(String::from).collect();
                     out.push(format!("### {}", head.join(" · ")));
-                    let range = date_range(item);
+                    let range = date_range(item, style, lang);
                     let location = gstr(item, "location");
                     let meta: Vec<String> = [range, location.to_string()].into_iter().filter(|s| !s.is_empty()).collect();
                     if !meta.is_empty() { out.push(format!("*{}*", meta.join(" · "))); }
