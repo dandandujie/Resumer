@@ -1,13 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocale, useTranslations } from 'next-intl';
-import i18n from '@/i18n';
+import { useTranslations } from 'next-intl';
 import {
   Settings,
-  Cpu,
-  Paintbrush,
-  PenTool,
   Eye,
   EyeOff,
   ChevronsUpDown,
@@ -17,15 +13,10 @@ import {
   PlugZap,
   CheckCircle2,
   AlertCircle,
-  Globe,
-  Copy,
   Plus,
   X,
-  Search,
   PenLine,
 } from 'lucide-react';
-import { toast } from 'sonner';
-import { logError } from '@/stores/error-log-store';
 import * as tauriApi from '@/lib/tauri-api';
 import {
   Dialog,
@@ -35,12 +26,9 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { Slider } from '@/components/ui/slider';
 import {
   Select,
   SelectContent,
@@ -48,12 +36,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useUIStore } from '@/stores/ui-store';
 import { useSettingsStore, type AIProvider } from '@/stores/settings-store';
-import { usePathname, useRouter } from '@/i18n/routing';
-import { locales, localeNames } from '@/i18n/config';
 import { cn } from '@/lib/utils';
 
 const AI_PROVIDERS: { value: AIProvider; label: string }[] = [
@@ -80,31 +65,12 @@ interface AiConnectionTestResult {
 export function SettingsDialog() {
   const t = useTranslations('settings');
   const tCommon = useTranslations('common');
-  const locale = useLocale();
-  const router = useRouter();
-  const pathname = usePathname();
-  const { activeModal, closeModal, settingsTab, setSettingsTab } = useUIStore();
+  const { activeModal, closeModal } = useUIStore();
   const {
     aiProvider,
     aiApiKey,
     aiBaseURL,
     aiModel,
-    autoSave,
-    autoSaveInterval,
-    setAIProvider,
-    setAIApiKey,
-    setAIBaseURL,
-    setAIModel,
-    setAutoSave,
-    setAutoSaveInterval,
-    tavilyApiKey,
-    setTavilyApiKey,
-    grokApiKey,
-    grokBaseURL,
-    grokModel,
-    setGrokApiKey,
-    setGrokBaseURL,
-    setGrokModel,
     channels,
     activeChannelId,
     selectChannel,
@@ -113,8 +79,6 @@ export function SettingsDialog() {
     deleteChannel,
     toggleChannelModel,
     setChannelModels,
-    hydrate,
-    _hydrated,
   } = useSettingsStore();
 
   const activeChannel = channels.find((c) => c.id === activeChannelId) || null;
@@ -124,41 +88,8 @@ export function SettingsDialog() {
     },
     [activeChannelId, updateChannel]
   );
-  const [showTavilyKey, setShowTavilyKey] = useState(false);
-  const [showGrokKey, setShowGrokKey] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const isOpen = activeModal === 'settings';
-
-  // Browser driver tab state
-  const [driverInfo, setDriverInfo] = useState<tauriApi.BrowserDriverInfo | null>(null);
-  const [driverLoading, setDriverLoading] = useState(false);
-
-  const refreshDriverInfo = useCallback(async () => {
-    setDriverLoading(true);
-    try {
-      setDriverInfo(await tauriApi.browserDriverInfo());
-    } catch {
-      setDriverInfo(null);
-    } finally {
-      setDriverLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isOpen && settingsTab === 'browser') {
-      void refreshDriverInfo();
-    }
-  }, [isOpen, settingsTab, refreshDriverInfo]);
-
-  const copyUserscript = useCallback(async () => {
-    try {
-      const script = await tauriApi.browserDriverUserscript();
-      await navigator.clipboard.writeText(script);
-      toast.success(t('browser.copied'));
-    } catch {
-      logError(t('browser.copyFailed'));
-    }
-  }, [t]);
 
   // Model combobox state
   const [modelOpen, setModelOpen] = useState(false);
@@ -180,20 +111,9 @@ export function SettingsDialog() {
   const [connectionState, setConnectionState] = useState<ConnectionState>('idle');
   const [connectionMessage, setConnectionMessage] = useState('');
   const [isTestingConnection, setIsTestingConnection] = useState(false);
-  // Grok search-backend probe (independent of the main provider config).
-  const [grokModels, setGrokModels] = useState<string[]>([]);
-  const [grokProbing, setGrokProbing] = useState<'idle' | 'models' | 'test'>('idle');
-  const [grokProbeState, setGrokProbeState] = useState<ConnectionState>('idle');
-  const [grokProbeMsg, setGrokProbeMsg] = useState('');
   const modelSearchRef = useRef<HTMLInputElement>(null);
   const canQueryAI = Boolean(aiApiKey.trim() && aiBaseURL.trim());
   const queriedModelSignatureRef = useRef('');
-
-  useEffect(() => {
-    if (isOpen && !_hydrated) {
-      hydrate();
-    }
-  }, [isOpen, _hydrated, hydrate]);
 
   const buildAIConfig = useCallback(() => ({
     provider: aiProvider,
@@ -227,8 +147,7 @@ export function SettingsDialog() {
     queriedModelSignatureRef.current = modelQuerySignature;
     setModelsFetching(true);
     try {
-      const { aiListModels } = await import('@/lib/tauri-api');
-      const models: AiModelOption[] = await aiListModels(buildAIConfig());
+      const models: AiModelOption[] = await tauriApi.aiListModels(buildAIConfig());
       applyFetchedModels(models);
       if (!silent) {
         setConnectionState('success');
@@ -263,8 +182,7 @@ export function SettingsDialog() {
 
     setIsTestingConnection(true);
     try {
-      const { aiTestConnection } = await import('@/lib/tauri-api');
-      const result: AiConnectionTestResult = await aiTestConnection(buildAIConfig());
+      const result: AiConnectionTestResult = await tauriApi.aiTestConnection(buildAIConfig());
       applyFetchedModels(result.models || []);
 
       if (result.currentModel && !result.currentModelAvailable) {
@@ -282,48 +200,6 @@ export function SettingsDialog() {
     }
   }, [applyFetchedModels, buildAIConfig, canQueryAI, t]);
 
-  const handleGrokFetchModels = useCallback(async () => {
-    if (!grokApiKey.trim()) {
-      setGrokProbeState('error');
-      setGrokProbeMsg(t('webSearch.grokKeyRequired'));
-      return;
-    }
-    setGrokProbing('models');
-    try {
-      const models = await tauriApi.grokListModels({ apiKey: grokApiKey, baseUrl: grokBaseURL, model: grokModel });
-      const ids = Array.from(new Set((models || []).map((m: any) => m.id).filter(Boolean))) as string[];
-      setGrokModels(ids);
-      setGrokProbeState('success');
-      setGrokProbeMsg(t('webSearch.grokModelsUpdated', { count: ids.length }));
-    } catch (error: any) {
-      setGrokProbeState('error');
-      setGrokProbeMsg(error?.message || t('webSearch.grokConnectionFailed'));
-    } finally {
-      setGrokProbing('idle');
-    }
-  }, [grokApiKey, grokBaseURL, grokModel, t]);
-
-  const handleGrokTest = useCallback(async () => {
-    if (!grokApiKey.trim()) {
-      setGrokProbeState('error');
-      setGrokProbeMsg(t('webSearch.grokKeyRequired'));
-      return;
-    }
-    setGrokProbing('test');
-    try {
-      const result: any = await tauriApi.grokTestConnection({ apiKey: grokApiKey, baseUrl: grokBaseURL, model: grokModel });
-      const ids = Array.from(new Set((result?.models || []).map((m: any) => m.id).filter(Boolean))) as string[];
-      if (ids.length) setGrokModels(ids);
-      setGrokProbeState('success');
-      setGrokProbeMsg(t('webSearch.grokConnectionOk', { count: result?.modelCount ?? ids.length }));
-    } catch (error: any) {
-      setGrokProbeState('error');
-      setGrokProbeMsg(error?.message || t('webSearch.grokConnectionFailed'));
-    } finally {
-      setGrokProbing('idle');
-    }
-  }, [grokApiKey, grokBaseURL, grokModel, t]);
-
   useEffect(() => {
     queriedModelSignatureRef.current = '';
     setModelsFetched(false);
@@ -338,7 +214,7 @@ export function SettingsDialog() {
   }, [aiModel]);
 
   useEffect(() => {
-    if (!isOpen || settingsTab !== 'ai') return;
+    if (!isOpen) return;
     if (!canQueryAI) return;
     if (queriedModelSignatureRef.current === modelQuerySignature) return;
 
@@ -347,7 +223,7 @@ export function SettingsDialog() {
     }, 500);
 
     return () => window.clearTimeout(timeout);
-  }, [isOpen, settingsTab, canQueryAI, modelQuerySignature]);
+  }, [isOpen, canQueryAI, modelQuerySignature]);
 
   useEffect(() => {
     if (modelOpen && canQueryAI && !modelsFetched && !modelsFetching) {
@@ -383,48 +259,19 @@ export function SettingsDialog() {
     if (!pickerOpen) setPickerSearch('');
   }, [pickerOpen]);
 
-  const handleLocaleChange = (newLocale: string) => {
-    i18n.changeLanguage(newLocale);
-    const parts = pathname.split('/');
-    const supported = ['zh', 'en'];
-    if (parts.length > 1 && supported.includes(parts[1])) {
-      parts[1] = newLocale;
-      router.replace(parts.join('/'));
-    } else {
-      router.replace(`/${newLocale}${pathname}`);
-    }
-  };
-
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && closeModal()}>
       <DialogContent className="sm:max-w-[760px] p-0 gap-0">
-        <DialogHeader className="px-6 pt-6 pb-0">
+        <DialogHeader className="border-b border-border px-6 pb-4 pt-6">
           <DialogTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5 text-muted-foreground" />
-            {t('title')}
+            {t('ai.title')}
           </DialogTitle>
+          <DialogDescription>{t('ai.description')}</DialogDescription>
         </DialogHeader>
 
-        <Tabs value={settingsTab} onValueChange={setSettingsTab} className="mt-4">
-          <div className="px-6">
-            <TabsList className="w-full">
-              <TabsTrigger value="ai" className="flex-1 gap-1.5 cursor-pointer">
-                <Cpu className="h-3.5 w-3.5" />
-                {t('ai.title')}
-              </TabsTrigger>
-              <TabsTrigger value="search" className="flex-1 gap-1.5 cursor-pointer">
-                <Search className="h-3.5 w-3.5" />
-                {t('webSearch.title')}
-              </TabsTrigger>
-              <TabsTrigger value="browser" className="flex-1 gap-1.5 cursor-pointer">
-                <Globe className="h-3.5 w-3.5" />
-                {t('browser.title')}
-              </TabsTrigger>
-            </TabsList>
-          </div>
-
-          {/* AI Configuration Tab — left channel rail + right config panel */}
-          <TabsContent value="ai" className="p-0">
+        {/* 左：渠道列表；右：选中渠道的配置 */}
+        <div>
             <div className="flex h-[64vh]">
               {/* Left: channel rail */}
               <div className="flex w-44 shrink-0 flex-col border-r border-border">
@@ -833,201 +680,7 @@ export function SettingsDialog() {
                 )}
               </div>
             </div>
-          </TabsContent>
-
-          {/* Web Search Tab */}
-          <TabsContent value="search" className="max-h-[64vh] space-y-4 overflow-y-auto px-6 pb-6 pt-4">
-            {/* Web search — credentials only. Enable/mode lives per-chat. */}
-            <div className="space-y-4 rounded-lg border border-border bg-muted/60 p-3">
-              <div className="space-y-1">
-                <Label className="text-[13px]">{t('webSearch.title')}</Label>
-                <p className="text-xs text-muted-foreground">{t('webSearch.settingsScopeHint')}</p>
-              </div>
-
-              {/* Tavily */}
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">{t('webSearch.tavily')}</Label>
-                <div className="relative">
-                  <Input
-                    type={showTavilyKey ? 'text' : 'password'}
-                    value={tavilyApiKey}
-                    onChange={(e) => setTavilyApiKey(e.target.value)}
-                    placeholder="tvly-..."
-                    className="pr-10"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground"
-                    onClick={() => setShowTavilyKey(!showTavilyKey)}
-                  >
-                    {showTavilyKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                  </Button>
-                </div>
-              </div>
-
-              {/* Grok (xAI) */}
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">{t('webSearch.grok')}</Label>
-                <p className="text-[11px] leading-relaxed text-muted-foreground">{t('webSearch.grokHint')}</p>
-                <Input
-                  value={grokBaseURL}
-                  onChange={(e) => setGrokBaseURL(e.target.value)}
-                  placeholder="https://api.x.ai/v1"
-                />
-                {grokModels.length > 0 ? (
-                  <Select value={grokModel} onValueChange={setGrokModel}>
-                    <SelectTrigger size="sm" className="h-9 w-full cursor-pointer">
-                      <SelectValue placeholder="grok-4-fast" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {grokModels.map((id) => (
-                        <SelectItem key={id} value={id} className="cursor-pointer text-xs">{id}</SelectItem>
-                      ))}
-                      {grokModel && !grokModels.includes(grokModel) && (
-                        <SelectItem value={grokModel} className="cursor-pointer text-xs">{grokModel}</SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input
-                    value={grokModel}
-                    onChange={(e) => setGrokModel(e.target.value)}
-                    placeholder="grok-4-fast"
-                  />
-                )}
-                <div className="relative">
-                  <Input
-                    type={showGrokKey ? 'text' : 'password'}
-                    value={grokApiKey}
-                    onChange={(e) => setGrokApiKey(e.target.value)}
-                    placeholder="xai-..."
-                    className="pr-10"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground"
-                    onClick={() => setShowGrokKey(!showGrokKey)}
-                  >
-                    {showGrokKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                  </Button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => void handleGrokFetchModels()}
-                    disabled={!grokApiKey.trim() || grokProbing !== 'idle'}
-                    className="cursor-pointer"
-                  >
-                    {grokProbing === 'models' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                    <span>{grokProbing === 'models' ? t('webSearch.grokFetchingModels') : t('webSearch.grokFetchModels')}</span>
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => void handleGrokTest()}
-                    disabled={!grokApiKey.trim() || grokProbing !== 'idle'}
-                    className="cursor-pointer bg-brand hover:bg-brand-hover"
-                  >
-                    {grokProbing === 'test' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlugZap className="h-3.5 w-3.5" />}
-                    <span>{grokProbing === 'test' ? t('webSearch.grokTesting') : t('webSearch.grokTestConnection')}</span>
-                  </Button>
-                </div>
-                {grokProbeState !== 'idle' && (
-                  <div
-                    className={cn(
-                      'flex items-start gap-2 rounded-md px-3 py-2 text-xs',
-                      grokProbeState === 'success' && 'bg-emerald-50 text-emerald-700',
-                      grokProbeState === 'warning' && 'bg-amber-50 text-amber-700',
-                      grokProbeState === 'error' && 'bg-red-50 text-red-700'
-                    )}
-                  >
-                    {grokProbeState === 'success' ? (
-                      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    ) : (
-                      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    )}
-                    <span className="leading-relaxed break-all">{grokProbeMsg}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* Browser Driver Tab */}
-          <TabsContent value="browser" className="px-6 pb-6 pt-4 space-y-4">
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              {t('browser.description')}
-            </p>
-
-            {/* Connection status */}
-            <div className="space-y-2 rounded-lg border border-border bg-muted/60 p-3">
-              <div className="flex items-center justify-between">
-                <Label className="text-[13px]">{t('browser.status')}</Label>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => void refreshDriverInfo()}
-                  disabled={driverLoading}
-                  className="h-7 cursor-pointer gap-1.5 text-xs"
-                >
-                  {driverLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                  {t('browser.refresh')}
-                </Button>
-              </div>
-              {driverInfo ? (
-                <>
-                  <p className="text-xs text-muted-foreground">
-                    {t('browser.listening', { port: driverInfo.port })}
-                  </p>
-                  {driverInfo.tabs.length > 0 ? (
-                    <ul className="space-y-1">
-                      {driverInfo.tabs.map((tab) => (
-                        <li key={tab.tabId} className="flex items-center gap-2 rounded-md bg-card px-2.5 py-1.5 text-xs">
-                          <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--whale-mint-deep)]" />
-                          <span className="truncate font-medium text-foreground">{tab.title || tab.url}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">{t('browser.noTabs')}</p>
-                  )}
-                </>
-              ) : (
-                <p className="text-xs text-muted-foreground">{t('browser.notLoaded')}</p>
-              )}
-            </div>
-
-            {/* Install guide */}
-            <div className="space-y-2">
-              <Label className="text-[13px]">{t('browser.installTitle')}</Label>
-              <ol className="list-decimal space-y-1 pl-5 text-xs leading-relaxed text-[var(--whale-ink-soft)]">
-                <li>{t('browser.step1')}</li>
-                <li>{t('browser.step2')}</li>
-                <li>{t('browser.step3')}</li>
-              </ol>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => void copyUserscript()}
-                className="cursor-pointer gap-1.5 bg-brand hover:bg-brand-hover"
-              >
-                <Copy className="h-3.5 w-3.5" />
-                {t('browser.copyScript')}
-              </Button>
-            </div>
-
-            <p className="text-[11px] leading-relaxed text-muted-foreground">
-              {t('browser.privacyNote')}
-            </p>
-          </TabsContent>
-        </Tabs>
+        </div>
       </DialogContent>
     </Dialog>
   );

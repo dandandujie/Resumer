@@ -8,17 +8,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+/** 简历语言只有中/英两种：模板、翻译与生成提示词都只按这两种处理。 */
 export const LANGUAGE_OPTIONS = [
   { value: 'zh', label: '中文', flag: '🇨🇳' },
   { value: 'en', label: 'English', flag: '🇺🇸' },
-  { value: 'ja', label: '日本語', flag: '🇯🇵' },
-  { value: 'ko', label: '한국어', flag: '🇰🇷' },
-  { value: 'fr', label: 'Français', flag: '🇫🇷' },
-  { value: 'de', label: 'Deutsch', flag: '🇩🇪' },
-  { value: 'es', label: 'Español', flag: '🇪🇸' },
-  { value: 'pt', label: 'Português', flag: '🇧🇷' },
-  { value: 'ru', label: 'Русский', flag: '🇷🇺' },
-  { value: 'ar', label: 'العربية', flag: '🇸🇦' },
 ] as const;
 
 interface LanguageSelectProps {

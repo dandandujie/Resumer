@@ -6,9 +6,9 @@ use crate::db::repo::user as repo;
 use super::CommandError;
 
 #[tauri::command]
-pub fn ensure_user(db: State<AppDb>, fingerprint: String) -> Result<repo::User, CommandError> {
+pub fn ensure_user(db: State<AppDb>) -> Result<repo::User, CommandError> {
     let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
-    repo::upsert_by_fingerprint(&conn, &fingerprint).map_err(Into::into)
+    repo::ensure_local_user(&conn).map_err(Into::into)
 }
 
 #[tauri::command]

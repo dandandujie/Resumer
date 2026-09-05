@@ -1,6 +1,6 @@
 [package]
 name = "reseumer"
-version = "0.6.1"
+version = "0.7.0"
 description = "AI-powered resume builder"
 authors = ["liuchen"]
 edition = "2024"
@@ -38,7 +38,6 @@ docx-rs = "0.4"
 zip = "0.6"
 mime_guess = "2"
 which = "6"
-tokio-tungstenite = "0.24"
 
 [profile.release]
 panic = "abort"

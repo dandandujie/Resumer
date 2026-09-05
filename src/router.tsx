@@ -11,8 +11,6 @@ import { WhaleDashboardShell } from '@/components/layout/whale-dashboard-shell';
 // Pages (lazy imports not needed for desktop app)
 import DashboardPage from '@/pages/dashboard';
 import InsightsOverviewPage from '@/pages/insights-overview';
-import InsightsManagePage from '@/pages/insights-manage';
-import AgentPage from '@/pages/agent';
 import EditorPage from '@/pages/editor';
 import PreviewPage from '@/pages/preview';
 
@@ -62,12 +60,10 @@ export function AppRouter() {
       <Route path="/:locale" element={<LocaleProvider />}>
         <Route index element={<Navigate to="dashboard" replace />} />
 
-        {/* Dashboard + Insights — share the Whale shell */}
+        {/* 工作台 + 求职动态共用同一个壳 */}
         <Route element={<WhaleDashboardShell />}>
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="insights" element={<InsightsOverviewPage />} />
-          <Route path="insights/:type" element={<InsightsManagePage />} />
-          <Route path="agent" element={<AgentPage />} />
         </Route>
 
         {/* Editor */}

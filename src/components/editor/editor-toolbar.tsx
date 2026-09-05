@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
-import { ArrowLeft, Undo2, Redo2, Download, Upload, Settings, Palette, Save, Languages, SpellCheck, BookOpenCheck, MoreHorizontal, PenLine, SlidersHorizontal, MessagesSquare } from 'lucide-react';
+import { ArrowLeft, Undo2, Redo2, Download, Upload, Settings, Palette, Save, Languages, SpellCheck, BookOpenCheck, MoreHorizontal, PenLine, SlidersHorizontal, MessagesSquare, FileSearch, Sparkles, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -190,38 +190,66 @@ export function EditorToolbar() {
           </Button>
         )}
 
-        {/* Interview — prominent AI mock-interview entry */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => openModal('interview')}
-          className="shrink-0 cursor-pointer gap-1 text-[var(--whale-ink-soft)] hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]"
-          title={t('interview')}
-        >
-          <MessagesSquare className="h-4 w-4" />
-          <span className="hidden text-xs sm:inline">{t('interview')}</span>
-        </Button>
+        <span className="mx-1 hidden h-5 w-px bg-[var(--whale-divider)] md:inline-block" />
 
-        {/* Desktop: show all secondary buttons */}
-        <div className="hidden items-center gap-1 md:flex">
-          <ToolbarSecondary onClick={() => openModal('export')} title={t('exportPdf')} icon={Download} label={t('exportPdf')} />
-          <ToolbarSecondary onClick={() => openModal('import')} title={t('import')} icon={Upload} label={t('import')} />
-          <ToolbarSecondary onClick={() => openModal('translate')} title={t('translate')} icon={Languages} label={t('translate')} />
-          <ToolbarSecondary onClick={() => openModal('grammar-check')} title={t('grammarCheck')} icon={SpellCheck} label={t('grammarCheck')} />
-          <ToolbarSecondary onClick={() => openModal('cover-letter')} title={t('coverLetter')} icon={PenLine} label={t('coverLetter')} />
+        {/* 求职主线：JD 匹配 → 投递记录 → 模拟面试 */}
+        <div className="hidden items-center gap-0.5 md:flex">
+          <ToolbarSecondary onClick={() => openModal('jd-analysis')} title={t('jdAnalysis')} icon={FileSearch} label={t('jdAnalysis')} />
           <ToolbarSecondary onClick={() => openModal('journal')} title={t('journal')} icon={BookOpenCheck} label={t('journal')} />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => openModal('settings')}
-            className="cursor-pointer text-[var(--whale-ink-soft)] hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]"
-            title={t('settings')}
-          >
-            <Settings className="h-4 w-4" />
-          </Button>
+          <ToolbarSecondary onClick={() => openModal('interview')} title={t('interview')} icon={MessagesSquare} label={t('interview')} />
+          <span className="mx-1 h-5 w-px bg-[var(--whale-divider)]" />
+          <ToolbarSecondary onClick={() => openModal('export')} title={t('exportPdf')} icon={Download} label={t('exportPdf')} />
+
+          {/* 其余 AI 工具收进一个菜单，工具栏不再一字排开十几个按钮 */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="cursor-pointer gap-1 text-[var(--whale-ink-soft)] hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]"
+                title={t('aiTools')}
+              >
+                <Sparkles className="h-4 w-4" />
+                <span className="text-xs">{t('aiTools')}</span>
+                <ChevronDown className="h-3 w-3 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem className="cursor-pointer" onClick={() => openModal('grammar-check')}>
+                <SpellCheck className="mr-2 h-4 w-4" />
+                {t('grammarCheck')}
+              </DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer" onClick={() => openModal('translate')}>
+                <Languages className="mr-2 h-4 w-4" />
+                {t('translate')}
+              </DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer" onClick={() => openModal('cover-letter')}>
+                <PenLine className="mr-2 h-4 w-4" />
+                {t('coverLetter')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 cursor-pointer text-[var(--whale-ink-soft)] hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]" title={t('more')}>
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem className="cursor-pointer" onClick={() => openModal('import')}>
+                <Upload className="mr-2 h-4 w-4" />
+                {t('import')}
+              </DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer" onClick={() => openModal('settings')}>
+                <Settings className="mr-2 h-4 w-4" />
+                {t('settings')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
-        {/* Mobile: "more" dropdown */}
+        {/* 窄屏：全部收进"更多" */}
         <div className="md:hidden">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -230,35 +258,37 @@ export function EditorToolbar() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => openModal('jd-analysis')}>
+                <FileSearch className="mr-2 h-4 w-4" />
+                {t('jdAnalysis')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => openModal('journal')}>
+                <BookOpenCheck className="mr-2 h-4 w-4" />
+                {t('journal')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => openModal('interview')}>
+                <MessagesSquare className="mr-2 h-4 w-4" />
+                {t('interview')}
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => openModal('export')}>
                 <Download className="mr-2 h-4 w-4" />
                 {t('exportPdf')}
               </DropdownMenuItem>
-              {currentResume && (
-                <DropdownMenuItem onClick={() => void flushPendingSave()} disabled={!isDirty || isSaving}>
-                  <Save className="mr-2 h-4 w-4" />
-                  {t('save')}
-                </DropdownMenuItem>
-              )}
               <DropdownMenuItem onClick={() => openModal('import')}>
                 <Upload className="mr-2 h-4 w-4" />
                 {t('import')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => openModal('translate')}>
-                <Languages className="mr-2 h-4 w-4" />
-                {t('translate')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => openModal('grammar-check')}>
                 <SpellCheck className="mr-2 h-4 w-4" />
                 {t('grammarCheck')}
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => openModal('translate')}>
+                <Languages className="mr-2 h-4 w-4" />
+                {t('translate')}
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => openModal('cover-letter')}>
                 <PenLine className="mr-2 h-4 w-4" />
                 {t('coverLetter')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => openModal('journal')}>
-                <BookOpenCheck className="mr-2 h-4 w-4" />
-                {t('journal')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => openModal('settings')}>
                 <Settings className="mr-2 h-4 w-4" />

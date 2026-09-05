@@ -31,7 +31,9 @@ import { ResumeGrid } from '@/components/dashboard/resume-grid';
 import { ResumeListItem } from '@/components/dashboard/resume-list-item';
 import { GenerateResumeDialog } from '@/components/dashboard/generate-resume-dialog';
 import { ImportJsonDialog } from '@/components/dashboard/import-json-dialog';
-import { useJournalStore, aggregateJournal } from '@/stores/journal-store';
+import { useJournalStore, aggregateJournal, buildAgenda } from '@/stores/journal-store';
+import { useLocale } from 'next-intl';
+import { formatDateTime } from '@/components/journal/journal-labels';
 import { cn } from '@/lib/utils';
 import type { Resume } from '@/types/resume';
 
@@ -104,21 +106,20 @@ function EmptyHero({ onCreate, onAiGenerate }: { onCreate: () => void; onAiGener
 function StatsPanel({ resumes, onOpen }: { resumes: Resume[]; onOpen: () => void }) {
   const t = useTranslations('dashboard');
   const tJournal = useTranslations('journal');
+  const locale = useLocale();
   const hydrate = useJournalStore((s) => s.hydrate);
   const applications = useJournalStore((s) => s.applications);
-  const mocks = useJournalStore((s) => s.mocks);
 
   useEffect(() => {
-    hydrate();
+    void hydrate();
   }, [hydrate]);
 
-  const agg = useMemo(() => aggregateJournal(applications, mocks), [applications, mocks]);
+  const agg = useMemo(() => aggregateJournal(applications), [applications]);
+  const agenda = useMemo(() => buildAgenda(applications).slice(0, 3), [applications]);
   const resumeCount = resumes.length;
-  const hasJournalData =
-    agg.totalApplications + agg.totalInterviews + agg.totalOutcomes > 0;
 
-  // No journal data yet — a quiet, compact pointer beats an empty dashboard.
-  if (!hasJournalData) {
+  // 还没有任何投递：给一个安静的入口，而不是一整块空面板。
+  if (agg.totalApplications === 0) {
     return (
       <button
         type="button"
@@ -144,16 +145,13 @@ function StatsPanel({ resumes, onOpen }: { resumes: Resume[]; onOpen: () => void
       onClick={onOpen}
       className="group relative flex h-full cursor-pointer flex-col gap-5 overflow-hidden rounded-3xl bg-[var(--whale-ink)] p-6 text-[var(--whale-cream)] shadow-[0_24px_48px_-32px_rgba(28,26,23,0.45)] transition-transform hover:-translate-y-0.5"
     >
-      {/* Soft glow blobs */}
       <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-[var(--whale-mint)]/12 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-16 -left-10 h-44 w-44 rounded-full bg-[var(--whale-mint)]/8 blur-3xl" />
 
-      {/* Header — journal badge */}
       <div className="relative">
         <div className="flex items-center justify-between gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--whale-cream)]/55">
           <span className="flex items-center gap-2">
             <span className="relative inline-flex h-5 w-5 items-center justify-center rounded-full bg-[var(--whale-mint)]/20">
-              <span className="absolute inset-0 animate-ping rounded-full bg-[var(--whale-mint)]/30" />
               <BookOpenCheck className="relative h-2.5 w-2.5 text-[var(--whale-mint)]" />
             </span>
             {t('journalTitle')}
@@ -180,30 +178,37 @@ function StatsPanel({ resumes, onOpen }: { resumes: Resume[]; onOpen: () => void
       <div className="relative h-px bg-[var(--whale-cream)]/8" />
 
       <div className="relative grid grid-cols-3 gap-2">
-        <MiniStat label={t('journalInterviews')} value={agg.totalInterviews} />
         <MiniStat label={t('journalPending')} value={agg.pendingCount} accent />
-        <MiniStat label={t('journalRejected')} value={agg.rejectCount} />
+        <MiniStat label={t('journalInterviews')} value={agg.interviewedApplications} />
+        <MiniStat label={t('funnelOverdue')} value={agg.overdueFollowUps} warn={agg.overdueFollowUps > 0} />
       </div>
 
       <div className="relative h-px bg-[var(--whale-cream)]/8" />
 
-      {agg.topCompanies.length > 0 && (
-        <div className="relative">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--whale-cream)]/45">
-            {t('journalTopCompanies')}
-          </div>
-          <ul className="mt-2 space-y-1">
-            {agg.topCompanies.slice(0, 3).map((c) => (
-              <li key={c.company} className="flex items-center justify-between gap-2 text-[12px]">
-                <span className="truncate text-[var(--whale-cream)]/85">{c.company}</span>
-                <span className="tabular-nums text-[var(--whale-cream)]/55">{c.count}</span>
+      {/* 接下来：最近的面试与到期跟进 */}
+      <div className="relative">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--whale-cream)]/45">
+          {t('agendaTitle')}
+        </div>
+        {agenda.length === 0 ? (
+          <p className="mt-2 text-[12px] text-[var(--whale-cream)]/55">{t('agendaEmptyShort')}</p>
+        ) : (
+          <ul className="mt-2 space-y-1.5">
+            {agenda.map((item) => (
+              <li key={`${item.kind}-${item.app.id}-${item.round?.id ?? ''}`} className="flex items-center justify-between gap-2 text-[12px]">
+                <span className="truncate text-[var(--whale-cream)]/85">
+                  {item.app.company || tJournal('untitledCompany')}
+                  <span className="text-[var(--whale-cream)]/45"> · {item.kind === 'interview' ? item.round?.round || tJournal('stageInterview') : tJournal('followUpDue')}</span>
+                </span>
+                <span className={`shrink-0 tabular-nums ${item.kind === 'followUpOverdue' ? 'text-red-300' : 'text-[var(--whale-cream)]/55'}`}>
+                  {item.kind === 'interview' ? formatDateTime(item.round?.scheduledAt, locale) : item.app.nextFollowUp}
+                </span>
               </li>
             ))}
           </ul>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Footer — resume count + click hint */}
       <div className="relative mt-auto flex items-center justify-between text-[11px] text-[var(--whale-cream)]/45">
         <span>
           {resumeCount} / {t('title')}
@@ -214,11 +219,11 @@ function StatsPanel({ resumes, onOpen }: { resumes: Resume[]; onOpen: () => void
   );
 }
 
-function MiniStat({ label, value, accent }: { label: string; value: number; accent?: boolean }) {
+function MiniStat({ label, value, accent, warn }: { label: string; value: number; accent?: boolean; warn?: boolean }) {
   return (
     <div>
       <div className="text-[10px] uppercase tracking-[0.16em] text-[var(--whale-cream)]/45">{label}</div>
-      <div className={`mt-1 text-xl font-semibold tabular-nums ${accent ? 'text-[var(--whale-mint)]' : 'text-[var(--whale-cream)]'}`}>
+      <div className={`mt-1 text-xl font-semibold tabular-nums ${warn ? 'text-red-300' : accent ? 'text-[var(--whale-mint)]' : 'text-[var(--whale-cream)]'}`}>
         {value}
       </div>
     </div>

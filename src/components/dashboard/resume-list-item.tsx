@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { Resume } from '@/types/resume';
+import { ResumeApplicationCount } from './resume-application-count';
 
 interface ResumeListItemProps {
   resume: Resume;
@@ -100,6 +101,7 @@ export function ResumeListItem({ resume, onDelete, onDuplicate, onRename }: Resu
           </h3>
         )}
       </div>
+      <ResumeApplicationCount resumeId={resume.id} className="hidden shrink-0 sm:inline-flex" />
       {/* Last edited */}
       <span className="hidden shrink-0 text-[12px] text-[var(--whale-ink-muted)] sm:inline">
         {resume.updatedAt

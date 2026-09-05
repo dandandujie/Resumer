@@ -2,21 +2,20 @@ import { create } from 'zustand';
 import * as api from '@/lib/tauri-api';
 
 export type AIProvider = 'openai' | 'anthropic' | 'gemini';
-export type WebSearchMode = 'off' | 'native' | 'free' | 'bing' | 'google' | 'baidu' | 'tavily' | 'grok';
 
-/** A saved, named API channel the user can switch between without re-entering config. */
+/** 一个保存好的 API 渠道：协议 + 地址 + Key + 默认模型 + 常用模型列表。 */
 export interface AIChannel {
   id: string;
   name: string;
-  provider: AIProvider; // 模型协议: openai | anthropic | gemini (openai covers all OpenAI-format relays)
+  provider: AIProvider; // 请求协议：openai 兼容所有 OpenAI 格式中转 / anthropic / gemini
   baseURL: string;
   apiKey: string;
   model: string; // 默认模型
-  models: string[]; // 常用模型列表 (empty = show all fetched)
-  builtin?: boolean; // seeded official preset
+  models: string[]; // 常用模型列表（对话框里的模型选择器只显示这些）
+  builtin?: boolean;
 }
 
-/** Official channel presets seeded on first run (keys empty until the user fills them). */
+/** 首次运行时预置的官方渠道（Key 留空等用户填写）。 */
 export const CHANNEL_PRESETS: Array<Omit<AIChannel, 'id' | 'apiKey' | 'models'>> = [
   { name: 'OpenAI', provider: 'openai', baseURL: 'https://api.openai.com/v1', model: 'gpt-4o', builtin: true },
   { name: 'Anthropic', provider: 'anthropic', baseURL: 'https://api.anthropic.com', model: 'claude-sonnet-4-20250514', builtin: true },
@@ -29,39 +28,19 @@ export const CHANNEL_PRESETS: Array<Omit<AIChannel, 'id' | 'apiKey' | 'models'>>
 ];
 
 interface SettingsStore {
-  // AI settings
+  // 当前生效的 AI 配置 —— 始终是选中渠道的镜像，供请求层直接读取
   aiProvider: AIProvider;
-  aiApiKey: string; // stored locally only, never sent to server
+  aiApiKey: string;
   aiBaseURL: string;
   aiModel: string;
-  // Web search
-  webSearchMode: WebSearchMode;
-  tavilyApiKey: string;
-  // Grok (xAI) as a search backend
-  grokApiKey: string;
-  grokBaseURL: string;
-  grokModel: string;
-  // API channels the user switches between (presets + custom)
   channels: AIChannel[];
   activeChannelId: string | null;
-  // Editor settings
+  // 编辑器偏好
   autoSave: boolean;
-  autoSaveInterval: number; // in milliseconds
+  autoSaveInterval: number; // 毫秒
 
-  // Hydration state
   _hydrated: boolean;
-  _syncing: boolean;
 
-  // Actions
-  setAIProvider: (provider: AIProvider) => void;
-  setAIApiKey: (key: string) => void;
-  setAIBaseURL: (url: string) => void;
-  setAIModel: (model: string) => void;
-  setWebSearchMode: (mode: WebSearchMode) => void;
-  setTavilyApiKey: (key: string) => void;
-  setGrokApiKey: (key: string) => void;
-  setGrokBaseURL: (url: string) => void;
-  setGrokModel: (model: string) => void;
   selectChannel: (id: string) => void;
   addChannel: (name: string) => string;
   updateChannel: (id: string, patch: Partial<Omit<AIChannel, 'id' | 'builtin'>>) => void;
@@ -70,48 +49,30 @@ interface SettingsStore {
   setChannelModels: (id: string, models: string[]) => void;
   setAutoSave: (enabled: boolean) => void;
   setAutoSaveInterval: (interval: number) => void;
-  hydrate: () => void;
-}
-
-const API_KEY_STORAGE_KEY = 'jade_api_key';
-const PROVIDER_CONFIGS_KEY = 'jade_provider_configs';
-const ACTIVE_PROVIDER_STORAGE_KEY = 'jade_active_provider';
-const WEB_SEARCH_MODE_KEY = 'jade_web_search_mode';
-const TAVILY_KEY_STORAGE_KEY = 'jade_tavily_key';
-const GROK_KEY_STORAGE_KEY = 'jade_grok_key';
-const GROK_BASE_URL_KEY = 'jade_grok_base_url';
-const GROK_MODEL_KEY = 'jade_grok_model';
-const GROK_DEFAULT_BASE_URL = 'https://api.x.ai/v1';
-const GROK_DEFAULT_MODEL = 'grok-4-fast';
-
-function loadWebSearchMode(): WebSearchMode {
-  if (typeof window === 'undefined') return 'off';
-  const v = localStorage.getItem(WEB_SEARCH_MODE_KEY);
-  return v === 'native' || v === 'free' || v === 'tavily' || v === 'grok' ? v : 'off';
-}
-
-function loadTavilyKey(): string {
-  if (typeof window === 'undefined') return '';
-  return localStorage.getItem(TAVILY_KEY_STORAGE_KEY) || '';
-}
-
-function loadGrokKey(): string {
-  if (typeof window === 'undefined') return '';
-  return localStorage.getItem(GROK_KEY_STORAGE_KEY) || '';
-}
-
-function loadGrokBaseURL(): string {
-  if (typeof window === 'undefined') return GROK_DEFAULT_BASE_URL;
-  return localStorage.getItem(GROK_BASE_URL_KEY) || GROK_DEFAULT_BASE_URL;
-}
-
-function loadGrokModel(): string {
-  if (typeof window === 'undefined') return GROK_DEFAULT_MODEL;
-  return localStorage.getItem(GROK_MODEL_KEY) || GROK_DEFAULT_MODEL;
+  hydrate: () => Promise<void>;
 }
 
 const CHANNELS_KEY = 'jade_channels';
 const ACTIVE_CHANNEL_KEY = 'jade_active_channel';
+
+// 渠道功能出现之前的单服务商配置，只在首次迁移时读取一次。
+const LEGACY_API_KEY = 'jade_api_key';
+const LEGACY_PROVIDER_CONFIGS = 'jade_provider_configs';
+const LEGACY_ACTIVE_PROVIDER = 'jade_active_provider';
+const LEGACY_KEYS = [
+  LEGACY_API_KEY,
+  LEGACY_PROVIDER_CONFIGS,
+  LEGACY_ACTIVE_PROVIDER,
+  'jade_web_search_mode',
+  'jade_web_search_mode:project',
+  'jade_web_search_mode:global',
+  'jade_tavily_key',
+  'jade_grok_key',
+  'jade_grok_base_url',
+  'jade_grok_model',
+  'resumer_ai_usage_logs_v1',
+  'jade_fingerprint',
+];
 
 function genChannelId(): string {
   return `ch_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
@@ -119,6 +80,10 @@ function genChannelId(): string {
 
 function normHost(url: string): string {
   return (url || '').trim().replace(/\/+$/, '').replace(/\/v1$/, '').replace(/\/+$/, '').toLowerCase();
+}
+
+function normalizeProvider(value: unknown): AIProvider {
+  return value === 'anthropic' || value === 'gemini' ? value : 'openai';
 }
 
 function saveChannels(channels: AIChannel[]) {
@@ -140,10 +105,18 @@ function saveActiveChannelId(id: string | null) {
   }
 }
 
+function clearLegacyKeys() {
+  if (typeof window === 'undefined') return;
+  try {
+    for (const key of LEGACY_KEYS) localStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
- * Load channels, seeding the official presets on first run and migrating the
- * user's existing single-provider config into the matching preset so their API
- * key/model isn't lost.
+ * 读取渠道；首次运行时预置官方渠道，并把旧版单服务商配置迁进匹配的渠道，
+ * 保证升级后 API Key / 模型不丢。
  */
 function loadOrSeedChannels(): { channels: AIChannel[]; activeChannelId: string | null } {
   if (typeof window === 'undefined') return { channels: [], activeChannelId: null };
@@ -158,7 +131,7 @@ function loadOrSeedChannels(): { channels: AIChannel[]; activeChannelId: string 
   }
 
   if (stored.length > 0) {
-    // Backfill: a channel's default model always belongs in its shortlist.
+    // 默认模型永远在常用列表里
     let mutated = false;
     for (const c of stored) {
       if (!c.models) {
@@ -170,30 +143,32 @@ function loadOrSeedChannels(): { channels: AIChannel[]; activeChannelId: string 
       }
     }
     if (mutated) saveChannels(stored);
+    clearLegacyKeys();
     const activeId = localStorage.getItem(ACTIVE_CHANNEL_KEY);
     const activeChannelId = stored.some((c) => c.id === activeId) ? activeId : stored[0].id;
     return { channels: stored, activeChannelId };
   }
 
-  // First run: seed presets, migrating any existing provider config.
-  const curProvider = normalizeProvider(localStorage.getItem(ACTIVE_PROVIDER_STORAGE_KEY));
-  const curKey = loadApiKeyLocally();
-  const curConfigs = loadProviderConfigs();
-  const curCfg = curConfigs[curProvider];
+  const curProvider = normalizeProvider(localStorage.getItem(LEGACY_ACTIVE_PROVIDER));
+  const curKey = localStorage.getItem(LEGACY_API_KEY) || '';
+  let curCfg: { baseURL?: string; model?: string } | undefined;
+  try {
+    curCfg = JSON.parse(localStorage.getItem(LEGACY_PROVIDER_CONFIGS) || '{}')?.[curProvider];
+  } catch {
+    curCfg = undefined;
+  }
   const curBaseURL = curCfg?.baseURL || '';
   const curModel = curCfg?.model || '';
 
   const channels: AIChannel[] = CHANNEL_PRESETS.map((preset, i) => ({
     id: `ch_seed_${i}`,
     apiKey: '',
-    // Seed the shortlist with the preset's default model.
     models: preset.model ? [preset.model] : [],
     ...preset,
   }));
 
   let activeChannelId: string | null = channels[0].id;
   if (curKey) {
-    // Prefer an exact host match; else first provider match.
     const byHost = channels.find(
       (c) => c.provider === curProvider && normHost(c.baseURL) === normHost(curBaseURL)
     );
@@ -207,15 +182,14 @@ function loadOrSeedChannels(): { channels: AIChannel[]; activeChannelId: string 
       }
       activeChannelId = target.id;
     } else {
-      const model = curModel || PROVIDER_DEFAULTS[curProvider].model;
       const custom: AIChannel = {
         id: genChannelId(),
         name: '我的配置',
         provider: curProvider,
-        baseURL: curBaseURL || PROVIDER_DEFAULTS[curProvider].baseURL,
+        baseURL: curBaseURL || channels[0].baseURL,
         apiKey: curKey,
-        model,
-        models: model ? [model] : [],
+        model: curModel,
+        models: curModel ? [curModel] : [],
       };
       channels.push(custom);
       activeChannelId = custom.id;
@@ -224,240 +198,49 @@ function loadOrSeedChannels(): { channels: AIChannel[]; activeChannelId: string 
 
   saveChannels(channels);
   saveActiveChannelId(activeChannelId);
+  clearLegacyKeys();
   return { channels, activeChannelId };
 }
 
-interface ProviderConfig {
-  baseURL: string;
-  model: string;
-  apiKey: string;
-}
-
-const PROVIDER_DEFAULTS: Record<AIProvider, ProviderConfig> = {
-  openai: { baseURL: 'https://api.openai.com/v1', model: 'gpt-4o', apiKey: '' },
-  anthropic: { baseURL: 'https://api.anthropic.com', model: 'claude-sonnet-4-20250514', apiKey: '' },
-  gemini: { baseURL: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-2.0-flash', apiKey: '' },
-};
-
-function normalizeProvider(value: unknown): AIProvider {
-  return value === 'anthropic' || value === 'gemini' ? value : 'openai';
-}
-
-function resolveProviderConfig(
-  provider: AIProvider,
-  overrides?: Partial<Omit<ProviderConfig, 'apiKey'>>
-): ProviderConfig {
-  const cached = loadProviderConfigs()[provider];
-  const defaults = PROVIDER_DEFAULTS[provider];
-  const fallbackApiKey = loadApiKeyLocally();
-
-  return {
-    baseURL: cached?.baseURL || overrides?.baseURL || defaults.baseURL,
-    model: cached?.model || overrides?.model || defaults.model,
-    apiKey: cached?.apiKey || fallbackApiKey || defaults.apiKey,
-  };
-}
-
-function loadProviderConfigs(): Partial<Record<AIProvider, ProviderConfig>> {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = localStorage.getItem(PROVIDER_CONFIGS_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch { return {}; }
-}
-
-function saveProviderConfigs(configs: Partial<Record<AIProvider, ProviderConfig>>) {
-  if (typeof window === 'undefined') return;
-  try { localStorage.setItem(PROVIDER_CONFIGS_KEY, JSON.stringify(configs)); } catch { /* ignore */ }
-}
-
-function saveActiveProviderLocally(provider: AIProvider) {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(ACTIVE_PROVIDER_STORAGE_KEY, provider);
-  } catch { /* ignore */ }
-}
-
-function loadActiveProviderLocally(): AIProvider {
-  if (typeof window === 'undefined') return 'openai';
-  try {
-    return normalizeProvider(localStorage.getItem(ACTIVE_PROVIDER_STORAGE_KEY));
-  } catch {
-    return 'openai';
-  }
-}
-
-// Sync settings to server (debounced)
 let syncTimeout: ReturnType<typeof setTimeout> | null = null;
 
-function syncToServer(state: SettingsStore) {
+function syncEditorPrefs(state: SettingsStore) {
   if (syncTimeout) clearTimeout(syncTimeout);
   syncTimeout = setTimeout(async () => {
     try {
-      await api.updateSettings({
-        aiProvider: state.aiProvider,
-        aiBaseURL: state.aiBaseURL,
-        aiModel: state.aiModel,
-        autoSave: state.autoSave,
-        autoSaveInterval: state.autoSaveInterval,
-      });
+      await api.updateSettings({ autoSave: state.autoSave, autoSaveInterval: state.autoSaveInterval });
     } catch {
-      // silently fail, local state is still correct
+      // 本地状态已是最新，后端同步失败可忽略
     }
   }, 500);
 }
 
-function syncProviderConfig(state: SettingsStore) {
-  const configs = loadProviderConfigs();
-  configs[state.aiProvider] = {
-    baseURL: state.aiBaseURL,
-    model: state.aiModel,
-    apiKey: state.aiApiKey,
-  };
-  saveProviderConfigs(configs);
-}
-
-function saveApiKeyLocally(key: string) {
-  if (typeof window === 'undefined') return;
-  try {
-    if (key) {
-      localStorage.setItem(API_KEY_STORAGE_KEY, key);
-    } else {
-      localStorage.removeItem(API_KEY_STORAGE_KEY);
-    }
-  } catch { /* ignore */ }
-}
-
-function loadApiKeyLocally(): string {
-  if (typeof window === 'undefined') return '';
-  try {
-    return localStorage.getItem(API_KEY_STORAGE_KEY) || '';
-  } catch {
-    return '';
-  }
+function mirrorOf(channel: AIChannel | undefined) {
+  return {
+    aiProvider: channel?.provider ?? 'openai',
+    aiBaseURL: channel?.baseURL ?? 'https://api.openai.com/v1',
+    aiModel: channel?.model ?? 'gpt-4o',
+    aiApiKey: channel?.apiKey ?? '',
+  } as const;
 }
 
 function initialAIState() {
   const { channels, activeChannelId } = loadOrSeedChannels();
   const active = channels.find((c) => c.id === activeChannelId);
-  return {
-    channels,
-    activeChannelId,
-    aiProvider: active?.provider ?? 'openai',
-    aiBaseURL: active?.baseURL ?? 'https://api.openai.com/v1',
-    aiModel: active?.model ?? 'gpt-4o',
-    aiApiKey: active?.apiKey ?? '',
-  };
+  return { channels, activeChannelId, ...mirrorOf(active) };
 }
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
   ...initialAIState(),
-  webSearchMode: loadWebSearchMode(),
-  tavilyApiKey: loadTavilyKey(),
-  grokApiKey: loadGrokKey(),
-  grokBaseURL: loadGrokBaseURL(),
-  grokModel: loadGrokModel(),
   autoSave: true,
   autoSaveInterval: 500,
   _hydrated: false,
-  _syncing: false,
 
-  setAIProvider: (provider) => {
-    const { aiProvider: prev, aiBaseURL, aiModel, aiApiKey } = get();
-
-    // Save current provider's config before switching
-    const configs = loadProviderConfigs();
-    configs[prev] = { baseURL: aiBaseURL, model: aiModel, apiKey: aiApiKey };
-    saveProviderConfigs(configs);
-
-    // Restore target provider's cached config, or use defaults
-    const cached = configs[provider];
-    const defaults = PROVIDER_DEFAULTS[provider];
-    const restored = cached || defaults;
-
-    set({
-      aiProvider: provider,
-      aiBaseURL: restored.baseURL,
-      aiModel: restored.model,
-      aiApiKey: restored.apiKey,
-    });
-    saveActiveProviderLocally(provider);
-    saveApiKeyLocally(restored.apiKey);
-    syncProviderConfig(get());
-    syncToServer(get());
-  },
-
-  setAIApiKey: (key) => {
-    set({ aiApiKey: key });
-    saveApiKeyLocally(key);
-    syncProviderConfig(get());
-  },
-
-  setAIBaseURL: (url) => {
-    set({ aiBaseURL: url });
-    syncToServer(get());
-    syncProviderConfig(get());
-  },
-
-  setAIModel: (model) => {
-    set({ aiModel: model });
-    syncToServer(get());
-    syncProviderConfig(get());
-  },
-
-  setWebSearchMode: (mode) => {
-    set({ webSearchMode: mode });
-    try { localStorage.setItem(WEB_SEARCH_MODE_KEY, mode); } catch { /* ignore */ }
-  },
-
-  setTavilyApiKey: (key) => {
-    set({ tavilyApiKey: key });
-    try {
-      if (key) localStorage.setItem(TAVILY_KEY_STORAGE_KEY, key);
-      else localStorage.removeItem(TAVILY_KEY_STORAGE_KEY);
-    } catch { /* ignore */ }
-  },
-
-  setGrokApiKey: (key) => {
-    set({ grokApiKey: key });
-    try {
-      if (key) localStorage.setItem(GROK_KEY_STORAGE_KEY, key);
-      else localStorage.removeItem(GROK_KEY_STORAGE_KEY);
-    } catch { /* ignore */ }
-  },
-
-  setGrokBaseURL: (url) => {
-    set({ grokBaseURL: url });
-    try {
-      if (url) localStorage.setItem(GROK_BASE_URL_KEY, url);
-      else localStorage.removeItem(GROK_BASE_URL_KEY);
-    } catch { /* ignore */ }
-  },
-
-  setGrokModel: (model) => {
-    set({ grokModel: model });
-    try {
-      if (model) localStorage.setItem(GROK_MODEL_KEY, model);
-      else localStorage.removeItem(GROK_MODEL_KEY);
-    } catch { /* ignore */ }
-  },
-
-  // Select a channel and mirror it into the live AI config the app resolves from.
   selectChannel: (id) => {
     const channel = get().channels.find((c) => c.id === id);
     if (!channel) return;
-    set({
-      activeChannelId: id,
-      aiProvider: channel.provider,
-      aiBaseURL: channel.baseURL,
-      aiModel: channel.model,
-      aiApiKey: channel.apiKey,
-    });
+    set({ activeChannelId: id, ...mirrorOf(channel) });
     saveActiveChannelId(id);
-    saveActiveProviderLocally(channel.provider);
-    saveApiKeyLocally(channel.apiKey);
-    syncProviderConfig(get());
-    syncToServer(get());
   },
 
   addChannel: (name) => {
@@ -481,7 +264,6 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     const next = get().channels.map((c) => {
       if (c.id !== id) return c;
       const merged = { ...c, ...patch };
-      // A default model is always part of its channel's shortlist.
       if (typeof patch.model === 'string' && patch.model && !merged.models.includes(patch.model)) {
         merged.models = [...merged.models, patch.model];
       }
@@ -489,21 +271,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     });
     set({ channels: next });
     saveChannels(next);
-    // Keep the live config mirrored when editing the active channel.
     if (get().activeChannelId === id) {
-      const c = next.find((x) => x.id === id)!;
-      const mirror: Partial<SettingsStore> = {};
-      if ('provider' in patch) mirror.aiProvider = c.provider;
-      if ('baseURL' in patch) mirror.aiBaseURL = c.baseURL;
-      if ('model' in patch) mirror.aiModel = c.model;
-      if ('apiKey' in patch) mirror.aiApiKey = c.apiKey;
-      if (Object.keys(mirror).length) {
-        set(mirror);
-        if ('provider' in patch) saveActiveProviderLocally(c.provider);
-        if ('apiKey' in patch) saveApiKeyLocally(c.apiKey);
-        syncProviderConfig(get());
-        syncToServer(get());
-      }
+      set(mirrorOf(next.find((x) => x.id === id)));
     }
   },
 
@@ -514,7 +283,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     if (get().activeChannelId === id) {
       if (remaining.length > 0) get().selectChannel(remaining[0].id);
       else {
-        set({ activeChannelId: null });
+        set({ activeChannelId: null, ...mirrorOf(undefined) });
         saveActiveChannelId(null);
       }
     }
@@ -535,18 +304,16 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   setAutoSave: (enabled) => {
     set({ autoSave: enabled });
-    syncToServer(get());
+    syncEditorPrefs(get());
   },
 
   setAutoSaveInterval: (interval) => {
     set({ autoSaveInterval: interval });
-    syncToServer(get());
+    syncEditorPrefs(get());
   },
 
   hydrate: async () => {
     if (get()._hydrated) return;
-    // AI config is now driven by channels (already seeded at init); only pull
-    // the editor preferences from the backend here.
     try {
       const data = await api.getSettings();
       if (data && typeof data === 'object') {
@@ -562,8 +329,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   },
 }));
 
-// Auto-hydrate on client side so settings are ready before any component uses them
+// 请求层（tauri-api）通过 window 读取当前渠道，避免两个模块互相导入。
 if (typeof window !== 'undefined') {
   (window as any).__jadeSettingsStore = useSettingsStore;
-  useSettingsStore.getState().hydrate();
+  void useSettingsStore.getState().hydrate();
 }

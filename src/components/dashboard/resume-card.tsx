@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { Resume } from '@/types/resume';
+import { ResumeApplicationCount } from './resume-application-count';
 
 interface ResumeCardProps {
   resume: Resume;
@@ -168,11 +169,14 @@ export function ResumeCard({ resume, onDelete, onDuplicate, onRename }: ResumeCa
             )}
             <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-[var(--whale-ink-muted)]">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--whale-mint-deep)]" />
-              {resume.updatedAt
-                ? t('dashboard.lastEdited', {
-                    date: new Date(resume.updatedAt).toLocaleDateString(),
-                  })
-                : ''}
+              <span className="truncate">
+                {resume.updatedAt
+                  ? t('dashboard.lastEdited', {
+                      date: new Date(resume.updatedAt).toLocaleDateString(),
+                    })
+                  : ''}
+              </span>
+              <ResumeApplicationCount resumeId={resume.id} className="ml-auto shrink-0" />
             </div>
           </div>
           <DropdownMenu>

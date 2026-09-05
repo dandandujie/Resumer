@@ -1,6 +1,6 @@
 {
   "name": "reseumer",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "AI-powered resume builder (Tauri desktop)",
   "author": "liuchen",
   "private": true,
@@ -15,15 +15,6 @@
     "build:mac": "tauri build --target aarch64-apple-darwin",
     "lint": "eslint",
     "type-check": "tsc --noEmit"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@swc/core",
-      "unrs-resolver",
-      "esbuild",
-      "@parcel/watcher",
-      "vite"
-    ]
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.5",

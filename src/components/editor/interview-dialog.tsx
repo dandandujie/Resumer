@@ -11,46 +11,48 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AIMessage } from '@/components/ai/ai-message';
-import { useSettingsStore, type WebSearchMode } from '@/stores/settings-store';
+import { useSettingsStore } from '@/stores/settings-store';
 import { useUIStore } from '@/stores/ui-store';
 import { useResumeStore } from '@/stores/resume-store';
+import { useEditorStore } from '@/stores/editor-store';
 import { useJournalStore } from '@/stores/journal-store';
 import * as api from '@/lib/tauri-api';
 import { logError } from '@/stores/error-log-store';
 import { generateId } from '@/lib/utils';
 import type { UIMessage } from '@/types/chat';
 
-const WEB_SEARCH_MODES: WebSearchMode[] = ['off', 'native', 'free', 'bing', 'google', 'baidu', 'tavily', 'grok'];
-
 interface StreamEvent {
   streamId: string;
   event:
     | { type: 'textDelta'; text: string }
     | { type: 'reasoningDelta'; text: string }
-    | { type: 'toolCallStart'; id: string; name: string }
-    | { type: 'toolResult'; id: string; name: string; result: unknown }
     | { type: 'finish'; finalText: string }
     | { type: 'error'; message: string };
 }
 
+const NO_APPLICATION = '__none__';
+
 export function InterviewDialog() {
   const t = useTranslations('interview');
-  const tw = useTranslations('settings.webSearch');
   const activeModal = useUIStore((s) => s.activeModal);
   const closeModal = useUIStore((s) => s.closeModal);
   const openSettings = useUIStore((s) => s.openModal);
   const isOpen = activeModal === 'interview';
 
   const resumeId = useResumeStore((s) => s.currentResume?.id);
+  const applications = useJournalStore((s) => s.applications);
   const addMock = useJournalStore((s) => s.addMock);
+  const toolPrefill = useEditorStore((s) => s.toolPrefill);
+  const setToolPrefill = useEditorStore((s) => s.setToolPrefill);
   const channels = useSettingsStore((s) => s.channels);
   const activeChannelId = useSettingsStore((s) => s.activeChannelId);
   const selectChannel = useSettingsStore((s) => s.selectChannel);
 
+  const [applicationId, setApplicationId] = useState<string>(NO_APPLICATION);
   const [company, setCompany] = useState('');
   const [role, setRole] = useState('');
+  const [round, setRound] = useState('');
   const [jd, setJd] = useState('');
-  const [webSearchMode, setWebSearchMode] = useState<WebSearchMode>('native');
   const [selectedModel, setSelectedModel] = useState<string | undefined>();
 
   const [messages, setMessages] = useState<UIMessage[]>([]);
@@ -64,12 +66,37 @@ export function InterviewDialog() {
   const hasConfigured = configuredChannels.length > 0;
   const shortlist = activeChannel?.models ?? [];
   const modelValue = selectedModel || activeChannel?.model;
+  const resumeApplications = applications.filter((a) => a.resumeId === resumeId);
+
+  // 从某条投递发起：公司 / 岗位 / JD / 轮次直接带过来（打开时一次性消费）。
+  useEffect(() => {
+    if (!isOpen || !toolPrefill) return;
+    setApplicationId(toolPrefill.applicationId ?? NO_APPLICATION);
+    setCompany(toolPrefill.company ?? '');
+    setRole(toolPrefill.role ?? '');
+    setJd(toolPrefill.jd ?? '');
+    setRound(toolPrefill.round ?? '');
+    setToolPrefill(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  const applyApplication = (id: string) => {
+    setApplicationId(id);
+    const app = applications.find((a) => a.id === id);
+    if (!app) return;
+    setCompany(app.company);
+    setRole(app.role);
+    setJd(app.jd);
+    const upcoming = [...app.interviews]
+      .filter((r) => r.scheduledAt && Date.parse(r.scheduledAt) >= Date.now())
+      .sort((a, b) => Date.parse(a.scheduledAt!) - Date.parse(b.scheduledAt!))[0];
+    setRound(upcoming?.round || app.interviews[app.interviews.length - 1]?.round || '');
+  };
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
 
-  // Single global listener for this modal's stream.
   useEffect(() => {
     if (!isOpen) return;
     let unlisten: (() => void) | undefined;
@@ -103,7 +130,6 @@ export function InterviewDialog() {
       const streamId = generateId();
       streamRef.current = streamId;
       setIsLoading(true);
-      // Add an empty assistant placeholder to stream into.
       setMessages([...history, { id: generateId(), role: 'assistant', parts: [{ type: 'text', text: '' }] }]);
       const backend = history.map((m) => ({
         role: m.role,
@@ -117,7 +143,7 @@ export function InterviewDialog() {
           company,
           role,
           jd,
-          webSearchMode,
+          round,
           selectedModel,
         });
       } catch (err: any) {
@@ -126,7 +152,7 @@ export function InterviewDialog() {
         logError(t('title'), err?.message || String(err));
       }
     },
-    [hasConfigured, openSettings, resumeId, company, role, jd, webSearchMode, selectedModel, t]
+    [hasConfigured, openSettings, resumeId, company, role, jd, round, selectedModel, t]
   );
 
   const startInterview = () => {
@@ -154,24 +180,29 @@ export function InterviewDialog() {
     setMessages([]);
   };
 
-  const saveToJournal = () => {
+  const saveToJournal = async () => {
     if (!resumeId || messages.length === 0) return;
     const textOf = (m: UIMessage) =>
       m.content || m.parts.filter((p) => p.type === 'text').map((p: any) => p.text).join('');
     const assistantMsgs = messages.filter((m) => m.role === 'assistant' && textOf(m).trim());
-    // The last interviewer message is usually the closing feedback — archive it.
+    // 面试官最后一条通常是收尾评价，作为反馈存档。
     const feedback = assistantMsgs.length ? textOf(assistantMsgs[assistantMsgs.length - 1]) : '';
     const transcript = messages
       .map((m) => `【${m.role === 'user' ? '我' : '面试官'}】${textOf(m)}`)
       .join('\n\n');
-    const label = [company.trim(), role.trim()].filter(Boolean).join(' · ') || t('title');
-    addMock(resumeId, {
-      company: company.trim() || undefined,
-      role: role.trim() || undefined,
-      feedback: feedback.slice(0, 4000),
-      transcript: transcript.slice(0, 8000),
-    });
-    toast.success(t('archived'));
+    try {
+      await addMock({
+        resumeId,
+        applicationId: applicationId === NO_APPLICATION ? null : applicationId,
+        company: company.trim(),
+        role: [role.trim(), round.trim()].filter(Boolean).join(' · '),
+        feedback: feedback.slice(0, 4000),
+        transcript: transcript.slice(0, 8000),
+      });
+      toast.success(t('archived'));
+    } catch (err: any) {
+      logError(t('title'), err?.message || String(err));
+    }
   };
 
   const started = messages.length > 0;
@@ -184,15 +215,35 @@ export function InterviewDialog() {
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1">
-          {/* Left: interview setup */}
+          {/* 左：面试设置 */}
           <div className="flex w-[300px] shrink-0 flex-col gap-3 overflow-y-auto border-r border-border p-4">
+            {resumeApplications.length > 0 && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">{t('application')}</Label>
+                <Select value={applicationId} onValueChange={applyApplication} disabled={started}>
+                  <SelectTrigger size="sm" className="h-8 w-full text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_APPLICATION} className="text-xs">{t('applicationNone')}</SelectItem>
+                    {resumeApplications.map((a) => (
+                      <SelectItem key={a.id} value={a.id} className="text-xs">
+                        {[a.company, a.role].filter(Boolean).join(' · ') || t('applicationUntitled')}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label className="text-xs">{t('company')}</Label>
-              <Input value={company} onChange={(e) => setCompany(e.target.value)} placeholder={t('companyPlaceholder')} />
+              <Input value={company} onChange={(e) => setCompany(e.target.value)} placeholder={t('companyPlaceholder')} disabled={started} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">{t('role')}</Label>
-              <Input value={role} onChange={(e) => setRole(e.target.value)} placeholder={t('rolePlaceholder')} />
+              <Input value={role} onChange={(e) => setRole(e.target.value)} placeholder={t('rolePlaceholder')} disabled={started} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">{t('round')}</Label>
+              <Input value={round} onChange={(e) => setRound(e.target.value)} placeholder={t('roundPlaceholder')} disabled={started} />
             </div>
             <div className="flex min-h-0 flex-1 flex-col space-y-1.5">
               <Label className="text-xs">{t('jd')}</Label>
@@ -200,11 +251,11 @@ export function InterviewDialog() {
                 value={jd}
                 onChange={(e) => setJd(e.target.value)}
                 placeholder={t('jdPlaceholder')}
-                className="min-h-[120px] flex-1 resize-none rounded-md border border-border bg-transparent px-3 py-2 text-xs outline-none focus:border-[var(--whale-ink-muted)]"
+                disabled={started}
+                className="min-h-[120px] flex-1 resize-none rounded-md border border-border bg-transparent px-3 py-2 text-xs outline-none focus:border-[var(--whale-ink-muted)] disabled:opacity-60"
               />
             </div>
 
-            {/* Channel / model / web-search */}
             <div className="space-y-1.5">
               <Label className="text-xs">{t('channel')}</Label>
               {hasConfigured ? (
@@ -233,15 +284,6 @@ export function InterviewDialog() {
                 </Select>
               </div>
             )}
-            <div className="space-y-1.5">
-              <Label className="text-xs">{tw('title')}</Label>
-              <Select value={webSearchMode} onValueChange={(v) => setWebSearchMode(v as WebSearchMode)}>
-                <SelectTrigger size="sm" className="h-8 w-full text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {WEB_SEARCH_MODES.map((m) => (<SelectItem key={m} value={m} className="text-xs">{tw(`tag.${m}`)}</SelectItem>))}
-                </SelectContent>
-              </Select>
-            </div>
 
             <div className="mt-1 flex flex-col gap-2">
               <Button
@@ -255,7 +297,7 @@ export function InterviewDialog() {
               {started && (
                 <Button
                   variant="outline"
-                  onClick={saveToJournal}
+                  onClick={() => void saveToJournal()}
                   disabled={isLoading}
                   className="w-full cursor-pointer gap-1.5"
                 >
@@ -266,7 +308,7 @@ export function InterviewDialog() {
             </div>
           </div>
 
-          {/* Right: conversation */}
+          {/* 右：对话 */}
           <div className="flex min-w-0 flex-1 flex-col">
             <div ref={scrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
               {messages.length === 0 ? (

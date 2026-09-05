@@ -61,27 +61,6 @@ pub struct ChatStreamResult {
     pub usage: Usage,
 }
 
-/// True when an error looks like the provider rejected the native/built-in web
-/// search tool — so we can retry the request without it instead of failing.
-/// Native/built-in search is the single most provider-specific part of a request
-/// (Anthropic web_search, Gemini google_search, xAI Live Search all differ and
-/// each model/relay may reject it), so a generic "drop it and retry" net catches
-/// current and future incompatibilities uniformly.
-fn is_native_search_error(msg: &str) -> bool {
-    let m = msg.to_ascii_lowercase();
-    m.contains("search")
-        || m.contains("google_search")
-        || m.contains("web_search")
-        || m.contains("grounding")
-        || m.contains("tool_config")
-        || m.contains("server_side_tool")
-        || m.contains("server-side tool")
-        || m.contains("built-in tool")
-        || m.contains("builtin tool")
-        || m.contains("live search")
-        || m.contains("search_parameters")
-}
-
 pub async fn stream_chat(
     app: &AppHandle,
     stream_id: &str,
@@ -90,23 +69,7 @@ pub async fn stream_chat(
     messages: &[ChatMessage],
     tools: Option<&[ToolSpec]>,
 ) -> Result<ChatStreamResult, ProviderError> {
-    let result = stream_dispatch(app, stream_id, config, system, messages, tools).await;
-
-    // Safety net: if the request failed and native ("模型自带") search was on, the
-    // provider likely rejected the built-in search tool. The failure happens
-    // before anything streams (all providers return Err on non-2xx up front), so
-    // retry once with native search disabled rather than surfacing the error.
-    if config.web_search_mode == "native" {
-        if let Err(e) = &result {
-            if is_native_search_error(&e.to_string()) {
-                log::warn!("native search rejected ({e}); retrying without built-in search");
-                let mut fallback = config.clone();
-                fallback.web_search_mode = "off".into();
-                return stream_dispatch(app, stream_id, &fallback, system, messages, tools).await;
-            }
-        }
-    }
-    result
+    stream_dispatch(app, stream_id, config, system, messages, tools).await
 }
 
 async fn stream_dispatch(
@@ -196,17 +159,6 @@ async fn stream_openai(
         }
     }
 
-    // Native web search for a Grok (xAI) main model: xAI exposes Live Search via
-    // a top-level `search_parameters` field (not a tool). Only inject for xAI
-    // endpoints — a stray field would 400 on stricter OpenAI-compatible servers.
-    if config.web_search_mode == "native" {
-        let is_grok = config.base_url.to_ascii_lowercase().contains("x.ai")
-            || config.model.to_ascii_lowercase().contains("grok");
-        if is_grok {
-            body["search_parameters"] = json!({ "mode": "auto", "return_citations": true });
-        }
-    }
-
     let res = client
         .post(&url)
         .bearer_auth(&config.api_key)
@@ -232,8 +184,6 @@ async fn stream_openai(
     let mut last_finish_reason: Option<String> = None;
     let mut saw_done = false;
     let mut last_raw_tail = String::new();
-    // xAI Live Search returns citation URLs at the top level of a chunk.
-    let mut citations: Vec<String> = Vec::new();
     let mut usage = Usage::default();
 
     while let Some(chunk) = stream.next().await {
@@ -275,9 +225,6 @@ async fn stream_openai(
                         continue;
                     }
                     if let Ok(v) = serde_json::from_str::<Value>(data) {
-                        if let Some(cits) = v.get("citations").and_then(|c| c.as_array()) {
-                            citations = cits.iter().filter_map(|c| c.as_str().map(|s| s.to_string())).collect();
-                        }
                         if let Some(u) = v.get("usage").filter(|u| !u.is_null()) {
                             let p = u.get("prompt_tokens").and_then(|x| x.as_u64()).unwrap_or(0);
                             let c = u.get("completion_tokens").and_then(|x| x.as_u64()).unwrap_or(0);
@@ -369,16 +316,6 @@ async fn stream_openai(
             text_out.push_str(&notice);
             emit(app, stream_id, StreamEvent::TextDelta { text: notice });
         }
-    }
-
-    // Surface Grok Live Search citations (native mode) as a sources footer.
-    if !citations.is_empty() && pending_tc.is_empty() {
-        let mut footer = String::from("\n\n---\n**参考来源**\n");
-        for (i, c) in citations.iter().enumerate() {
-            footer.push_str(&format!("{}. {}\n", i + 1, c));
-        }
-        text_out.push_str(&footer);
-        emit(app, stream_id, StreamEvent::TextDelta { text: footer });
     }
 
     // Finalize tool calls
@@ -610,7 +547,7 @@ async fn stream_anthropic(
         body["system"] = json!(system);
     }
     {
-        let mut tool_list: Vec<Value> = tools
+        let tool_list: Vec<Value> = tools
             .map(|ts| {
                 ts.iter()
                     .map(|t| json!({
@@ -621,14 +558,6 @@ async fn stream_anthropic(
                     .collect()
             })
             .unwrap_or_default();
-        // Native web search — Anthropic server-side tool.
-        if config.web_search_mode == "native" {
-            tool_list.push(json!({
-                "type": "web_search_20250305",
-                "name": "web_search",
-                "max_uses": 3,
-            }));
-        }
         if !tool_list.is_empty() {
             body["tools"] = json!(tool_list);
         }
@@ -769,10 +698,8 @@ async fn stream_gemini(
     }
     {
         let mut tool_list: Vec<Value> = Vec::new();
-        let mut has_functions = false;
         if let Some(ts) = tools {
             if !ts.is_empty() {
-                has_functions = true;
                 tool_list.push(json!({
                     "functionDeclarations": ts.iter().map(|t| json!({
                         "name": t.name,
@@ -780,18 +707,6 @@ async fn stream_gemini(
                         "parameters": t.parameters,
                     })).collect::<Vec<_>>()
                 }));
-            }
-        }
-        // Native web search — Gemini grounding tool.
-        if config.web_search_mode == "native" {
-            tool_list.push(json!({ "google_search": {} }));
-            // GOTCHA: Gemini 2.5/3 reject a built-in tool (google_search) alongside
-            // client functionDeclarations unless server-side tool invocation is
-            // explicitly enabled — otherwise it 400s "Please enable
-            // tool_config.include_server_side_tool_invocations". Set it whenever we
-            // combine the two so native search doesn't blow up the request.
-            if has_functions {
-                body["toolConfig"] = json!({ "includeServerSideToolInvocations": true });
             }
         }
         if !tool_list.is_empty() {

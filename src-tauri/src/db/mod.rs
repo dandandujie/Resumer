@@ -1,5 +1,5 @@
 pub mod repo;
-mod migrate;
+pub(crate) mod migrate;
 
 use std::path::Path;
 use std::sync::Mutex;

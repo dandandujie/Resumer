@@ -5,8 +5,9 @@ import { useTranslations } from 'next-intl';
 import {
   Loader2, RotateCcw, Target, ShieldCheck, Lightbulb, AlertTriangle,
   Wand2, Trash2, FileSearch, ArrowUp, ArrowDown, Minus, ChevronLeft,
-  Briefcase, ChevronDown, CopyPlus,
+  Briefcase, ChevronDown, CopyPlus, BookOpenCheck,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { logError } from '@/stores/error-log-store';
 import { useRouter } from '@/i18n/routing';
 import { useResumeStore } from '@/stores/resume-store';
@@ -32,6 +33,8 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useEditorStore } from '@/stores/editor-store';
+import { useUIStore } from '@/stores/ui-store';
+import { useJournalStore } from '@/stores/journal-store';
 import { analyzeJD } from '@/lib/ai/client-ai-service';
 import * as api from '@/lib/tauri-api';
 
@@ -272,8 +275,15 @@ export function JdAnalysisDialog({ open, onOpenChange, resumeId }: JdAnalysisDia
   const ct = useTranslations('common');
   const router = useRouter();
   const { setPendingAiMessage, setRightPaneTab } = useEditorStore();
+  const toolPrefill = useEditorStore((s) => s.toolPrefill);
+  const setToolPrefill = useEditorStore((s) => s.setToolPrefill);
+  const openModal = useUIStore((s) => s.openModal);
+  const createApplication = useJournalStore((s) => s.createApplication);
+  const updateApplication = useJournalStore((s) => s.updateApplication);
   const currentResumeTitle = useResumeStore((s) => s.currentResume?.title);
   const [jobDescription, setJobDescription] = useState('');
+  // 从投递记录发起时记住来源，分析完可回写 JD、不再重复录入。
+  const [sourceApplicationId, setSourceApplicationId] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<JdAnalysisResult | null>(null);
   const [error, setError] = useState('');
@@ -305,6 +315,17 @@ export function JdAnalysisDialog({ open, onOpenChange, resumeId }: JdAnalysisDia
     }
   }, [open, activeTab, fetchHistory]);
 
+  // 从投递记录带 JD 进来：打开时一次性消费预填（读完即清，避免挂载时序问题），用户只需点"开始分析"。
+  useEffect(() => {
+    if (!open || !toolPrefill?.jd) return;
+    setJobDescription(toolPrefill.jd);
+    setSourceApplicationId(toolPrefill.applicationId ?? null);
+    setResult(null);
+    setActiveTab('new');
+    setToolPrefill(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   const handleAnalyze = async () => {
     if (!jobDescription.trim()) return;
     setIsAnalyzing(true);
@@ -325,6 +346,7 @@ export function JdAnalysisDialog({ open, onOpenChange, resumeId }: JdAnalysisDia
   const handleAnalyzeAgain = () => {
     setResult(null);
     setJobDescription('');
+    setSourceApplicationId(null);
     setError('');
   };
 
@@ -333,11 +355,25 @@ export function JdAnalysisDialog({ open, onOpenChange, resumeId }: JdAnalysisDia
     setTimeout(() => {
       setResult(null);
       setJobDescription('');
+      setSourceApplicationId(null);
       setError('');
       setActiveTab('new');
       setHistoryDetail(null);
       setHistoryDetailJd('');
     }, 200);
+  };
+
+  // 分析完顺手记一笔投递：JD 与简历已经关联好，只差公司/岗位。
+  const handleRecordApplication = async () => {
+    const jd = jobDescription.trim();
+    if (sourceApplicationId) {
+      updateApplication(sourceApplicationId, { jd });
+    } else {
+      await createApplication({ resumeId, jd });
+    }
+    toast.success(t('recorded'));
+    onOpenChange(false);
+    setTimeout(() => openModal('journal'), 200);
   };
 
   const buildAnalysisParts = (): string[] => {
@@ -490,6 +526,15 @@ export function JdAnalysisDialog({ open, onOpenChange, resumeId }: JdAnalysisDia
                   <Button variant="outline" onClick={handleAnalyzeAgain} className="cursor-pointer gap-1.5">
                     <RotateCcw className="h-3.5 w-3.5" />
                     {t('analyzeAgain')}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => void handleRecordApplication()}
+                    className="cursor-pointer gap-1.5"
+                    title={sourceApplicationId ? t('recordApplicationUpdateHint') : t('recordApplicationHint')}
+                  >
+                    <BookOpenCheck className="h-3.5 w-3.5" />
+                    {sourceApplicationId ? t('recordApplicationUpdate') : t('recordApplication')}
                   </Button>
                   {(result.suggestions.length > 0 || result.missingKeywords.length > 0) && (
                     <>

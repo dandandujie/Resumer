@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { logError } from '@/stores/error-log-store';
@@ -23,6 +23,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useResumeStore } from '@/stores/resume-store';
+import { useEditorStore } from '@/stores/editor-store';
 import * as api from '@/lib/tauri-api';
 import type { CoverLetterStyle } from '@/lib/tauri-api';
 import { cn } from '@/lib/utils';
@@ -47,6 +48,17 @@ export function CoverLetterDialog({ open, onOpenChange, resumeId }: CoverLetterD
   const [isGenerating, setIsGenerating] = useState(false);
   const [result, setResult] = useState('');
   const [error, setError] = useState('');
+  const toolPrefill = useEditorStore((s) => s.toolPrefill);
+  const setToolPrefill = useEditorStore((s) => s.setToolPrefill);
+
+  // 从投递记录发起时把该岗位的 JD 带进来（打开时一次性消费），文案直接对着这家公司写。
+  useEffect(() => {
+    if (!open || !toolPrefill?.jd) return;
+    setJobDescription(toolPrefill.jd);
+    setResult('');
+    setToolPrefill(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const handleGenerate = async () => {
     if (isGenerating) return;

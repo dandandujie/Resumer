@@ -10,7 +10,6 @@ import {
   Plus,
   Lock,
   BookOpenCheck,
-  Bot,
 } from 'lucide-react';
 import { useLocale } from 'next-intl';
 import { Link, usePathname } from '@/i18n/routing';
@@ -52,7 +51,6 @@ function WhaleSidebar() {
   const tSettings = useTranslations('settings');
   const isDashboard = pathname === '/dashboard';
   const isInsights = pathname.startsWith('/insights');
-  const isAgent = pathname.startsWith('/agent');
 
   const localePrefix = rawPathname.split('/')[1] || 'zh';
   const goTo = (path: string) => () => navigate(`/${localePrefix}${path}`);
@@ -60,7 +58,6 @@ function WhaleSidebar() {
   const items: { icon: typeof LayoutDashboard; label: string; onClick: () => void; active?: boolean }[] = [
     { icon: LayoutDashboard, label: t('nav'), onClick: goTo('/dashboard'), active: isDashboard },
     { icon: BookOpenCheck, label: t('journalTitle'), onClick: goTo('/insights'), active: isInsights },
-    { icon: Bot, label: t('globalAgent'), onClick: goTo('/agent'), active: isAgent },
     { icon: Settings, label: tSettings('title'), onClick: () => openModal('settings') },
   ];
 
@@ -198,9 +195,7 @@ export function WhaleDashboardShell() {
   useDesignAttribute('whale');
   const { activeModal, closeModal } = useUIStore();
 
-  // Shell-level create handler so the topbar "New resume" button works on
-  // every page (dashboard, insights, agent) — the dialog itself navigates to
-  // the editor after creation.
+  // 顶栏「新建简历」在工作台和求职动态页都可用；创建后由对话框自行跳转到编辑器。
   const handleCreateResume = useCallback(
     async (data: { title?: string; language?: string; template?: string }) => {
       const resumeId = await api.createResume(data);

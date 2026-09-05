@@ -3,11 +3,9 @@ import { listen } from '@tauri-apps/api/event';
 import * as api from '@/lib/tauri-api';
 import { useResumeStore } from '@/stores/resume-store';
 import { useProposalsStore, isMutationTool } from '@/stores/proposals-store';
-import { useJournalStore, summarizeForAI } from '@/stores/journal-store';
 import { generateId } from '@/lib/utils';
 import type { UIMessage, MessagePart } from '@/types/chat';
 import type { ResumeSection } from '@/types/resume';
-import type { AIProviderId } from '@/lib/tauri-api';
 
 export type { UIMessage, MessagePart };
 
@@ -15,9 +13,7 @@ interface UseAIChatOptions {
   resumeId: string;
   sessionId?: string;
   initialMessages?: UIMessage[];
-  selectedProvider?: AIProviderId;
   selectedModel?: string;
-  webSearchMode?: string;
 }
 
 interface StreamEvent {
@@ -32,7 +28,7 @@ interface StreamEvent {
     | { type: 'error'; message: string };
 }
 
-export function useAIChat({ resumeId, sessionId, initialMessages, selectedProvider, selectedModel, webSearchMode }: UseAIChatOptions) {
+export function useAIChat({ resumeId, sessionId, initialMessages, selectedModel }: UseAIChatOptions) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<UIMessage[]>([]);
   const [localMessages, setLocalMessages] = useState<UIMessage[]>([]);
@@ -325,27 +321,20 @@ export function useAIChat({ resumeId, sessionId, initialMessages, selectedProvid
 
       setStatus('streaming');
       try {
-        // Pull the resume's journal entries (if any) and pass as AI context.
-        useJournalStore.getState().hydrate();
-        const js = useJournalStore.getState();
-        const journalContext = summarizeForAI(js.applications[resumeId] || [], js.mocks[resumeId] || []);
-
+        // 投递上下文由后端直接从库里读，前端不再拼字符串。
         await api.aiChat({
           streamId,
           messages: backendMessages,
           resumeId,
           sessionId,
-          journalContext: journalContext || undefined,
-          selectedProvider,
           selectedModel,
-          webSearchMode,
         });
       } catch (err: any) {
         setError(err instanceof Error ? err : new Error(String(err)));
         setStatus('idle');
       }
     },
-    [messages, resumeId, sessionId, selectedProvider, selectedModel, webSearchMode]
+    [messages, resumeId, sessionId, selectedModel]
   );
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -357,7 +346,7 @@ export function useAIChat({ resumeId, sessionId, initialMessages, selectedProvid
       e.preventDefault();
       if (!input.trim()) return;
 
-      if (!api.isAISelectionConfigured({ provider: selectedProvider, model: selectedModel })) {
+      if (!api.isAIConfigured()) {
         const userMsg: UIMessage = { id: generateId(), role: 'user', parts: [{ type: 'text', text: input }] };
         const errorMsg: UIMessage = {
           id: generateId(),
@@ -373,7 +362,7 @@ export function useAIChat({ resumeId, sessionId, initialMessages, selectedProvid
       sendMessage({ text: input });
       setInput('');
     },
-    [input, localMessages, selectedProvider, selectedModel, sendMessage]
+    [input, localMessages, sendMessage]
   );
 
   const allMessages = useMemo(

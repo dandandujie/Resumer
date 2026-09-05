@@ -94,15 +94,9 @@ export function getProposalChangesBySection(
 export function useProposalActions(proposal: Proposal | undefined) {
   const t = useTranslations('ai');
 
-  const handleAccept = useCallback(async () => {
+  // 改动在工具执行时已经写库；"采纳"只是确认并收起提案卡。
+  const handleAccept = useCallback(() => {
     if (!proposal) return;
-    try {
-      await api.createResumeVersionSnapshot(proposal.resumeId, 'ai_accept');
-    } catch (err) {
-      console.error('Failed to create accept snapshot:', err);
-      logError(t('proposalAcceptFailed'));
-      return;
-    }
     useProposalsStore.getState().acceptProposal(proposal.id);
     toast.success(t('proposalAccepted'));
   }, [proposal, t]);
@@ -161,7 +155,6 @@ export function useProposalActions(proposal: Proposal | undefined) {
         template: current.template,
         themeConfig: current.themeConfig,
         sections: restoredSections,
-        snapshotEvent: 'ai_reject',
       });
     } catch (err) {
       console.error('Failed to persist rejection:', err);

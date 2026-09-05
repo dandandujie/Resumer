@@ -1,7 +1,3 @@
-/**
- * Editor page — adapted from app/[locale]/editor/[id]/page.tsx
- * Changes: useParams() from react-router-dom instead of use(params)
- */
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { logError } from '@/stores/error-log-store';
@@ -28,6 +24,7 @@ import { useEditorStore } from '@/stores/editor-store';
 import { useResumeStore } from '@/stores/resume-store';
 import { useUIStore } from '@/stores/ui-store';
 import { useSettingsStore } from '@/stores/settings-store';
+import { useJournalStore } from '@/stores/journal-store';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
@@ -39,10 +36,26 @@ export default function EditorPage() {
   const { showThemeEditor, mobileActiveTab } = useEditorStore();
   const { activeModal, openModal, closeModal } = useUIStore();
   const { hydrate, _hydrated } = useSettingsStore();
+  const hydrateJournal = useJournalStore((s) => s.hydrate);
+  const pendingModal = useEditorStore((s) => s.pendingModal);
+  const setPendingModal = useEditorStore((s) => s.setPendingModal);
 
   useEffect(() => {
     if (!_hydrated) hydrate();
   }, [_hydrated, hydrate]);
+
+  // 投递记录里的 AI 动作依赖这份简历的投递上下文；提前把数据拉好。
+  useEffect(() => {
+    void hydrateJournal();
+  }, [hydrateJournal]);
+
+  // 从求职动态页跳转进来时，把它要求打开的对话框（JD 匹配 / 求职文案 / 模拟面试）打开。
+  useEffect(() => {
+    if (resume && pendingModal) {
+      openModal(pendingModal);
+      setPendingModal(null);
+    }
+  }, [resume, pendingModal, openModal, setPendingModal]);
 
   // Keyboard shortcuts: Cmd/Ctrl+S save, Cmd/Ctrl+Z undo, Cmd/Ctrl+Shift+Z redo.
   useEffect(() => {

@@ -1,7 +1,6 @@
 mod commands;
 mod db;
 mod ai;
-mod browser_driver;
 mod export;
 
 use db::AppDb;
@@ -29,21 +28,6 @@ pub fn run() {
             let db = AppDb::new(&db_path).expect("failed to initialize database");
             app.manage(db);
 
-            // SOP skill memory — seed built-in job-market profiles/SOPs.
-            let skills_dir = app_data_dir.join("skills");
-            ai::skills::ensure_seed_skills(&skills_dir);
-            app.manage(ai::skills::SkillsDir(skills_dir));
-
-            // L2 global facts live under app_data/memory.
-            let memory_dir = app_data_dir.join("memory");
-            std::fs::create_dir_all(&memory_dir).ok();
-            app.manage(ai::memory::MemoryDir(memory_dir));
-
-            // Browser driver — local WS server for userscript-connected tabs.
-            let driver = browser_driver::BrowserDriver::new();
-            driver.start();
-            app.manage(driver);
-
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -51,8 +35,6 @@ pub fn run() {
             commands::resume::get_resume,
             commands::resume::create_resume,
             commands::resume::update_resume,
-            commands::resume::list_resume_versions,
-            commands::resume::create_resume_version_snapshot,
             commands::resume::delete_resume,
             commands::resume::duplicate_resume,
             commands::user::ensure_user,
@@ -60,7 +42,6 @@ pub fn run() {
             commands::user::update_settings,
             commands::ai::ai_list_models,
             commands::ai::ai_test_connection,
-            commands::ai::fetch_channel_pricing,
             commands::ai::ai_grammar_check,
             commands::ai::ai_cover_letter,
             commands::ai::ai_jd_analysis,
@@ -73,6 +54,7 @@ pub fn run() {
             commands::ai::list_jd_analyses,
             commands::ai::get_jd_analysis,
             commands::ai::delete_jd_analysis,
+            commands::ai::parse_resume_file,
             commands::chat::list_chat_sessions,
             commands::chat::get_chat_session,
             commands::chat::list_chat_messages,
@@ -81,19 +63,20 @@ pub fn run() {
             commands::chat::ai_chat,
             commands::chat::cancel_ai_stream,
             commands::chat::truncate_chat_messages,
+            commands::interview::interview_chat,
+            commands::journal::list_applications,
+            commands::journal::save_application,
+            commands::journal::delete_application,
+            commands::journal::import_legacy_journal,
+            commands::journal::list_mock_interviews,
+            commands::journal::create_mock_interview,
+            commands::journal::delete_mock_interview,
             commands::export::export_pdf,
             commands::export::export_html,
             commands::export::export_txt,
             commands::export::export_markdown,
             commands::export::export_json,
             commands::export::export_docx,
-            commands::ai::parse_resume_file,
-            commands::global_agent::global_agent_chat,
-            commands::interview::interview_chat,
-            commands::interview::get_interview_directives,
-            commands::interview::update_interview_directives,
-            commands::browser::browser_driver_info,
-            commands::browser::browser_driver_userscript,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

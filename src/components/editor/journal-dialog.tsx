@@ -1,23 +1,24 @@
 'use client';
 
-import { useState } from 'react';
-import { useTranslations } from 'next-intl';
-import { Briefcase, MessagesSquare, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
+import { Briefcase, MessagesSquare, Plus } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-  useJournalStore,
-  CHANNEL_PRESETS,
-  type Application,
-  type ApplicationStatus,
-  type InterviewFormat,
-  type InterviewRound,
-  type OutcomeResult,
-} from '@/stores/journal-store';
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { useJournalStore, type Application } from '@/stores/journal-store';
+import { useResumeStore } from '@/stores/resume-store';
+import { ApplicationEditor, MockItem } from '@/components/journal/application-editor';
+import { STATUS_KEY } from '@/components/journal/journal-labels';
 import { cn } from '@/lib/utils';
 
 interface JournalDialogProps {
@@ -26,65 +27,67 @@ interface JournalDialogProps {
   resumeId: string;
 }
 
-const STATUSES: ApplicationStatus[] = ['submitted', 'screening', 'interview', 'offer', 'rejected', 'ghosted'];
-const FORMATS: InterviewFormat[] = ['phone', 'video', 'onsite', 'take-home', 'other'];
-const OUTCOMES: OutcomeResult[] = ['offer', 'rejected', 'withdrew', 'ghosted'];
-
-const statusKey: Record<ApplicationStatus, string> = {
-  submitted: 'statusSubmitted',
-  screening: 'statusScreening',
-  interview: 'statusInterview',
-  offer: 'statusOffer',
-  rejected: 'statusRejected',
-  declined: 'statusDeclined',
-  ghosted: 'statusGhosted',
-};
-const formatKey: Record<InterviewFormat, string> = {
-  phone: 'formatPhone',
-  video: 'formatVideo',
-  onsite: 'formatOnsite',
-  'take-home': 'formatTakeHome',
-  other: 'formatOther',
-};
-const outcomeKey: Record<OutcomeResult, string> = {
-  offer: 'outcomeOffer',
-  rejected: 'outcomeRejected',
-  withdrew: 'outcomeWithdrew',
-  ghosted: 'outcomeGhosted',
-};
-
+/** 编辑器里的「投递记录」：只看这份简历投过哪里；全局视图在「求职动态」。 */
 export function JournalDialog({ open, onOpenChange, resumeId }: JournalDialogProps) {
   const t = useTranslations('journal');
+  const tCommon = useTranslations('common');
+  const locale = useLocale();
+  const hydrate = useJournalStore((s) => s.hydrate);
   const applications = useJournalStore((s) => s.applications);
-  const mocksMap = useJournalStore((s) => s.mocks);
-  const addApplication = useJournalStore((s) => s.addApplication);
+  const mocksAll = useJournalStore((s) => s.mocks);
+  const createApplication = useJournalStore((s) => s.createApplication);
+  const deleteApplication = useJournalStore((s) => s.deleteApplication);
   const removeMock = useJournalStore((s) => s.removeMock);
+  const resumeTitle = useResumeStore((s) => s.currentResume?.title);
 
-  const apps = (applications[resumeId] || []).slice().sort((a, b) => b.updatedAt - a.updatedAt);
-  const mocks = (mocksMap[resumeId] || []).slice().sort((a, b) => b.createdAt - a.createdAt);
+  const apps = useMemo(
+    () => applications.filter((a) => a.resumeId === resumeId).sort((a, b) => b.updatedAt - a.updatedAt),
+    [applications, resumeId]
+  );
+  const mocks = useMemo(
+    () => mocksAll.filter((m) => m.resumeId === resumeId).sort((a, b) => b.createdAt - a.createdAt),
+    [mocksAll, resumeId]
+  );
 
   const [view, setView] = useState<'apps' | 'mocks'>('apps');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selectedMockId, setSelectedMockId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Application | null>(null);
   const selected = apps.find((a) => a.id === selectedId) || null;
-  const selectedMock = mocks.find((m) => m.id === selectedMockId) || null;
 
-  const newApp = () => {
-    const a = addApplication(resumeId, {});
+  useEffect(() => {
+    if (open) void hydrate();
+  }, [open, hydrate]);
+
+  // 打开时默认选中最近一条，省一次点击。
+  useEffect(() => {
+    if (open && !selectedId && apps.length > 0) setSelectedId(apps[0].id);
+  }, [open, apps, selectedId]);
+
+  const newApp = async () => {
+    const a = await createApplication({ resumeId });
     setSelectedId(a.id);
     setView('apps');
   };
 
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    if (selectedId === pendingDelete.id) setSelectedId(null);
+    await deleteApplication(pendingDelete.id);
+    setPendingDelete(null);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[min(720px,calc(100vh-5rem))] max-w-[900px] flex-col gap-0 p-0 sm:max-w-[900px]">
+      <DialogContent className="flex h-[min(760px,calc(100vh-4rem))] max-w-[960px] flex-col gap-0 p-0 sm:max-w-[960px]">
         <DialogHeader className="border-b border-border px-5 py-3">
-          <DialogTitle>{t('title')}</DialogTitle>
+          <DialogTitle className="truncate">
+            {t('title')}
+            {resumeTitle ? <span className="ml-2 font-normal text-muted-foreground">· {resumeTitle}</span> : null}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1">
-          {/* Left rail: view switch + list */}
-          <div className="flex w-56 shrink-0 flex-col border-r border-border">
+          <div className="flex w-60 shrink-0 flex-col border-r border-border">
             <div className="flex gap-1 p-2">
               {(['apps', 'mocks'] as const).map((v) => (
                 <button
@@ -92,12 +95,13 @@ export function JournalDialog({ open, onOpenChange, resumeId }: JournalDialogPro
                   type="button"
                   onClick={() => setView(v)}
                   className={cn(
-                    'flex flex-1 items-center justify-center gap-1 rounded-md py-1.5 text-[12px] font-medium transition-colors',
+                    'flex flex-1 cursor-pointer items-center justify-center gap-1 rounded-md py-1.5 text-[12px] font-medium transition-colors',
                     view === v ? 'bg-[var(--whale-ink)] text-[var(--whale-cream)]' : 'text-muted-foreground hover:bg-muted'
                   )}
                 >
                   {v === 'apps' ? <Briefcase className="h-3.5 w-3.5" /> : <MessagesSquare className="h-3.5 w-3.5" />}
                   {v === 'apps' ? t('threadsTab') : t('mocksTab')}
+                  <span className="text-[10px] opacity-70">{v === 'apps' ? apps.length : mocks.length}</span>
                 </button>
               ))}
             </div>
@@ -116,15 +120,15 @@ export function JournalDialog({ open, onOpenChange, resumeId }: JournalDialogPro
                           type="button"
                           onClick={() => setSelectedId(a.id)}
                           className={cn(
-                            'w-full rounded-md border px-2.5 py-2 text-left transition-colors',
-                            active ? 'border-brand/40 bg-brand/5' : 'border-transparent hover:bg-muted'
+                            'w-full cursor-pointer rounded-md border px-2.5 py-2 text-left transition-colors',
+                            active ? 'border-[var(--whale-ink)]/30 bg-[var(--whale-cream-soft)]' : 'border-transparent hover:bg-muted'
                           )}
                         >
                           <div className="truncate text-[13px] font-medium text-foreground">{a.company || t('untitledCompany')}</div>
                           <div className="mt-0.5 flex items-center justify-between gap-2">
                             <span className="truncate text-[11px] text-muted-foreground">{a.role || '—'}</span>
                             <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                              {t(statusKey[a.status])}
+                              {t(STATUS_KEY[a.status])}
                             </span>
                           </div>
                         </button>
@@ -135,33 +139,17 @@ export function JournalDialog({ open, onOpenChange, resumeId }: JournalDialogPro
               ) : mocks.length === 0 ? (
                 <p className="px-2 py-6 text-center text-xs text-muted-foreground">{t('mockEmpty')}</p>
               ) : (
-                <div className="space-y-1">
-                  {mocks.map((m) => {
-                    const active = m.id === selectedMockId;
-                    return (
-                      <button
-                        key={m.id}
-                        type="button"
-                        onClick={() => setSelectedMockId(m.id)}
-                        className={cn(
-                          'w-full rounded-md border px-2.5 py-2 text-left transition-colors',
-                          active ? 'border-brand/40 bg-brand/5' : 'border-transparent hover:bg-muted'
-                        )}
-                      >
-                        <div className="truncate text-[13px] font-medium text-foreground">
-                          {[m.company, m.role].filter(Boolean).join(' · ') || t('archiveTitlePrefix')}
-                        </div>
-                        <div className="mt-0.5 text-[10px] text-muted-foreground">{new Date(m.createdAt).toLocaleDateString()}</div>
-                      </button>
-                    );
-                  })}
+                <div className="space-y-1.5 pt-1">
+                  {mocks.map((m) => (
+                    <MockItem key={m.id} mock={m} locale={locale} onRemove={() => void removeMock(m.id)} />
+                  ))}
                 </div>
               )}
             </div>
 
             {view === 'apps' && (
               <div className="border-t border-border p-2">
-                <Button size="sm" className="w-full cursor-pointer gap-1.5" onClick={newApp}>
+                <Button size="sm" className="w-full cursor-pointer gap-1.5" onClick={() => void newApp()}>
                   <Plus className="h-4 w-4" />
                   {t('addApplication')}
                 </Button>
@@ -169,55 +157,22 @@ export function JournalDialog({ open, onOpenChange, resumeId }: JournalDialogPro
             )}
           </div>
 
-          {/* Right: detail */}
           <div className="min-w-0 flex-1 overflow-y-auto p-5">
             {view === 'mocks' ? (
-              selectedMock ? (
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <h3 className="text-[15px] font-semibold text-foreground">
-                        {[selectedMock.company, selectedMock.role].filter(Boolean).join(' · ') || t('archiveTitlePrefix')}
-                      </h3>
-                      <p className="text-[11px] text-muted-foreground">{new Date(selectedMock.createdAt).toLocaleString()}</p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      className="cursor-pointer text-muted-foreground hover:text-destructive"
-                      onClick={() => { removeMock(selectedMock.id); setSelectedMockId(null); }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {selectedMock.feedback && (
-                    <div>
-                      <Label className="text-xs text-muted-foreground">{t('mockFeedback')}</Label>
-                      <div className="mt-1 whitespace-pre-wrap rounded-md border border-border bg-muted/40 p-3 text-[12px] leading-relaxed">
-                        {selectedMock.feedback}
-                      </div>
-                    </div>
-                  )}
-                  {selectedMock.transcript && (
-                    <details className="rounded-md border border-border">
-                      <summary className="cursor-pointer px-3 py-2 text-[12px] font-medium">{t('mockTranscript')}</summary>
-                      <div className="max-h-64 overflow-y-auto whitespace-pre-wrap px-3 pb-3 text-[11px] leading-relaxed text-muted-foreground">
-                        {selectedMock.transcript}
-                      </div>
-                    </details>
-                  )}
-                </div>
-              ) : (
-                <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">
-                  {mocks.length ? t('selectMock') : t('mockEmpty')}
-                </div>
-              )
+              <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
+                {t('mocksHint')}
+              </div>
             ) : selected ? (
-              <ApplicationDetail key={selected.id} app={selected} onDeleted={() => setSelectedId(null)} />
+              <ApplicationEditor
+                key={selected.id}
+                app={selected}
+                onDelete={() => setPendingDelete(selected)}
+                onBeforeLaunchTool={() => onOpenChange(false)}
+              />
             ) : (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-sm text-muted-foreground">
                 {t('selectThread')}
-                <Button variant="outline" size="sm" className="cursor-pointer gap-1.5" onClick={newApp}>
+                <Button variant="outline" size="sm" className="cursor-pointer gap-1.5" onClick={() => void newApp()}>
                   <Plus className="h-4 w-4" />
                   {t('addApplication')}
                 </Button>
@@ -226,216 +181,23 @@ export function JournalDialog({ open, onOpenChange, resumeId }: JournalDialogPro
           </div>
         </div>
       </DialogContent>
+
+      <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('deleteConfirmTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDelete ? [pendingDelete.company, pendingDelete.role].filter(Boolean).join(' · ') || t('untitledCompany') : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="cursor-pointer">{tCommon('cancel')}</AlertDialogCancel>
+            <AlertDialogAction className="cursor-pointer bg-red-600 hover:bg-red-700" onClick={() => void confirmDelete()}>
+              {tCommon('delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
-  );
-}
-
-function ApplicationDetail({ app, onDeleted }: { app: Application; onDeleted: () => void }) {
-  const t = useTranslations('journal');
-  const update = useJournalStore((s) => s.updateApplication);
-  const del = useJournalStore((s) => s.deleteApplication);
-  const addInterview = useJournalStore((s) => s.addInterview);
-  const updateInterview = useJournalStore((s) => s.updateInterview);
-  const removeInterview = useJournalStore((s) => s.removeInterview);
-  const setOutcome = useJournalStore((s) => s.setOutcome);
-
-  const set = (patch: Partial<Application>) => update(app.id, patch);
-
-  return (
-    <div className="space-y-4">
-      {/* Company / role + delete */}
-      <div className="flex items-start gap-2">
-        <div className="grid flex-1 grid-cols-2 gap-2">
-          <Field label={t('fieldCompany')}>
-            <Input value={app.company} onChange={(e) => set({ company: e.target.value })} placeholder={t('fieldCompany')} />
-          </Field>
-          <Field label={t('fieldRole')}>
-            <Input value={app.role} onChange={(e) => set({ role: e.target.value })} placeholder={t('fieldRole')} />
-          </Field>
-        </div>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          className="mt-6 shrink-0 cursor-pointer text-muted-foreground hover:text-destructive"
-          onClick={() => { del(app.id); onDeleted(); }}
-          title={t('delete')}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <Field label={t('fieldChannel')}>
-          <Input
-            list="journal-channels"
-            value={app.channel || ''}
-            onChange={(e) => set({ channel: e.target.value })}
-            placeholder={t('fieldChannelPlaceholder')}
-          />
-          <datalist id="journal-channels">
-            {CHANNEL_PRESETS.map((c) => <option key={c} value={c} />)}
-          </datalist>
-        </Field>
-        <Field label={t('fieldDate')}>
-          <Input type="date" value={app.appliedDate} onChange={(e) => set({ appliedDate: e.target.value })} />
-        </Field>
-        <Field label={t('fieldStatus')}>
-          <Select value={app.status} onValueChange={(v) => set({ status: v as ApplicationStatus })}>
-            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {STATUSES.map((s) => <SelectItem key={s} value={s} className="text-xs">{t(statusKey[s])}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label={t('fieldNextFollowUp')}>
-          <Input type="date" value={app.nextFollowUp || ''} onChange={(e) => set({ nextFollowUp: e.target.value })} />
-        </Field>
-        <Field label={t('fieldHrName')}>
-          <Input value={app.hrName || ''} onChange={(e) => set({ hrName: e.target.value })} placeholder={t('fieldHrName')} />
-        </Field>
-        <Field label={t('fieldHrContact')}>
-          <Input value={app.hrContact || ''} onChange={(e) => set({ hrContact: e.target.value })} placeholder={t('fieldHrContactPlaceholder')} />
-        </Field>
-      </div>
-
-      <Field label={t('fieldJd')}>
-        <Textarea rows={2} value={app.jdSnippet || ''} onChange={(e) => set({ jdSnippet: e.target.value })} />
-      </Field>
-      <Field label={t('fieldNotes')}>
-        <Textarea rows={2} value={app.notes || ''} onChange={(e) => set({ notes: e.target.value })} />
-      </Field>
-
-      {/* Interview rounds */}
-      <section className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label className="text-[13px] font-semibold">{t('interviewRounds')}</Label>
-          <Button variant="outline" size="sm" className="cursor-pointer gap-1" onClick={() => addInterview(app.id, {})}>
-            <Plus className="h-3.5 w-3.5" />
-            {t('addRound')}
-          </Button>
-        </div>
-        {app.interviews.length === 0 ? (
-          <p className="rounded-md border border-dashed border-border px-3 py-3 text-center text-xs text-muted-foreground">{t('noRounds')}</p>
-        ) : (
-          <div className="space-y-2">
-            {app.interviews.map((r, i) => (
-              <RoundEditor
-                key={r.id}
-                index={i}
-                round={r}
-                onChange={(patch) => updateInterview(app.id, r.id, patch)}
-                onRemove={() => removeInterview(app.id, r.id)}
-              />
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Outcome */}
-      <section className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label className="text-[13px] font-semibold">{t('fieldOutcome')}</Label>
-          <Select
-            value={app.outcome?.result ?? '__none__'}
-            onValueChange={(v) =>
-              v === '__none__'
-                ? setOutcome(app.id, null)
-                : setOutcome(app.id, { ...(app.outcome || {}), result: v as OutcomeResult })
-            }
-          >
-            <SelectTrigger className="h-8 w-36"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__" className="text-xs">{t('outcomeNone')}</SelectItem>
-              {OUTCOMES.map((o) => <SelectItem key={o} value={o} className="text-xs">{t(outcomeKey[o])}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        {app.outcome && (
-          <div className="space-y-2">
-            <Field label={t('fieldReason')}>
-              <Input value={app.outcome.reason || ''} onChange={(e) => setOutcome(app.id, { ...app.outcome!, reason: e.target.value })} />
-            </Field>
-            <Field label={t('fieldReflection')}>
-              <Textarea rows={2} value={app.outcome.reflection || ''} onChange={(e) => setOutcome(app.id, { ...app.outcome!, reflection: e.target.value })} />
-            </Field>
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
-
-function RoundEditor({
-  index,
-  round,
-  onChange,
-  onRemove,
-}: {
-  index: number;
-  round: InterviewRound;
-  onChange: (patch: Partial<InterviewRound>) => void;
-  onRemove: () => void;
-}) {
-  const t = useTranslations('journal');
-  return (
-    <div className="rounded-md border border-border p-2.5">
-      <div className="mb-2 flex items-center gap-2">
-        <Input
-          value={round.round}
-          onChange={(e) => onChange({ round: e.target.value })}
-          placeholder={t('fieldRoundPlaceholder')}
-          className="h-8 flex-1"
-        />
-        <Select value={round.format ?? 'video'} onValueChange={(v) => onChange({ format: v as InterviewFormat })}>
-          <SelectTrigger size="sm" className="h-8 w-24 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {FORMATS.map((f) => <SelectItem key={f} value={f} className="text-xs">{t(formatKey[f])}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Button variant="ghost" size="icon-xs" className="shrink-0 cursor-pointer text-muted-foreground hover:text-destructive" onClick={onRemove}>
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label={t('fieldScheduledAt')}>
-          <Input
-            type="datetime-local"
-            value={round.scheduledAt || ''}
-            onChange={(e) => onChange({ scheduledAt: e.target.value })}
-            className="h-8"
-          />
-        </Field>
-        <Field label={t('fieldDuration')}>
-          <Input
-            type="number"
-            min={0}
-            value={round.durationMin ?? ''}
-            onChange={(e) => onChange({ durationMin: e.target.value ? Number(e.target.value) : undefined })}
-            placeholder={t('durationPlaceholder')}
-            className="h-8"
-          />
-        </Field>
-        <Field label={t('fieldInterviewer')}>
-          <Input value={round.interviewer || ''} onChange={(e) => onChange({ interviewer: e.target.value })} className="h-8" />
-        </Field>
-        <Field label={t('fieldTopics')}>
-          <Input value={round.topics || ''} onChange={(e) => onChange({ topics: e.target.value })} className="h-8" />
-        </Field>
-      </div>
-      <div className="mt-2">
-        <Field label={t('fieldNotes')}>
-          <Textarea rows={2} value={round.notes || ''} onChange={(e) => onChange({ notes: e.target.value })} />
-        </Field>
-      </div>
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block space-y-1">
-      <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
-      {children}
-    </label>
   );
 }

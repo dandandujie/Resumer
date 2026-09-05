@@ -22,7 +22,18 @@ fn parse_sections_payload(sections: Option<Value>) -> Result<Option<Vec<SectionI
     Ok(Some(parsed))
 }
 
-fn parse_update_resume_payload(payload: Value) -> Result<(String, String, String, String, Value, Option<Vec<SectionInput>>, String), CommandError> {
+/// 只更新 payload 里给出的字段：重命名这类只带 title 的请求不能把模板和主题
+/// 重置成默认值（这正是之前工作台改名后模板"跳回 classic"的原因）。
+struct UpdateResumePayload {
+    id: String,
+    user_id: String,
+    title: String,
+    template: Option<String>,
+    theme_config: Option<Value>,
+    sections: Option<Vec<SectionInput>>,
+}
+
+fn parse_update_resume_payload(payload: Value) -> Result<UpdateResumePayload, CommandError> {
     let obj = payload.as_object().ok_or_else(|| CommandError {
         message: "update_resume payload must be an object".into(),
     })?;
@@ -59,32 +70,17 @@ fn parse_update_resume_payload(payload: Value) -> Result<(String, String, String
         .get("template")
         .and_then(|v| v.as_str())
         .filter(|v| !v.trim().is_empty())
-        .unwrap_or("classic")
-        .to_string();
+        .map(str::to_string);
 
     let theme_config = obj
         .get("themeConfig")
         .or_else(|| obj.get("theme_config"))
-        .cloned()
-        .unwrap_or_else(|| Value::Object(Default::default()));
+        .filter(|v| v.is_object())
+        .cloned();
 
     let sections = parse_sections_payload(obj.get("sections").cloned())?;
-    let snapshot_event = match obj.get("snapshotEvent").or_else(|| obj.get("snapshot_event")) {
-        Some(value) => {
-            let event = value.as_str().ok_or_else(|| CommandError {
-                message: "snapshotEvent must be a string".into(),
-            })?;
-            if !matches!(event, "save" | "ai_accept" | "ai_reject") {
-                return Err(CommandError {
-                    message: "invalid snapshotEvent".into(),
-                });
-            }
-            event.to_string()
-        }
-        None => "save".to_string(),
-    };
 
-    Ok((id, user_id, title, template, theme_config, sections, snapshot_event))
+    Ok(UpdateResumePayload { id, user_id, title, template, theme_config, sections })
 }
 
 fn parse_section_input(value: &Value) -> Result<SectionInput, CommandError> {
@@ -332,45 +328,23 @@ pub fn update_resume(
     payload: Value,
 ) -> Result<(), CommandError> {
     let mut conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
-    let (id, user_id, title, template, theme_config, sections, snapshot_event) = parse_update_resume_payload(payload)?;
+    let input = parse_update_resume_payload(payload)?;
     let tx = conn.transaction()?;
-    repo::update(&tx, &id, &user_id, &title, &template, &theme_config)?;
+    repo::update(
+        &tx,
+        &input.id,
+        &input.user_id,
+        &input.title,
+        input.template.as_deref(),
+        input.theme_config.as_ref(),
+    )?;
 
-    if let Some(incoming) = sections {
-        sync_sections(&tx, &id, &incoming)?;
+    if let Some(incoming) = input.sections {
+        sync_sections(&tx, &input.id, &incoming)?;
     }
 
-    repo::create_version_snapshot(&tx, &id, &user_id, &snapshot_event)?;
     tx.commit()?;
-
     Ok(())
-}
-
-#[tauri::command]
-pub fn list_resume_versions(
-    db: State<AppDb>,
-    user_id: String,
-    resume_id: Option<String>,
-) -> Result<Vec<repo::ResumeVersion>, CommandError> {
-    let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
-    repo::list_versions_by_user_id(&conn, &user_id, resume_id.as_deref()).map_err(Into::into)
-}
-
-#[tauri::command]
-pub fn create_resume_version_snapshot(
-    db: State<AppDb>,
-    user_id: String,
-    resume_id: String,
-    event: String,
-) -> Result<String, CommandError> {
-    if !matches!(event.as_str(), "save" | "ai_accept" | "ai_reject") {
-        return Err(CommandError {
-            message: "invalid snapshot event".into(),
-        });
-    }
-
-    let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
-    repo::create_version_snapshot(&conn, &resume_id, &user_id, &event).map_err(Into::into)
 }
 
 #[tauri::command]
@@ -468,11 +442,11 @@ mod tests {
 
     #[test]
     fn parse_update_resume_payload_reads_nested_sections_from_single_payload() {
-        let (id, user_id, title, template, theme_config, sections, snapshot_event) = parse_update_resume_payload(json!({
+        let input = parse_update_resume_payload(json!({
             "id": "resume-1",
             "userId": "user-1",
             "title": "测试简历",
-            "template": "classic",
+            "template": "modern",
             "themeConfig": { "primaryColor": "#111111" },
             "sections": [
                 {
@@ -487,67 +461,47 @@ mod tests {
         }))
         .unwrap();
 
-        assert_eq!(id, "resume-1");
-        assert_eq!(user_id, "user-1");
-        assert_eq!(title, "测试简历");
-        assert_eq!(template, "classic");
-        assert_eq!(theme_config, json!({ "primaryColor": "#111111" }));
-        assert_eq!(sections.unwrap()[0].section_type, "summary");
-        assert_eq!(snapshot_event, "save");
+        assert_eq!(input.id, "resume-1");
+        assert_eq!(input.user_id, "user-1");
+        assert_eq!(input.title, "测试简历");
+        assert_eq!(input.template.as_deref(), Some("modern"));
+        assert_eq!(input.theme_config, Some(json!({ "primaryColor": "#111111" })));
+        assert_eq!(input.sections.unwrap()[0].section_type, "summary");
     }
 
     #[test]
-    fn parse_update_resume_payload_rejects_invalid_snapshot_event() {
-        let result = parse_update_resume_payload(json!({
-            "id": "resume-1",
+    fn rename_only_payload_keeps_template_and_theme() {
+        let mut conn = setup_conn();
+        let resume_id = repo::create(&conn, "user-1", "测试简历", "modern", "zh", &json!({ "primaryColor": "#123456" })).unwrap();
+        let input = parse_update_resume_payload(json!({
+            "id": resume_id,
             "userId": "user-1",
-            "title": "测试简历",
-            "template": "classic",
-            "themeConfig": {},
-            "snapshotEvent": "typo"
-        }));
+            "title": "改名后",
+        }))
+        .unwrap();
+        assert!(input.template.is_none());
+        assert!(input.theme_config.is_none());
 
-        match result {
-            Ok(_) => panic!("expected invalid snapshotEvent to fail"),
-            Err(err) => assert_eq!(err.message, "invalid snapshotEvent"),
-        }
+        let tx = conn.transaction().unwrap();
+        repo::update(&tx, &input.id, &input.user_id, &input.title, input.template.as_deref(), input.theme_config.as_ref()).unwrap();
+        tx.commit().unwrap();
+
+        let stored = repo::find_by_id(&conn, &resume_id, "user-1").unwrap().unwrap();
+        assert_eq!(stored.resume.title, "改名后");
+        assert_eq!(stored.resume.template, "modern");
+        assert_eq!(stored.resume.theme_config, json!({ "primaryColor": "#123456" }));
     }
 
     #[test]
-    fn resume_version_snapshot_captures_resume_sections_for_user() {
-        let conn = setup_conn();
-        let resume_id = repo::create(&conn, "user-1", "测试简历", "classic", "zh", &json!({})).unwrap();
-        repo::create_section(
-            &conn,
-            &resume_id,
-            "summary",
-            "个人简介",
-            0,
-            true,
-            &json!({ "text": "第一版" }),
-        ).unwrap();
-
-        repo::create_version_snapshot(&conn, &resume_id, "user-1", "save").unwrap();
-
-        let versions = repo::list_versions_by_user_id(&conn, "user-1", None).unwrap();
-        assert_eq!(versions.len(), 1);
-        assert_eq!(versions[0].resume_id, resume_id);
-        assert_eq!(versions[0].resume_title, "测试简历");
-        assert_eq!(versions[0].event, "save");
-        assert_eq!(versions[0].snapshot["sections"][0]["content"], json!({ "text": "第一版" }));
-    }
-
-    #[test]
-    fn update_resume_syncs_sections_and_records_snapshot_event() {
+    fn full_save_syncs_sections_and_theme() {
         let mut conn = setup_conn();
         let resume_id = repo::create(&conn, "user-1", "测试简历", "classic", "zh", &json!({})).unwrap();
-        let payload = json!({
+        let input = parse_update_resume_payload(json!({
             "id": resume_id,
             "userId": "user-1",
             "title": "测试简历 v2",
-            "template": "classic",
-            "themeConfig": {},
-            "snapshotEvent": "ai_reject",
+            "template": "modern",
+            "themeConfig": { "accentColor": "#abcdef" },
             "sections": [
                 {
                     "id": "section-1",
@@ -555,23 +509,20 @@ mod tests {
                     "title": "个人简介",
                     "sortOrder": 0,
                     "visible": true,
-                    "content": { "text": "回滚后" }
+                    "content": { "text": "第二版" }
                 }
             ]
-        });
-        let (id, user_id, title, template, theme_config, sections, snapshot_event) =
-            parse_update_resume_payload(payload).unwrap();
+        }))
+        .unwrap();
         let tx = conn.transaction().unwrap();
-
-        repo::update(&tx, &id, &user_id, &title, &template, &theme_config).unwrap();
-        sync_sections(&tx, &id, &sections.unwrap()).unwrap();
-        repo::create_version_snapshot(&tx, &id, &user_id, &snapshot_event).unwrap();
+        repo::update(&tx, &input.id, &input.user_id, &input.title, input.template.as_deref(), input.theme_config.as_ref()).unwrap();
+        sync_sections(&tx, &input.id, &input.sections.unwrap()).unwrap();
         tx.commit().unwrap();
 
-        let versions = repo::list_versions_by_user_id(&conn, "user-1", Some(&resume_id)).unwrap();
-        assert_eq!(versions.len(), 1);
-        assert_eq!(versions[0].event, "ai_reject");
-        assert_eq!(versions[0].resume_title, "测试简历 v2");
-        assert_eq!(versions[0].snapshot["sections"][0]["content"], json!({ "text": "回滚后" }));
+        let stored = repo::find_by_id(&conn, &resume_id, "user-1").unwrap().unwrap();
+        assert_eq!(stored.resume.template, "modern");
+        assert_eq!(stored.resume.theme_config, json!({ "accentColor": "#abcdef" }));
+        assert_eq!(stored.sections.len(), 1);
+        assert_eq!(stored.sections[0].content, json!({ "text": "第二版" }));
     }
 }

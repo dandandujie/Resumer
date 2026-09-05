@@ -4,7 +4,6 @@ import type { UIMessage } from '@/types/chat';
 import { useTranslations } from 'next-intl';
 import { X, Sparkles, Plus, Trash2, Clock, MessageSquare } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { toast } from 'sonner';
 import { logError } from '@/stores/error-log-store';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -12,11 +11,10 @@ import { useEditorStore } from '@/stores/editor-store';
 import { useSettingsStore } from '@/stores/settings-store';
 import { useUIStore } from '@/stores/ui-store';
 import { useAIChat } from '@/hooks/use-ai-chat';
-import { useWebSearchMode } from '@/hooks/use-web-search-mode';
 import { useMessagePagination } from '@/hooks/use-message-pagination';
 import { AIMessage } from './ai-message';
 import { AIInput } from './ai-input';
-import type { AIProviderId, AIProviderOption } from '@/lib/tauri-api';
+import * as api from '@/lib/tauri-api';
 
 interface ChatSession {
   id: string;
@@ -48,11 +46,7 @@ function formatTime(date: Date | number | null) {
 /** Headless chat body — reusable in both side panel and floating bubble */
 export function AIChatContent({ resumeId, hideTitle }: AIChatContentProps) {
   const t = useTranslations('ai');
-  const [models, setModels] = useState<string[]>([]);
-  const [providerOptions, setProviderOptions] = useState<AIProviderOption[]>([]);
-  const [selectedProvider, setSelectedProvider] = useState<AIProviderId | undefined>();
   const [selectedModel, setSelectedModel] = useState<string | undefined>();
-  const [webSearchMode, setWebSearchMode] = useWebSearchMode('project');
   const scrollRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
 
@@ -65,65 +59,39 @@ export function AIChatContent({ resumeId, hideTitle }: AIChatContentProps) {
   const { historicalMessages, hasMore, isLoadingMore, loadInitial, loadMore, reset: resetPagination } = useMessagePagination();
 
   const settingsModel = useSettingsStore((s) => s.aiModel);
-  const settingsProvider = useSettingsStore((s) => s.aiProvider);
-  const settingsBaseURL = useSettingsStore((s) => s.aiBaseURL);
-  const settingsApiKey = useSettingsStore((s) => s.aiApiKey);
   const channels = useSettingsStore((s) => s.channels);
   const activeChannelId = useSettingsStore((s) => s.activeChannelId);
   const selectChannel = useSettingsStore((s) => s.selectChannel);
   const openSettings = useUIStore((s) => s.openModal);
-  const hydrated = useSettingsStore((s) => s._hydrated);
 
-  const effectiveProvider = selectedProvider || settingsProvider;
-  const effectiveProviderOption = providerOptions.find((provider) => provider.id === effectiveProvider);
-  const effectiveModel = selectedModel || effectiveProviderOption?.model || settingsModel;
-
-  // Restrict the picker to the active channel's shortlist (only when following
-  // settings; a manual provider override shows all fetched models). Empty = all.
+  // 模型选择器只展示当前渠道的常用模型列表；没配常用列表就提示去设置，不再每次打开都去拉全量模型。
   const activeChannel = channels.find((c) => c.id === activeChannelId);
-  const shortlist = !selectedProvider ? activeChannel?.models ?? [] : [];
-  // A configured channel with no shortlist → prompt the user to set one up.
-  const needsModelSetup = !!activeChannel && !!activeChannel.apiKey.trim() && shortlist.length === 0;
-  const shownModels = useMemo(() => {
-    if (!shortlist.length) return [];
-    const allowed = new Set(shortlist);
-    const filtered = models.filter((m) => allowed.has(m));
-    const base = filtered.length ? filtered : shortlist;
-    if (effectiveModel && !base.includes(effectiveModel)) return [effectiveModel, ...base];
-    return base;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [models, shortlist.join('|'), effectiveModel]);
+  const shownModels = useMemo(() => activeChannel?.models ?? [], [activeChannel]);
+  const needsModelSetup = !!activeChannel && !!activeChannel.apiKey.trim() && shownModels.length === 0;
+  const effectiveModel = selectedModel && shownModels.includes(selectedModel) ? selectedModel : settingsModel;
 
-  useEffect(() => {
-    if (hydrated) {
-      import('@/lib/tauri-api')
-        .then((api) => setProviderOptions(api.listAIProviderOptions()));
+  const createNewSession = useCallback(async (isInitial = false) => {
+    try {
+      const newId = await api.createChatSession(resumeId);
+      const newSession = await api.getChatSession(newId);
+      if (newSession) {
+        setSessions((prev) => [{ id: newSession.id, title: newSession.title, updatedAt: newSession.updatedAt }, ...prev]);
+        setActiveSessionId(newSession.id);
+        resetPagination();
+        setInitialMessages([]);
+        if (isInitial) {
+          setSessionsLoaded(true);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to create session:', err);
     }
-  }, [hydrated, settingsProvider, settingsBaseURL, settingsApiKey, settingsModel]);
-
-  // Fetch models from API — re-fetch when provider/key/baseURL/model changes
-  useEffect(() => {
-    if (!hydrated) return;
-    import('@/lib/tauri-api')
-      .then((api) => api.aiListModelsForSelection({ provider: selectedProvider, model: selectedModel }))
-      .then((models: { id: string }[]) => {
-        const ids = (models || []).map((m) => m.id);
-        if (effectiveModel && !ids.includes(effectiveModel)) {
-          ids.unshift(effectiveModel);
-        }
-        setModels(ids);
-      })
-      .catch(() => {
-        if (effectiveModel) {
-          setModels([effectiveModel]);
-        }
-      });
-  }, [hydrated, settingsProvider, settingsBaseURL, settingsApiKey, settingsModel, selectedProvider, selectedModel, effectiveModel]);
+  }, [resumeId, resetPagination]);
 
   // Fetch sessions on mount
   useEffect(() => {
-    import('@/lib/tauri-api')
-      .then((api) => api.listChatSessions(resumeId))
+    api
+      .listChatSessions(resumeId)
       .then(async (sessions: ChatSession[]) => {
         if (sessions.length > 0) {
           setSessions(sessions);
@@ -142,24 +110,6 @@ export function AIChatContent({ resumeId, hideTitle }: AIChatContentProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumeId]);
 
-  const createNewSession = useCallback(async (isInitial = false) => {
-    try {
-      const api = await import('@/lib/tauri-api');
-      const newId = await api.createChatSession(resumeId);
-      const newSession = await api.getChatSession(newId);
-      if (newSession) {
-        setSessions((prev) => [{ id: newSession.id, title: newSession.title, updatedAt: newSession.updatedAt }, ...prev]);
-        setActiveSessionId(newSession.id);
-        resetPagination();
-        setInitialMessages([]);
-        if (isInitial) {
-          setSessionsLoaded(true);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to create session:', err);
-    }
-  }, [resumeId, resetPagination]);
 
   const switchSession = useCallback(async (sessionId: string) => {
     if (sessionId === activeSessionId) return;
@@ -171,7 +121,6 @@ export function AIChatContent({ resumeId, hideTitle }: AIChatContentProps) {
 
   const deleteSession = useCallback(async (sessionId: string) => {
     try {
-      const api = await import('@/lib/tauri-api');
       await api.deleteChatSession(sessionId);
     } catch (err) {
       console.error('Failed to delete session:', err);
@@ -198,9 +147,7 @@ export function AIChatContent({ resumeId, hideTitle }: AIChatContentProps) {
     resumeId,
     sessionId: activeSessionId,
     initialMessages,
-    selectedProvider,
-    selectedModel,
-    webSearchMode,
+    selectedModel: effectiveModel,
   });
 
   // Message actions — edit-resend / rollback / regenerate (same as global agent).
@@ -208,7 +155,6 @@ export function AIChatContent({ resumeId, hideTitle }: AIChatContentProps) {
     async (messageId: string) => {
       if (!activeSessionId) return;
       try {
-        const api = await import('@/lib/tauri-api');
         await api.truncateChatMessages(activeSessionId, messageId);
         const msgs = await loadInitial(activeSessionId);
         setInitialMessages(msgs);
@@ -468,8 +414,6 @@ export function AIChatContent({ resumeId, hideTitle }: AIChatContentProps) {
         selectedModel={selectedModel}
         effectiveModel={effectiveModel}
         onModelChange={setSelectedModel}
-        webSearchMode={webSearchMode}
-        onWebSearchModeChange={setWebSearchMode}
         onStop={stop}
       />
     </>

@@ -5,6 +5,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/002_resume_versions.sql"),
     include_str!("../../migrations/003_agent_memory.sql"),
     include_str!("../../migrations/004_session_archive.sql"),
+    include_str!("../../migrations/005_applications.sql"),
 ];
 
 pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {

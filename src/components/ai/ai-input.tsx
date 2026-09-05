@@ -1,10 +1,10 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { SendHorizonal, ServerCog, Square, Globe, Settings2 } from 'lucide-react';
+import { SendHorizonal, ServerCog, Square, Settings2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { FormEvent, ChangeEvent } from 'react';
-import type { AIChannel, WebSearchMode } from '@/stores/settings-store';
+import type { AIChannel } from '@/stores/settings-store';
 
 interface AIInputProps {
   input: string;
@@ -22,14 +22,9 @@ interface AIInputProps {
   selectedModel?: string;
   effectiveModel?: string;
   onModelChange: (model: string) => void;
-  /** Per-surface web-search toggle (independent of Settings). */
-  webSearchMode?: WebSearchMode;
-  onWebSearchModeChange?: (mode: WebSearchMode) => void;
   /** Shown instead of send while generating — cooperative cancel. */
   onStop?: () => void;
 }
-
-const WEB_SEARCH_MODES: WebSearchMode[] = ['off', 'native', 'free', 'bing', 'google', 'baidu', 'tavily', 'grok'];
 
 export function AIInput({
   input,
@@ -45,12 +40,9 @@ export function AIInput({
   selectedModel,
   effectiveModel,
   onModelChange,
-  webSearchMode,
-  onWebSearchModeChange,
   onStop,
 }: AIInputProps) {
   const t = useTranslations('ai');
-  const tw = useTranslations('settings.webSearch');
   const isConfigured = (c: AIChannel) => !!c.apiKey.trim() && !!c.baseURL.trim();
   const hasConfiguredChannel = channels.some(isConfigured);
   const activeChannel = channels.find((c) => c.id === activeChannelId);
@@ -140,32 +132,6 @@ export function AIInput({
                       {modelValue}
                     </SelectItem>
                   )}
-                </SelectContent>
-              </Select>
-            )}
-
-            {onWebSearchModeChange && (
-              <Select
-                value={webSearchMode || 'off'}
-                onValueChange={(value) => onWebSearchModeChange(value as WebSearchMode)}
-              >
-                <SelectTrigger
-                  title={tw('title')}
-                  className={`h-7 max-w-[130px] gap-1 rounded-full border-[var(--whale-divider)] px-2.5 text-[11px] font-medium shadow-none hover:bg-[var(--whale-cream-soft)] ${
-                    webSearchMode && webSearchMode !== 'off'
-                      ? 'bg-[var(--whale-ink)]/8 text-[var(--whale-ink-soft)]'
-                      : 'bg-[var(--whale-card)] text-[var(--whale-ink-muted)]'
-                  }`}
-                >
-                  <Globe className="h-3 w-3 shrink-0" />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {WEB_SEARCH_MODES.map((mode) => (
-                    <SelectItem key={mode} value={mode} className="text-xs">
-                      {tw(`tag.${mode}`)}
-                    </SelectItem>
-                  ))}
                 </SelectContent>
               </Select>
             )}

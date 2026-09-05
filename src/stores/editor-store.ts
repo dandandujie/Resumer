@@ -17,6 +17,18 @@ export interface PendingAiMessage {
   resumeId?: string | null;
 }
 
+/** 从某条投递记录发起 AI 动作（JD 匹配 / 求职文案 / 模拟面试）时带过来的上下文。
+ *  对话框打开时读取它预填 JD、公司、岗位；关闭时清空。 */
+export interface ToolPrefill {
+  applicationId?: string;
+  company?: string;
+  role?: string;
+  jd?: string;
+  round?: string;
+}
+
+export type PendingModal = 'jd-analysis' | 'cover-letter' | 'interview';
+
 interface EditorStore {
   selectedSectionId: string | null;
   showAiChat: boolean;
@@ -24,6 +36,9 @@ interface EditorStore {
   undoStack: ResumeSnapshot[];
   redoStack: ResumeSnapshot[];
   pendingAiMessage: PendingAiMessage | null;
+  toolPrefill: ToolPrefill | null;
+  /** 跨页跳转到编辑器后要自动打开的对话框（编辑器挂载完成即消费）。 */
+  pendingModal: PendingModal | null;
   mobileActiveTab: "edit" | "preview";
   rightPaneTab: "edit" | "ai";
 
@@ -35,6 +50,8 @@ interface EditorStore {
   undo: (current: ResumeSection[]) => ResumeSnapshot | null;
   redo: (current: ResumeSection[]) => ResumeSnapshot | null;
   setPendingAiMessage: (message: PendingAiMessage | null) => void;
+  setToolPrefill: (prefill: ToolPrefill | null) => void;
+  setPendingModal: (modal: PendingModal | null) => void;
   setMobileActiveTab: (tab: "edit" | "preview") => void;
   setRightPaneTab: (tab: "edit" | "ai") => void;
   reset: () => void;
@@ -47,6 +64,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   undoStack: [],
   redoStack: [],
   pendingAiMessage: null,
+  toolPrefill: null,
+  pendingModal: null,
   mobileActiveTab: "edit",
   rightPaneTab: "edit",
 
@@ -94,13 +113,16 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   setPendingAiMessage: (message) => set({ pendingAiMessage: message }),
+  setToolPrefill: (prefill) => set({ toolPrefill: prefill }),
+  setPendingModal: (modal) => set({ pendingModal: modal }),
   setMobileActiveTab: (tab) => set({ mobileActiveTab: tab }),
   setRightPaneTab: (tab) => set({ rightPaneTab: tab }),
 
   // GOTCHA: reset() runs on editor unmount (including resume switches). It must
-  // NOT clear pendingAiMessage / rightPaneTab — they carry cross-navigation
-  // handoffs (e.g. "derive tailored copy" sets a pending AI instruction, then
-  // navigates to the new copy's editor, which consumes it after mount).
+  // NOT clear pendingAiMessage / toolPrefill / pendingModal / rightPaneTab —
+  // they carry cross-navigation handoffs (e.g. "derive tailored copy" sets a
+  // pending AI instruction, then navigates to the new copy's editor, which
+  // consumes it after mount).
   reset: () =>
     set({
       selectedSectionId: null,
