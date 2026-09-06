@@ -27,28 +27,6 @@ pub struct KnowledgeGraph {
     pub edges: Vec<GraphEdge>,
 }
 
-#[allow(dead_code)]
-pub fn normalize_company(value: &str) -> String {
-    let suffixes = [
-        "有限公司",
-        "有限责任公司",
-        "股份有限公司",
-        "股份",
-        "集团",
-        "科技",
-    ];
-    let mut value = value
-        .chars()
-        .filter(|character| !character.is_whitespace())
-        .collect::<String>();
-    for suffix in suffixes {
-        if let Some(trimmed) = value.strip_suffix(suffix) {
-            value = trimmed.to_string();
-        }
-    }
-    value.to_lowercase()
-}
-
 pub fn build(root: &Path) -> Result<KnowledgeGraph, String> {
     let paths = vault::list(root)?
         .into_iter()
@@ -120,19 +98,4 @@ fn wikilinks(body: &str) -> Vec<String> {
         .filter(|path| path.starts_with("wiki/") && path.ends_with(".md"))
         .map(str::to_string)
         .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::normalize_company;
-
-    #[test]
-    fn normalizes_company_suffix_and_whitespace() {
-        assert_eq!(
-            normalize_company("北京 字节跳动科技有限公司"),
-            "北京字节跳动"
-        );
-        assert_eq!(normalize_company("星河股份"), "星河");
-        assert_eq!(normalize_company("ACME 集团"), "acme");
-    }
 }

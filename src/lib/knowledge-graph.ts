@@ -1,13 +1,18 @@
 import type { Application, MockInterview } from '@/stores/journal-store';
-import type { KnowledgeGraphData, KnowledgePageSummary } from '@/lib/tauri-api';
+import type { KnowledgeGraphData } from '@/lib/tauri-api';
 import type { Resume } from '@/types/resume';
 import type { GraphLinkDatum, GraphNodeDatum } from '@/components/graph/knowledge-graph';
 
+const COMPANY_SUFFIXES = ['有限责任公司', '股份有限公司', '有限公司', '股份', '集团', '科技', '公司'];
+
 export function normalizeCompany(value: string): string {
-  return value
-    .replace(/\s+/g, '')
-    .replace(/(有限责任公司|有限公司|股份有限公司|股份|集团|科技)$/u, '')
-    .toLowerCase();
+  let normalized = value.replace(/\s+/gu, '');
+  let previous = '';
+  while (normalized !== previous) {
+    previous = normalized;
+    normalized = normalized.replace(new RegExp(`(${COMPANY_SUFFIXES.join('|')})$`, 'u'), '');
+  }
+  return normalized.toLowerCase();
 }
 
 export function mergeKnowledgeGraph(

@@ -15,7 +15,8 @@
     "build:mac": "tauri build --target aarch64-apple-darwin",
     "lint": "eslint",
     "type-check": "tsc --noEmit",
-    "test:date": "tsx scripts/test-resume-date.ts"
+    "test": "for file in scripts/test-*.ts; do tsx \"$file\"; done",
+    "test:date": "pnpm test"
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.5",
