@@ -221,16 +221,20 @@ export async function deleteJdAnalysis(id: string) {
   return invoke<void>('delete_jd_analysis', { id });
 }
 
-/** 上传 PDF / 图片，解析成一份新简历，返回 resumeId。 */
-export async function parseResumeFile(data: { file: File; language?: string }): Promise<string> {
+/** 上传 JSON/PDF/DOCX/图片，解析或替换简历，返回 resumeId。 */
+export async function parseResumeFile(data: { file: File; language?: string; targetResumeId?: string }): Promise<string> {
   const buffer = await data.file.arrayBuffer();
   const userId = await getCachedUserId();
   return invoke<string>('parse_resume_file', {
     config: getAIConfig(),
     userId,
     fileData: Array.from(new Uint8Array(buffer)),
-    fileType: data.file.type,
+    fileType: data.file.type || ({
+      json: 'application/json', pdf: 'application/pdf', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp',
+    } as Record<string, string>)[data.file.name.split('.').pop()?.toLowerCase() || ''] || '',
     language: data.language,
+    targetResumeId: data.targetResumeId,
   });
 }
 

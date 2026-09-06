@@ -604,7 +604,13 @@
     "error": "导入失败，请重试。",
     "invalidFormat": "文件格式无效，请选择包含 sections 数据的有效 JSON 文件。",
     "importBtn": "导入",
-    "cancel": "取消"
+    "cancel": "取消",
+    "unifiedDescription": "支持 JSON、PDF、DOCX 和图片，导入后会生成结构化简历内容",
+    "selectAnyFile": "点击选择或拖拽文件到此处",
+    "supportedFiles": "JSON / PDF / DOCX / PNG / JPG / WebP",
+    "fileTooLarge": "文件不能超过 20 MB",
+    "newResume": "新建简历",
+    "replaceCurrent": "替换当前内容（保留主题与模板）"
   },
   "coverLetter": {
     "title": "求职文案",

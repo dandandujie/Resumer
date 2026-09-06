@@ -76,3 +76,32 @@
   - `filled` 标题使用 Run shading，`underline` 标题使用段落底边框；圆形头像只保留尺寸语义，裁剪留待具备稳定 Office 形状支持时处理。
 - 下一步建议
   - 按用户要求停止于 WP2，不开始 WP3；如需人工视觉核对，应在具备 Word/WPS 或桌面预览入口后单独执行。
+
+## WP3 导入链路
+
+- 完成项
+  - 增加 `lopdf` 与限定特性的 `image` 依赖；支持 DOCX、PDF、JSON、PNG/JPEG/WebP 统一导入入口。
+  - DOCX 使用 `docx_rs::read_docx` 校验并读取结构，结合 OOXML 段落/表格/列表提取文本；读取 `word/media` 挑选头像，并从 `styles.xml`、`document.xml` 推断字体方案、字号和 mm 页边距。
+  - PDF 使用 lopdf 抽取第一页 XObject 图片，支持 JPEG 与 Flate RGB/灰度图片转 PNG；从页面字体 `/BaseFont` 推断 `songti`、`heiti`、`yahei`、`kaiti` 等方案。
+  - 新增独立 `pick_avatar_candidate` 函数，按最小尺寸、证件照比例和面积选择候选头像；图片视觉导入支持 `avatarBox` 归一化坐标并由 Rust 裁剪。
+  - 导入主题以 standard 为基底合并推断结果；日期继续经过现有归一化内核。
+  - 建简历、AI 建简历、导入/替换简历及建模块均使用 SQLite 事务；模块失败上抛并整体回滚，不吞导入错误。替换当前简历仅更新标题和模块，保留原主题与模板。
+  - 合并为 `ImportResumeDialog`：统一支持 JSON/PDF/DOCX/图片；编辑器可选择新建或替换当前内容，仪表盘新建入口复用同一导入对话框；删除旧的两个 JSON/文件导入对话框。
+  - 新增程序化样本测试：用 docx-rs 生成带头像 DOCX，用 lopdf 生成带 JPEG、BaseFont 的 PDF；验证文本、头像、BaseFont、候选头像、头像裁剪及事务回滚。
+- 未完成项与原因
+  - 未使用真实 DOCX/PDF 样本进行人工视觉核对；环境没有可复现样本和桌面/WPS 验收入口，因此仅记录程序化测试结果，不伪造人工结论。
+  - PDF 字号无法从当前 lopdf 文本提取 API 稳定获得，沿用 standard 字号；字体和页边距仍按可推断数据覆盖主题。
+  - AI 结构化解析仍需要用户配置的模型服务；导入链路本身不添加离线模型。
+- 验收输出摘要
+  - `pnpm type-check`：通过。
+  - `pnpm lint`：通过，0 error、31 warning。
+  - `(cd src-tauri && cargo test)`：通过，20 个测试全部通过；其中 WP3 导入测试 5 个通过。
+  - `pnpm build:vite`：通过；保留既有动态/静态导入与大 chunk 警告。
+  - 完整验收串 `pnpm type-check && pnpm lint && (cd src-tauri && cargo test) && pnpm build:vite`：退出码 0。
+  - `git diff --check`：通过。
+- 决策记录
+  - 按 §3.8 选择在现有 `commands/ai.rs` 中实现导入解析，避免为单一导入链路增加额外服务层；解析辅助函数保持独立并直接单测。
+  - PDF 图片优先保留 DCT JPEG 原始字节，Flate RGB/灰度数据转 PNG；不引入 PDF 渲染器或 OCR 依赖。
+  - 仪表盘保留空白模板创建入口，文件导入统一由 shell 层的 `ImportResumeDialog` 承担；编辑器通过路由识别当前 resume id，避免同一 modal 重复挂载。
+- 下一步建议
+  - 按用户要求停止于 WP3，不开始 WP4；真实样本和桌面人工核对应在具备样本/入口后另行执行。

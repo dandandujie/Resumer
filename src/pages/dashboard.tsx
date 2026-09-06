@@ -30,7 +30,7 @@ import { useRouter } from '@/i18n/routing';
 import { ResumeGrid } from '@/components/dashboard/resume-grid';
 import { ResumeListItem } from '@/components/dashboard/resume-list-item';
 import { GenerateResumeDialog } from '@/components/dashboard/generate-resume-dialog';
-import { ImportJsonDialog } from '@/components/dashboard/import-json-dialog';
+
 import { useJournalStore, aggregateJournal, buildAgenda } from '@/stores/journal-store';
 import { useLocale } from 'next-intl';
 import { formatDateTime } from '@/components/journal/journal-labels';
@@ -414,7 +414,6 @@ export default function DashboardPage() {
       </div>
 
       <GenerateResumeDialog open={activeModal === 'generate-resume'} onOpenChange={(open) => open ? openModal('generate-resume') : closeModal()} onCreated={fetchResumes} />
-      <ImportJsonDialog open={activeModal === 'import'} onOpenChange={(open) => open ? openModal('import') : closeModal()} />
 
       {/* Delete confirmation dialog */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>

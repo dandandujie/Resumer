@@ -299,16 +299,17 @@ pub fn create_resume(
     theme_config: Option<Value>,
     sections: Option<Value>,
 ) -> Result<String, CommandError> {
-    let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+    let mut conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
     let tmpl = template.as_deref().unwrap_or("classic");
     let lang = language.as_deref().unwrap_or("zh");
     let config = theme_config.unwrap_or(Value::Object(Default::default()));
-    let resume_id = repo::create(&conn, &user_id, &title, tmpl, lang, &config)?;
+    let tx = conn.transaction()?;
+    let resume_id = repo::create(&tx, &user_id, &title, tmpl, lang, &config)?;
 
     if let Some(secs) = parse_sections_payload(sections)? {
         for (i, sec) in secs.iter().enumerate() {
             repo::create_section(
-                &conn,
+                &tx,
                 &resume_id,
                 &sec.section_type,
                 &sec.title,
@@ -318,6 +319,7 @@ pub fn create_resume(
             )?;
         }
     }
+    tx.commit()?;
 
     Ok(resume_id)
 }

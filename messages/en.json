@@ -604,7 +604,13 @@
     "error": "Import failed. Please try again.",
     "invalidFormat": "Invalid file format. Please select a valid JSON file with sections data.",
     "importBtn": "Import",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "unifiedDescription": "Import JSON, PDF, DOCX, or an image into structured resume content",
+    "selectAnyFile": "Click to select or drag a file here",
+    "supportedFiles": "JSON / PDF / DOCX / PNG / JPG / WebP",
+    "fileTooLarge": "Files must be smaller than 20 MB",
+    "newResume": "New resume",
+    "replaceCurrent": "Replace current content (keep theme and template)"
   },
   "coverLetter": {
     "title": "Outreach Writer",

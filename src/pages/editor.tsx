@@ -15,7 +15,6 @@ import { SettingsDialog } from '@/components/settings/settings-dialog';
 import { JdAnalysisDialog } from '@/components/editor/jd-analysis-dialog';
 import { TranslateDialog } from '@/components/editor/translate-dialog';
 import { ExportDialog } from '@/components/editor/export-dialog';
-import { ImportDialog } from '@/components/editor/import-dialog';
 import { GrammarCheckDialog } from '@/components/editor/grammar-check-dialog';
 import { CoverLetterDialog } from '@/components/editor/cover-letter-dialog';
 import { InterviewDialog } from '@/components/editor/interview-dialog';
@@ -151,7 +150,6 @@ export default function EditorPage() {
       <JdAnalysisDialog open={activeModal === 'jd-analysis'} onOpenChange={(open) => open ? openModal('jd-analysis') : closeModal()} resumeId={id!} />
       <TranslateDialog open={activeModal === 'translate'} onOpenChange={(open) => open ? openModal('translate') : closeModal()} resumeId={id!} />
       <ExportDialog open={activeModal === 'export'} onOpenChange={(open) => open ? openModal('export') : closeModal()} resumeId={id!} />
-      <ImportDialog open={activeModal === 'import'} onOpenChange={(open) => open ? openModal('import') : closeModal()} resumeId={id!} />
       <GrammarCheckDialog open={activeModal === 'grammar-check'} onOpenChange={(open) => open ? openModal('grammar-check') : closeModal()} resumeId={id!} />
       <CoverLetterDialog open={activeModal === 'cover-letter'} onOpenChange={(open) => open ? openModal('cover-letter') : closeModal()} resumeId={id!} />
       <JournalDialog open={activeModal === 'journal'} onOpenChange={(open) => open ? openModal('journal') : closeModal()} resumeId={id!} />

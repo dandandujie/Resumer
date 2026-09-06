@@ -341,7 +341,7 @@ pub fn interview_system_prompt(
 /// a vague `content: {...}` that never matched these shapes).
 pub fn resume_content_schema() -> &'static str {
     "每个 section 的 content 必须严格采用下面对应类型的 JSON 形状（字段名完全一致、不要改名；每个数组项都要带一个唯一短 id 字符串；没有的字段可给空字符串或空数组，但不要漏掉数组结构）：\n\
-    - personal_info: { \"fullName\":\"\", \"jobTitle\":\"\", \"email\":\"\", \"phone\":\"\", \"location\":\"\", \"age\":\"\", \"gender\":\"\", \"yearsOfExperience\":\"\", \"educationLevel\":\"\", \"wechat\":\"\", \"website\":\"\", \"linkedin\":\"\", \"github\":\"\" }\n\
+    - personal_info: { \"fullName\":\"\", \"jobTitle\":\"\", \"email\":\"\", \"phone\":\"\", \"location\":\"\", \"age\":\"\", \"gender\":\"\", \"yearsOfExperience\":\"\", \"educationLevel\":\"\", \"wechat\":\"\", \"website\":\"\", \"linkedin\":\"\", \"github\":\"\", \"avatarBox\":[0,0,0,0] }\n\
     - summary: { \"text\":\"\" }\n\
     - work_experience: { \"items\":[ { \"id\":\"\", \"company\":\"\", \"position\":\"\", \"location\":\"\", \"startDate\":\"YYYY-MM\", \"endDate\":\"YYYY-MM 或 null\", \"current\":false, \"description\":\"\", \"technologies\":[], \"highlights\":[\"逐条成就/职责，每条一句\"] } ] }\n\
     - education: { \"items\":[ { \"id\":\"\", \"institution\":\"\", \"degree\":\"\", \"field\":\"专业\", \"location\":\"\", \"startDate\":\"YYYY-MM\", \"endDate\":\"YYYY-MM\", \"gpa\":\"\", \"highlights\":[] } ] }\n\

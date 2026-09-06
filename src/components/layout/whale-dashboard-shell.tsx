@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { SettingsDialog } from '@/components/settings/settings-dialog';
 import { CreateResumeDialog } from '@/components/dashboard/create-resume-dialog';
+import { ImportResumeDialog } from '@/components/import/import-resume-dialog';
 import * as api from '@/lib/tauri-api';
 
 function BrandMark({ size = 28 }: { size?: number }) {
@@ -193,7 +194,9 @@ function WhaleFooter() {
 
 export function WhaleDashboardShell() {
   useDesignAttribute('whale');
-  const { activeModal, closeModal } = useUIStore();
+  const { activeModal, closeModal, openModal } = useUIStore();
+  const location = useLocation();
+  const targetResumeId = location.pathname.match(/\/editor\/([^/]+)/)?.[1];
 
   // 顶栏「新建简历」在工作台和求职动态页都可用；创建后由对话框自行跳转到编辑器。
   const handleCreateResume = useCallback(
@@ -227,8 +230,10 @@ export function WhaleDashboardShell() {
       <CreateResumeDialog
         open={activeModal === 'create-resume'}
         onClose={closeModal}
+        onImport={() => openModal('import')}
         onCreate={handleCreateResume}
       />
+      <ImportResumeDialog open={activeModal === 'import'} onOpenChange={(open) => open ? openModal('import') : closeModal()} targetResumeId={targetResumeId} />
     </div>
   );
 }

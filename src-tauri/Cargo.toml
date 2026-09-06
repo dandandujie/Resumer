@@ -34,6 +34,8 @@ regex = "1"
 base64 = "0.22"
 urlencoding = "2"
 pdf-extract = "0.7"
+lopdf = "0.34"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 docx-rs = "0.4"
 zip = "0.6"
 mime_guess = "2"
