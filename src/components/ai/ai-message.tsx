@@ -1,6 +1,17 @@
 'use client';
 
-import { Bot, User, AlertTriangle, Settings, Wand2, Brain, ChevronDown, Pencil, RotateCcw, Scissors } from 'lucide-react';
+import {
+  Bot,
+  User,
+  AlertTriangle,
+  Settings,
+  Wand2,
+  Brain,
+  ChevronDown,
+  Pencil,
+  RotateCcw,
+  Scissors,
+} from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -28,7 +39,8 @@ interface AIMessageProps {
  *  token) — skip the bubble entirely; the typing indicator covers this state. */
 function hasRenderableContent(message: UIMessage): boolean {
   return (message.parts || []).some((p) => {
-    if (p.type === 'text' || p.type === 'reasoning') return p.text.trim().length > 0;
+    if (p.type === 'text' || p.type === 'reasoning')
+      return p.text.trim().length > 0;
     return true; // tool parts always render
   });
 }
@@ -60,27 +72,37 @@ const htmlVisualTags = [
 
 const htmlVisualSanitizeSchema = {
   ...defaultSchema,
-  tagNames: Array.from(new Set([...(defaultSchema.tagNames || []), ...htmlVisualTags])),
+  tagNames: Array.from(
+    new Set([...(defaultSchema.tagNames || []), ...htmlVisualTags]),
+  ),
   attributes: {
     ...defaultSchema.attributes,
     '*': [
-      ...(((defaultSchema.attributes || {}) as Record<string, unknown[]>)['*'] || []),
+      ...(((defaultSchema.attributes || {}) as Record<string, unknown[]>)[
+        '*'
+      ] || []),
       'style',
       'title',
     ],
     details: [
-      ...(((defaultSchema.attributes || {}) as Record<string, unknown[]>)['details'] || []),
+      ...(((defaultSchema.attributes || {}) as Record<string, unknown[]>)[
+        'details'
+      ] || []),
       'open',
       'style',
     ],
     th: [
-      ...(((defaultSchema.attributes || {}) as Record<string, unknown[]>)['th'] || []),
+      ...(((defaultSchema.attributes || {}) as Record<string, unknown[]>)[
+        'th'
+      ] || []),
       'colspan',
       'rowspan',
       'style',
     ],
     td: [
-      ...(((defaultSchema.attributes || {}) as Record<string, unknown[]>)['td'] || []),
+      ...(((defaultSchema.attributes || {}) as Record<string, unknown[]>)[
+        'td'
+      ] || []),
       'colspan',
       'rowspan',
       'style',
@@ -102,8 +124,12 @@ function readCssSize(value: unknown): number | null {
   return null;
 }
 
-function compactVisualStyle(style: unknown, element: 'block' | 'inline' | 'table' = 'block'): CSSProperties {
-  const next: CSSProperties = style && typeof style === 'object' ? { ...(style as CSSProperties) } : {};
+function compactVisualStyle(
+  style: unknown,
+  element: 'block' | 'inline' | 'table' = 'block',
+): CSSProperties {
+  const next: CSSProperties =
+    style && typeof style === 'object' ? { ...(style as CSSProperties) } : {};
 
   const height = readCssSize(next.height);
   const minHeight = readCssSize(next.minHeight);
@@ -111,19 +137,31 @@ function compactVisualStyle(style: unknown, element: 'block' | 'inline' | 'table
   const minWidth = readCssSize(next.minWidth);
   const fontSize = readCssSize(next.fontSize);
 
-  if (height === null && typeof next.height === 'string' && /vh|vw|%|calc|min|max/.test(next.height)) {
+  if (
+    height === null &&
+    typeof next.height === 'string' &&
+    /vh|vw|%|calc|min|max/.test(next.height)
+  ) {
     next.height = 'auto';
   } else if (height !== null && height > 260) {
     next.height = 'auto';
   }
 
-  if (minHeight === null && typeof next.minHeight === 'string' && /vh|vw|%|calc|min|max/.test(next.minHeight)) {
+  if (
+    minHeight === null &&
+    typeof next.minHeight === 'string' &&
+    /vh|vw|%|calc|min|max/.test(next.minHeight)
+  ) {
     next.minHeight = undefined;
   } else if (minHeight !== null && minHeight > 180) {
     next.minHeight = undefined;
   }
 
-  if (width === null && typeof next.width === 'string' && /vw/.test(next.width)) {
+  if (
+    width === null &&
+    typeof next.width === 'string' &&
+    /vw/.test(next.width)
+  ) {
     next.width = '100%';
   } else if (width !== null && width > 980) {
     next.width = '100%';
@@ -133,7 +171,11 @@ function compactVisualStyle(style: unknown, element: 'block' | 'inline' | 'table
     next.minWidth = undefined;
   }
 
-  if (next.position === 'fixed' || next.position === 'sticky' || next.position === 'absolute') {
+  if (
+    next.position === 'fixed' ||
+    next.position === 'sticky' ||
+    next.position === 'absolute'
+  ) {
     next.position = 'relative';
     next.inset = undefined;
     next.top = undefined;
@@ -187,26 +229,57 @@ function compactVisualStyle(style: unknown, element: 'block' | 'inline' | 'table
 
 function cleanAssistantText(text: string): string {
   return text
-    .replace(/^.*You[’']ve used\s+~?\d+[×x]\s+more tokens than Animal Farm\.\s*$/gim, '')
+    .replace(
+      /^.*You[’']ve used\s+~?\d+[×x]\s+more tokens than Animal Farm\.\s*$/gim,
+      '',
+    )
     .replace(/\bdashboard\.thinking\b/g, '思考中...')
     .trim();
 }
 
 const markdownComponents = {
-  div: ({ node: _node, style, ...props }: any) => <div {...props} style={compactVisualStyle(style)} />,
-  span: ({ node: _node, style, ...props }: any) => <span {...props} style={compactVisualStyle(style, 'inline')} />,
-  p: ({ node: _node, style, ...props }: any) => <p {...props} style={compactVisualStyle(style)} />,
-  ul: ({ node: _node, style, ...props }: any) => <ul {...props} style={compactVisualStyle(style)} />,
-  ol: ({ node: _node, style, ...props }: any) => <ol {...props} style={compactVisualStyle(style)} />,
-  li: ({ node: _node, style, ...props }: any) => <li {...props} style={compactVisualStyle(style)} />,
-  details: ({ node: _node, style, ...props }: any) => <details {...props} style={compactVisualStyle(style)} />,
-  summary: ({ node: _node, style, ...props }: any) => <summary {...props} style={compactVisualStyle(style)} />,
-  table: ({ node: _node, style, ...props }: any) => <table {...props} style={compactVisualStyle(style, 'table')} />,
-  thead: ({ node: _node, style, ...props }: any) => <thead {...props} style={compactVisualStyle(style, 'table')} />,
-  tbody: ({ node: _node, style, ...props }: any) => <tbody {...props} style={compactVisualStyle(style, 'table')} />,
-  tr: ({ node: _node, style, ...props }: any) => <tr {...props} style={compactVisualStyle(style, 'table')} />,
-  th: ({ node: _node, style, ...props }: any) => <th {...props} style={compactVisualStyle(style, 'table')} />,
-  td: ({ node: _node, style, ...props }: any) => <td {...props} style={compactVisualStyle(style, 'table')} />,
+  div: ({ node: _node, style, ...props }: any) => (
+    <div {...props} style={compactVisualStyle(style)} />
+  ),
+  span: ({ node: _node, style, ...props }: any) => (
+    <span {...props} style={compactVisualStyle(style, 'inline')} />
+  ),
+  p: ({ node: _node, style, ...props }: any) => (
+    <p {...props} style={compactVisualStyle(style)} />
+  ),
+  ul: ({ node: _node, style, ...props }: any) => (
+    <ul {...props} style={compactVisualStyle(style)} />
+  ),
+  ol: ({ node: _node, style, ...props }: any) => (
+    <ol {...props} style={compactVisualStyle(style)} />
+  ),
+  li: ({ node: _node, style, ...props }: any) => (
+    <li {...props} style={compactVisualStyle(style)} />
+  ),
+  details: ({ node: _node, style, ...props }: any) => (
+    <details {...props} style={compactVisualStyle(style)} />
+  ),
+  summary: ({ node: _node, style, ...props }: any) => (
+    <summary {...props} style={compactVisualStyle(style)} />
+  ),
+  table: ({ node: _node, style, ...props }: any) => (
+    <table {...props} style={compactVisualStyle(style, 'table')} />
+  ),
+  thead: ({ node: _node, style, ...props }: any) => (
+    <thead {...props} style={compactVisualStyle(style, 'table')} />
+  ),
+  tbody: ({ node: _node, style, ...props }: any) => (
+    <tbody {...props} style={compactVisualStyle(style, 'table')} />
+  ),
+  tr: ({ node: _node, style, ...props }: any) => (
+    <tr {...props} style={compactVisualStyle(style, 'table')} />
+  ),
+  th: ({ node: _node, style, ...props }: any) => (
+    <th {...props} style={compactVisualStyle(style, 'table')} />
+  ),
+  td: ({ node: _node, style, ...props }: any) => (
+    <td {...props} style={compactVisualStyle(style, 'table')} />
+  ),
 };
 
 function isToolPart(part: MessagePart): part is ToolPart {
@@ -228,7 +301,47 @@ function ToolPill({ part }: { part: ToolPart }) {
       {isCompleted && (
         <Wand2 className="h-2.5 w-2.5 shrink-0 text-[var(--whale-mint-deep)]" />
       )}
-      <span>{t('toolCalling') || '正在调用'} {part.toolName}</span>
+      <span>
+        {t('toolCalling') || '正在调用'} {part.toolName}
+      </span>
+    </div>
+  );
+}
+
+function WebSearchSources({ result }: { result: unknown }) {
+  const value =
+    result && typeof result === 'object'
+      ? (result as { results?: unknown }).results
+      : null;
+  const results = Array.isArray(value) ? value : [];
+  if (results.length === 0) return null;
+  return (
+    <div className="my-2 space-y-1.5 rounded-lg border border-[var(--whale-divider)] bg-[var(--whale-card)] p-2 text-xs">
+      <div className="font-medium text-[var(--whale-ink)]">参考来源</div>
+      {results.slice(0, 5).map((item, index) => {
+        if (!item || typeof item !== 'object') return null;
+        const source = item as {
+          title?: string;
+          url?: string;
+          content?: string;
+        };
+        return (
+          <a
+            key={`${source.url || 'source'}-${index}`}
+            href={source.url}
+            target="_blank"
+            rel="noreferrer"
+            className="block rounded px-1.5 py-1 hover:bg-muted"
+          >
+            <div className="truncate font-medium text-[var(--whale-ink)]">
+              {source.title || source.url}
+            </div>
+            <div className="line-clamp-2 text-[var(--whale-ink-muted)]">
+              {source.content}
+            </div>
+          </a>
+        );
+      })}
     </div>
   );
 }
@@ -236,8 +349,12 @@ function ToolPill({ part }: { part: ToolPart }) {
 function ToolBlock({ part }: { part: ToolPart }) {
   const toolCallId = (part as any).toolCallId as string | undefined;
   const hasPendingProposal = useProposalsStore((s) =>
-    toolCallId ? s.proposals.some((p) => p.toolCallId === toolCallId) : false
+    toolCallId ? s.proposals.some((p) => p.toolCallId === toolCallId) : false,
   );
+
+  if (part.toolName === 'webSearch' && part.state === 'output-available') {
+    return <WebSearchSources result={part.result} />;
+  }
 
   // If this is a pending mutation, surface the proposal card (the only UI the user sees).
   if (hasPendingProposal && toolCallId) {
@@ -284,7 +401,13 @@ function APIKeyMissingCard() {
   );
 }
 
-function AIMessageImpl({ message, isStreaming, onEditResend, onRollback, onRegenerate }: AIMessageProps) {
+function AIMessageImpl({
+  message,
+  isStreaming,
+  onEditResend,
+  onRollback,
+  onRegenerate,
+}: AIMessageProps) {
   const isUser = message.role === 'user';
 
   if (!isUser && !hasRenderableContent(message)) return null;
@@ -297,15 +420,16 @@ function AIMessageImpl({ message, isStreaming, onEditResend, onRollback, onRegen
     : '';
 
   const rollbackDisabled = isStreaming;
-  const actionButtons = !rollbackDisabled && (isUser ? (onEditResend || onRollback) : onRegenerate);
+  const actionButtons =
+    !rollbackDisabled && (isUser ? onEditResend || onRollback : onRegenerate);
 
   return (
-    <div className={`group/msg flex gap-2.5 ${isUser ? 'flex-row-reverse' : ''}`}>
+    <div
+      className={`group/msg flex gap-2.5 ${isUser ? 'flex-row-reverse' : ''}`}
+    >
       <div
         className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-          isUser
-            ? 'bg-[var(--whale-ink)]'
-            : 'bg-[var(--whale-ink)]'
+          isUser ? 'bg-[var(--whale-ink)]' : 'bg-[var(--whale-ink)]'
         }`}
       >
         {isUser ? (
@@ -314,7 +438,9 @@ function AIMessageImpl({ message, isStreaming, onEditResend, onRollback, onRegen
           <Bot className="h-3 w-3 text-[var(--whale-cream)]" />
         )}
       </div>
-      <div className={`flex min-w-0 flex-col gap-1 ${isUser ? 'items-end max-w-[min(720px,calc(100%-2.5rem))]' : 'items-start max-w-[calc(100%-2.5rem)]'}`}>
+      <div
+        className={`flex min-w-0 flex-col gap-1 ${isUser ? 'items-end max-w-[min(720px,calc(100%-2.5rem))]' : 'items-start max-w-[calc(100%-2.5rem)]'}`}
+      >
         <div
           className={`min-w-0 rounded-2xl px-3.5 py-2.5 text-[14px] leading-relaxed ${
             isUser
@@ -322,54 +448,60 @@ function AIMessageImpl({ message, isStreaming, onEditResend, onRollback, onRegen
               : 'w-fit min-w-0 bg-[var(--whale-cream-soft)] text-[var(--whale-ink-soft)] ring-1 ring-[var(--whale-divider)]'
           }`}
         >
-        {isUser ? (
-          <p className="whitespace-pre-wrap">{userText}</p>
-        ) : (
-          (message.parts || []).map((part, i) => {
-            if (part.type === 'text') {
-              const text = cleanAssistantText(part.text);
-              if (!text) return null;
-              if (text === '__API_KEY_MISSING__') {
-                return <APIKeyMissingCard key={i} />;
+          {isUser ? (
+            <p className="whitespace-pre-wrap">{userText}</p>
+          ) : (
+            (message.parts || []).map((part, i) => {
+              if (part.type === 'text') {
+                const text = cleanAssistantText(part.text);
+                if (!text) return null;
+                if (text === '__API_KEY_MISSING__') {
+                  return <APIKeyMissingCard key={i} />;
+                }
+                // Always render markdown (even during streaming) for better UX
+                // ReactMarkdown is optimized enough to handle incremental updates
+                return (
+                  <div key={i} className="ai-markdown">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[
+                        rehypeRaw,
+                        [rehypeSanitize, htmlVisualSanitizeSchema],
+                      ]}
+                      components={markdownComponents}
+                    >
+                      {text}
+                    </ReactMarkdown>
+                  </div>
+                );
               }
-              // Always render markdown (even during streaming) for better UX
-              // ReactMarkdown is optimized enough to handle incremental updates
-              return (
-                <div key={i} className="ai-markdown">
-		                  <ReactMarkdown
-		                    remarkPlugins={[remarkGfm]}
-		                    rehypePlugins={[rehypeRaw, [rehypeSanitize, htmlVisualSanitizeSchema]]}
-		                    components={markdownComponents}
-		                  >
-                    {text}
-                  </ReactMarkdown>
-                </div>
-              );
-            }
-            if (part.type === 'reasoning') {
-              // Streaming = this reasoning part is the last part (answer text
-              // hasn't started yet) — show the live pulse and keep it open.
-              const isLive = !!isStreaming && i === (message.parts || []).length - 1;
-              return (
-                <ReasoningBlock
-                  key={i}
-                  text={part.text}
-                  live={isLive}
-                  startedAt={part.startedAt}
-                  endedAt={part.endedAt}
-                />
-              );
-            }
-            if (isToolPart(part)) {
-              return <ToolBlock key={i} part={part} />;
-            }
-            return null;
-          })
-        )}
+              if (part.type === 'reasoning') {
+                // Streaming = this reasoning part is the last part (answer text
+                // hasn't started yet) — show the live pulse and keep it open.
+                const isLive =
+                  !!isStreaming && i === (message.parts || []).length - 1;
+                return (
+                  <ReasoningBlock
+                    key={i}
+                    text={part.text}
+                    live={isLive}
+                    startedAt={part.startedAt}
+                    endedAt={part.endedAt}
+                  />
+                );
+              }
+              if (isToolPart(part)) {
+                return <ToolBlock key={i} part={part} />;
+              }
+              return null;
+            })
+          )}
         </div>
         {/* Hover actions — below the bubble */}
         {actionButtons && (
-          <div className={`flex items-center gap-1 px-1 opacity-0 transition-opacity group-hover/msg:opacity-100 ${isUser ? 'justify-end' : ''}`}>
+          <div
+            className={`flex items-center gap-1 px-1 opacity-0 transition-opacity group-hover/msg:opacity-100 ${isUser ? 'justify-end' : ''}`}
+          >
             {isUser && onEditResend && (
               <MsgAction
                 icon={Pencil}
@@ -379,10 +511,20 @@ function AIMessageImpl({ message, isStreaming, onEditResend, onRollback, onRegen
               />
             )}
             {isUser && onRollback && (
-              <MsgAction icon={Scissors} label="回退到此前" onClick={() => onRollback(message.id)} dark={false} />
+              <MsgAction
+                icon={Scissors}
+                label="回退到此前"
+                onClick={() => onRollback(message.id)}
+                dark={false}
+              />
             )}
             {!isUser && onRegenerate && (
-              <MsgAction icon={RotateCcw} label="重新生成" onClick={() => onRegenerate(message.id)} dark={false} />
+              <MsgAction
+                icon={RotateCcw}
+                label="重新生成"
+                onClick={() => onRegenerate(message.id)}
+                dark={false}
+              />
             )}
           </div>
         )}
@@ -445,7 +587,10 @@ function ReasoningBlock({
   const effectiveOpen = manuallyToggled ? open : live;
   if (!text.trim()) return null;
   const elapsedSec = startedAt
-    ? Math.max(1, Math.round(((live ? now : endedAt ?? now) - startedAt) / 1000))
+    ? Math.max(
+        1,
+        Math.round(((live ? now : (endedAt ?? now)) - startedAt) / 1000),
+      )
     : null;
   return (
     <div className="mb-2.5 -mx-0.5">
@@ -459,16 +604,22 @@ function ReasoningBlock({
       >
         <span
           className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-colors ${
-            live ? 'bg-[var(--whale-mint)]/40' : 'bg-[var(--whale-cream-deep)]/70 group-hover/think:bg-[var(--whale-cream-deep)]'
+            live
+              ? 'bg-[var(--whale-mint)]/40'
+              : 'bg-[var(--whale-cream-deep)]/70 group-hover/think:bg-[var(--whale-cream-deep)]'
           }`}
         >
-          <Brain className={`h-3 w-3 ${live ? 'animate-pulse text-[var(--whale-mint-deep)]' : 'text-[var(--whale-ink-muted)]'}`} />
+          <Brain
+            className={`h-3 w-3 ${live ? 'animate-pulse text-[var(--whale-mint-deep)]' : 'text-[var(--whale-ink-muted)]'}`}
+          />
         </span>
         <span className="font-medium tracking-wide">
           {live ? '正在思考' : '思考过程'}
         </span>
         {elapsedSec && (
-          <span className={`tabular-nums ${live ? 'text-[var(--whale-mint-deep)]' : 'text-[var(--whale-ink-muted)]/70'}`}>
+          <span
+            className={`tabular-nums ${live ? 'text-[var(--whale-mint-deep)]' : 'text-[var(--whale-ink-muted)]/70'}`}
+          >
             {elapsedSec}s
           </span>
         )}

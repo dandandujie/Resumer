@@ -10,6 +10,17 @@ pub struct AIConfig {
     #[serde(alias = "baseURL")]
     pub base_url: String,
     pub model: String,
+    /// off | native | free | bing | google | baidu | tavily | grok
+    #[serde(default)]
+    pub web_search_mode: String,
+    #[serde(default)]
+    pub tavily_api_key: String,
+    #[serde(default)]
+    pub grok_api_key: String,
+    #[serde(default)]
+    pub grok_base_url: String,
+    #[serde(default)]
+    pub grok_model: String,
 }
 
 impl Default for AIConfig {
@@ -19,6 +30,11 @@ impl Default for AIConfig {
             api_key: String::new(),
             base_url: "https://api.openai.com/v1".into(),
             model: "gpt-4o".into(),
+            web_search_mode: "off".into(),
+            tavily_api_key: String::new(),
+            grok_api_key: String::new(),
+            grok_base_url: String::new(),
+            grok_model: String::new(),
         }
     }
 }
@@ -103,7 +119,10 @@ pub async fn generate(req: GenerateRequest<'_>) -> Result<GenerateResponse, Prov
 
 async fn generate_openai(req: GenerateRequest<'_>) -> Result<GenerateResponse, ProviderError> {
     let client = http_client();
-    let url = format!("{}/chat/completions", req.config.base_url.trim_end_matches('/'));
+    let url = format!(
+        "{}/chat/completions",
+        req.config.base_url.trim_end_matches('/')
+    );
 
     let mut messages: Vec<Value> = Vec::new();
     if let Some(sys) = req.system {
@@ -129,19 +148,17 @@ async fn generate_openai(req: GenerateRequest<'_>) -> Result<GenerateResponse, P
 
     if let Some(tools) = req.tools {
         if !tools.is_empty() {
-            body["tools"] = json!(
-                tools
-                    .iter()
-                    .map(|t| json!({
-                        "type": "function",
-                        "function": {
-                            "name": t.name,
-                            "description": t.description,
-                            "parameters": t.parameters,
-                        }
-                    }))
-                    .collect::<Vec<_>>()
-            );
+            body["tools"] = json!(tools
+                .iter()
+                .map(|t| json!({
+                    "type": "function",
+                    "function": {
+                        "name": t.name,
+                        "description": t.description,
+                        "parameters": t.parameters,
+                    }
+                }))
+                .collect::<Vec<_>>());
         }
     }
 
@@ -173,12 +190,28 @@ async fn generate_openai(req: GenerateRequest<'_>) -> Result<GenerateResponse, P
     let mut tool_calls = Vec::new();
     if let Some(tcs) = msg.get("tool_calls").and_then(|v| v.as_array()) {
         for tc in tcs {
-            let id = tc.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let id = tc
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             let func = tc.get("function").cloned().unwrap_or(Value::Null);
-            let name = func.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let args_str = func.get("arguments").and_then(|v| v.as_str()).unwrap_or("{}");
-            let arguments = serde_json::from_str(args_str).unwrap_or(Value::Object(Default::default()));
-            tool_calls.push(ToolCall { id, name, arguments });
+            let name = func
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let args_str = func
+                .get("arguments")
+                .and_then(|v| v.as_str())
+                .unwrap_or("{}");
+            let arguments =
+                serde_json::from_str(args_str).unwrap_or(Value::Object(Default::default()));
+            tool_calls.push(ToolCall {
+                id,
+                name,
+                arguments,
+            });
         }
     }
 
@@ -187,7 +220,13 @@ async fn generate_openai(req: GenerateRequest<'_>) -> Result<GenerateResponse, P
 
 async fn generate_anthropic(req: GenerateRequest<'_>) -> Result<GenerateResponse, ProviderError> {
     let client = http_client();
-    let url = format!("{}/v1/messages", req.config.base_url.trim_end_matches('/').trim_end_matches("/v1"));
+    let url = format!(
+        "{}/v1/messages",
+        req.config
+            .base_url
+            .trim_end_matches('/')
+            .trim_end_matches("/v1")
+    );
 
     let mut body = json!({
         "model": req.config.model,
@@ -201,16 +240,14 @@ async fn generate_anthropic(req: GenerateRequest<'_>) -> Result<GenerateResponse
 
     if let Some(tools) = req.tools {
         if !tools.is_empty() {
-            body["tools"] = json!(
-                tools
-                    .iter()
-                    .map(|t| json!({
-                        "name": t.name,
-                        "description": t.description,
-                        "input_schema": t.parameters,
-                    }))
-                    .collect::<Vec<_>>()
-            );
+            body["tools"] = json!(tools
+                .iter()
+                .map(|t| json!({
+                    "name": t.name,
+                    "description": t.description,
+                    "input_schema": t.parameters,
+                }))
+                .collect::<Vec<_>>());
         }
     }
 
@@ -230,7 +267,11 @@ async fn generate_anthropic(req: GenerateRequest<'_>) -> Result<GenerateResponse
     }
 
     let data: Value = res.json().await?;
-    let content = data.get("content").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+    let content = data
+        .get("content")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
     let mut text = String::new();
     let mut tool_calls = Vec::new();
 
@@ -242,10 +283,25 @@ async fn generate_anthropic(req: GenerateRequest<'_>) -> Result<GenerateResponse
                 }
             }
             Some("tool_use") => {
-                let id = part.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                let name = part.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                let arguments = part.get("input").cloned().unwrap_or(Value::Object(Default::default()));
-                tool_calls.push(ToolCall { id, name, arguments });
+                let id = part
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let name = part
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let arguments = part
+                    .get("input")
+                    .cloned()
+                    .unwrap_or(Value::Object(Default::default()));
+                tool_calls.push(ToolCall {
+                    id,
+                    name,
+                    arguments,
+                });
             }
             _ => {}
         }
@@ -257,11 +313,20 @@ async fn generate_anthropic(req: GenerateRequest<'_>) -> Result<GenerateResponse
 async fn generate_gemini(req: GenerateRequest<'_>) -> Result<GenerateResponse, ProviderError> {
     let client = http_client();
     let base = req.config.base_url.trim_end_matches('/');
-    let url = format!("{}/models/{}:generateContent?key={}", base, req.config.model, urlencoding::encode(&req.config.api_key));
+    let url = format!(
+        "{}/models/{}:generateContent?key={}",
+        base,
+        req.config.model,
+        urlencoding::encode(&req.config.api_key)
+    );
 
     let mut contents: Vec<Value> = Vec::new();
     for m in req.messages {
-        let role = if m.role == "assistant" { "model" } else { "user" };
+        let role = if m.role == "assistant" {
+            "model"
+        } else {
+            "user"
+        };
         contents.push(json!({ "role": role, "parts": [{ "text": m.content }] }));
     }
 
@@ -310,8 +375,15 @@ async fn generate_gemini(req: GenerateRequest<'_>) -> Result<GenerateResponse, P
                         text.push_str(t);
                     }
                     if let Some(fc) = part.get("functionCall") {
-                        let name = fc.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        let arguments = fc.get("args").cloned().unwrap_or(Value::Object(Default::default()));
+                        let name = fc
+                            .get("name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        let arguments = fc
+                            .get("args")
+                            .cloned()
+                            .unwrap_or(Value::Object(Default::default()));
                         tool_calls.push(ToolCall {
                             id: uuid::Uuid::new_v4().to_string(),
                             name,
@@ -350,7 +422,13 @@ pub async fn list_models(config: &AIConfig) -> Result<Vec<AiModel>, ProviderErro
 
     match config.provider.as_str() {
         "anthropic" => {
-            let url = format!("{}/v1/models", config.base_url.trim_end_matches('/').trim_end_matches("/v1"));
+            let url = format!(
+                "{}/v1/models",
+                config
+                    .base_url
+                    .trim_end_matches('/')
+                    .trim_end_matches("/v1")
+            );
             let res = client
                 .get(&url)
                 .header("x-api-key", &config.api_key)
@@ -367,15 +445,25 @@ pub async fn list_models(config: &AIConfig) -> Result<Vec<AiModel>, ProviderErro
             if let Some(arr) = data.get("data").and_then(|v| v.as_array()) {
                 for m in arr {
                     if let Some(id) = m.get("id").and_then(|v| v.as_str()) {
-                        let label = m.get("display_name").and_then(|v| v.as_str()).map(|s| s.to_string());
-                        out.push(AiModel { id: id.to_string(), label });
+                        let label = m
+                            .get("display_name")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
+                        out.push(AiModel {
+                            id: id.to_string(),
+                            label,
+                        });
                     }
                 }
             }
             Ok(out)
         }
         "gemini" => {
-            let url = format!("{}/models?key={}", config.base_url.trim_end_matches('/'), urlencoding::encode(&config.api_key));
+            let url = format!(
+                "{}/models?key={}",
+                config.base_url.trim_end_matches('/'),
+                urlencoding::encode(&config.api_key)
+            );
             let res = client.get(&url).send().await?;
             if !res.status().is_success() {
                 let status = res.status();
@@ -388,7 +476,10 @@ pub async fn list_models(config: &AIConfig) -> Result<Vec<AiModel>, ProviderErro
                 for m in arr {
                     if let Some(name) = m.get("name").and_then(|v| v.as_str()) {
                         let id = name.strip_prefix("models/").unwrap_or(name).to_string();
-                        let label = m.get("displayName").and_then(|v| v.as_str()).map(|s| s.to_string());
+                        let label = m
+                            .get("displayName")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
                         out.push(AiModel { id, label });
                     }
                 }
@@ -408,7 +499,10 @@ pub async fn list_models(config: &AIConfig) -> Result<Vec<AiModel>, ProviderErro
             if let Some(arr) = data.get("data").and_then(|v| v.as_array()) {
                 for m in arr {
                     if let Some(id) = m.get("id").and_then(|v| v.as_str()) {
-                        out.push(AiModel { id: id.to_string(), label: None });
+                        out.push(AiModel {
+                            id: id.to_string(),
+                            label: None,
+                        });
                     }
                 }
             }

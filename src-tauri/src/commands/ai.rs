@@ -1,28 +1,71 @@
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, State};
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 
-use crate::ai::{self, provider::{AIConfig, ChatMessage}};
+use super::CommandError;
+use crate::ai::{
+    self,
+    provider::{AIConfig, ChatMessage},
+};
+use crate::db::repo::{analysis as analysis_repo, resume as resume_repo};
 use crate::db::AppDb;
-use crate::db::repo::{resume as resume_repo, analysis as analysis_repo};
 use crate::export::date::normalize_value_fields;
 use crate::import;
-use super::CommandError;
 
 fn cfg_from(config: Value) -> AIConfig {
     serde_json::from_value(config).unwrap_or_default()
 }
 
-#[tauri::command]
-pub async fn ai_list_models(config: Value) -> Result<Vec<ai::provider::AiModel>, CommandError> {
-    let cfg = cfg_from(config);
-    ai::provider::list_models(&cfg).await.map_err(|e| CommandError { message: e.to_string() })
+async fn prefetch_web_context(cfg: &AIConfig, query: &str) -> String {
+    if !crate::ai::search::tool_enabled(cfg) {
+        return String::new();
+    }
+    match crate::ai::search::web_search(cfg, query).await {
+        Ok(value) => value
+            .get("results")
+            .and_then(Value::as_array)
+            .map(|results| {
+                results
+                    .iter()
+                    .take(5)
+                    .filter_map(|result| {
+                        let title = result.get("title")?.as_str().unwrap_or("");
+                        let url = result.get("url").and_then(Value::as_str).unwrap_or("");
+                        let content = result.get("content").and_then(Value::as_str).unwrap_or("");
+                        Some(format!("- {title}\n  {url}\n  {content}"))
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })
+            .unwrap_or_default(),
+        Err(error) => {
+            // Search is an enhancement, so a failed prefetch must not block the core AI task.
+            log::warn!("web prefetch skipped: {error}");
+            String::new()
+        }
+    }
 }
 
 #[tauri::command]
-pub async fn ai_test_connection(config: Value) -> Result<ai::provider::AiConnectionTest, CommandError> {
+pub async fn ai_list_models(config: Value) -> Result<Vec<ai::provider::AiModel>, CommandError> {
     let cfg = cfg_from(config);
-    ai::provider::test_connection(&cfg).await.map_err(|e| CommandError { message: e.to_string() })
+    ai::provider::list_models(&cfg)
+        .await
+        .map_err(|e| CommandError {
+            message: e.to_string(),
+        })
+}
+
+#[tauri::command]
+pub async fn ai_test_connection(
+    config: Value,
+) -> Result<ai::provider::AiConnectionTest, CommandError> {
+    let cfg = cfg_from(config);
+    ai::provider::test_connection(&cfg)
+        .await
+        .map_err(|e| CommandError {
+            message: e.to_string(),
+        })
 }
 
 #[tauri::command]
@@ -34,18 +77,31 @@ pub async fn ai_grammar_check(
 ) -> Result<Value, CommandError> {
     let cfg = cfg_from(config);
     let lang = language.unwrap_or_else(|| "en".into());
-    let lang_name = if lang == "zh" { "Simplified Chinese" } else { "English" };
+    let lang_name = if lang == "zh" {
+        "Simplified Chinese"
+    } else {
+        "English"
+    };
 
     let resume_ctx = {
-        let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+        let conn = db.conn.lock().map_err(|e| CommandError {
+            message: e.to_string(),
+        })?;
         let resume = resume_repo::find_by_id_any(&conn, &resume_id)
-            .map_err(|e| CommandError { message: e.to_string() })?
-            .ok_or(CommandError { message: "Resume not found".into() })?;
+            .map_err(|e| CommandError {
+                message: e.to_string(),
+            })?
+            .ok_or(CommandError {
+                message: "Resume not found".into(),
+            })?;
         serde_json::to_string(&resume.sections).unwrap_or_default()
     };
 
     let (system, prompt) = ai::prompts::grammar_check_prompt(&resume_ctx, lang_name);
-    let messages = vec![ChatMessage { role: "user".into(), content: prompt }];
+    let messages = vec![ChatMessage {
+        role: "user".into(),
+        content: prompt,
+    }];
     let req = ai::provider::GenerateRequest {
         config: &cfg,
         system: Some(&system),
@@ -54,14 +110,28 @@ pub async fn ai_grammar_check(
         json_mode: true,
         max_tokens: Some(8192),
     };
-    let res = ai::provider::generate(req).await.map_err(|e| CommandError { message: e.to_string() })?;
-    let parsed = ai::extract_json::extract_json(&res.text).map_err(|e| CommandError { message: e })?;
+    let res = ai::provider::generate(req)
+        .await
+        .map_err(|e| CommandError {
+            message: e.to_string(),
+        })?;
+    let parsed =
+        ai::extract_json::extract_json(&res.text).map_err(|e| CommandError { message: e })?;
 
     // Persist grammar check result
-    let score = parsed.get("overallScore").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
-    let issue_count = parsed.get("issues").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0) as i32;
+    let score = parsed
+        .get("overallScore")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0) as i32;
+    let issue_count = parsed
+        .get("issues")
+        .and_then(|v| v.as_array())
+        .map(|a| a.len())
+        .unwrap_or(0) as i32;
     {
-        let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+        let conn = db.conn.lock().map_err(|e| CommandError {
+            message: e.to_string(),
+        })?;
         let _ = analysis_repo::save_grammar_check(&conn, &resume_id, &parsed, score, issue_count);
     }
 
@@ -81,20 +151,31 @@ pub async fn ai_cover_letter(
     let lang = language.unwrap_or_else(|| "zh".into());
 
     let resume_ctx = {
-        let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+        let conn = db.conn.lock().map_err(|e| CommandError {
+            message: e.to_string(),
+        })?;
         let resume = resume_repo::find_by_id_any(&conn, &resume_id)
-            .map_err(|e| CommandError { message: e.to_string() })?
-            .ok_or(CommandError { message: "Resume not found".into() })?;
+            .map_err(|e| CommandError {
+                message: e.to_string(),
+            })?
+            .ok_or(CommandError {
+                message: "Resume not found".into(),
+            })?;
         serde_json::to_string(&resume.sections).unwrap_or_default()
     };
 
-    let (system, prompt) = ai::prompts::cover_letter_prompt(
-        &resume_ctx,
-        job_description.as_deref().unwrap_or(""),
-        &style,
-        &lang,
-    );
-    let messages = vec![ChatMessage { role: "user".into(), content: prompt }];
+    let job_description = job_description.as_deref().unwrap_or("");
+    let external = prefetch_web_context(&cfg, &format!("公司简介 {job_description}")).await;
+    let (system, mut prompt) =
+        ai::prompts::cover_letter_prompt(&resume_ctx, job_description, &style, &lang);
+    if !external.is_empty() {
+        prompt.push_str("\n\n## 外部参考\n");
+        prompt.push_str(&external);
+    }
+    let messages = vec![ChatMessage {
+        role: "user".into(),
+        content: prompt,
+    }];
     let req = ai::provider::GenerateRequest {
         config: &cfg,
         system: Some(&system),
@@ -103,7 +184,11 @@ pub async fn ai_cover_letter(
         json_mode: false,
         max_tokens: Some(2048),
     };
-    let res = ai::provider::generate(req).await.map_err(|e| CommandError { message: e.to_string() })?;
+    let res = ai::provider::generate(req)
+        .await
+        .map_err(|e| CommandError {
+            message: e.to_string(),
+        })?;
     Ok(res.text.trim().to_string())
 }
 
@@ -117,15 +202,36 @@ pub async fn ai_jd_analysis(
     let cfg = cfg_from(config);
 
     let resume_ctx = {
-        let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+        let conn = db.conn.lock().map_err(|e| CommandError {
+            message: e.to_string(),
+        })?;
         let resume = resume_repo::find_by_id_any(&conn, &resume_id)
-            .map_err(|e| CommandError { message: e.to_string() })?
-            .ok_or(CommandError { message: "Resume not found".into() })?;
+            .map_err(|e| CommandError {
+                message: e.to_string(),
+            })?
+            .ok_or(CommandError {
+                message: "Resume not found".into(),
+            })?;
         serde_json::to_string(&resume.sections).unwrap_or_default()
     };
 
-    let (system, prompt) = ai::prompts::jd_analysis_prompt(&resume_ctx, &job_description);
-    let messages = vec![ChatMessage { role: "user".into(), content: prompt }];
+    let external = prefetch_web_context(
+        &cfg,
+        &format!(
+            "{} 岗位要求 面试",
+            job_description.chars().take(160).collect::<String>()
+        ),
+    )
+    .await;
+    let (system, mut prompt) = ai::prompts::jd_analysis_prompt(&resume_ctx, &job_description);
+    if !external.is_empty() {
+        prompt.push_str("\n\n## 外部参考\n");
+        prompt.push_str(&external);
+    }
+    let messages = vec![ChatMessage {
+        role: "user".into(),
+        content: prompt,
+    }];
     let req = ai::provider::GenerateRequest {
         config: &cfg,
         system: Some(&system),
@@ -134,52 +240,93 @@ pub async fn ai_jd_analysis(
         json_mode: true,
         max_tokens: Some(8192),
     };
-    let res = ai::provider::generate(req).await.map_err(|e| CommandError { message: e.to_string() })?;
-    let parsed = ai::extract_json::extract_json(&res.text).map_err(|e| CommandError { message: e })?;
+    let res = ai::provider::generate(req)
+        .await
+        .map_err(|e| CommandError {
+            message: e.to_string(),
+        })?;
+    let parsed =
+        ai::extract_json::extract_json(&res.text).map_err(|e| CommandError { message: e })?;
 
-    let overall = parsed.get("overallScore").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+    let overall = parsed
+        .get("overallScore")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0) as i32;
     let ats = parsed.get("atsScore").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
     {
-        let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
-        let _ = analysis_repo::save_jd_analysis(&conn, &resume_id, &job_description, &parsed, overall, ats);
+        let conn = db.conn.lock().map_err(|e| CommandError {
+            message: e.to_string(),
+        })?;
+        let _ = analysis_repo::save_jd_analysis(
+            &conn,
+            &resume_id,
+            &job_description,
+            &parsed,
+            overall,
+            ats,
+        );
     }
 
     Ok(parsed)
 }
 
 #[tauri::command]
-pub async fn list_grammar_checks(db: State<'_, AppDb>, resume_id: String) -> Result<Vec<analysis_repo::GrammarCheck>, CommandError> {
-    let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+pub async fn list_grammar_checks(
+    db: State<'_, AppDb>,
+    resume_id: String,
+) -> Result<Vec<analysis_repo::GrammarCheck>, CommandError> {
+    let conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
     analysis_repo::list_grammar_checks(&conn, &resume_id).map_err(Into::into)
 }
 
 #[tauri::command]
-pub async fn get_grammar_check(db: State<'_, AppDb>, id: String) -> Result<Option<analysis_repo::GrammarCheck>, CommandError> {
-    let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+pub async fn get_grammar_check(
+    db: State<'_, AppDb>,
+    id: String,
+) -> Result<Option<analysis_repo::GrammarCheck>, CommandError> {
+    let conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
     analysis_repo::get_grammar_check(&conn, &id).map_err(Into::into)
 }
 
 #[tauri::command]
 pub async fn delete_grammar_check(db: State<'_, AppDb>, id: String) -> Result<(), CommandError> {
-    let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+    let conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
     analysis_repo::delete_grammar_check(&conn, &id).map_err(Into::into)
 }
 
 #[tauri::command]
-pub async fn list_jd_analyses(db: State<'_, AppDb>, resume_id: String) -> Result<Vec<analysis_repo::JdAnalysis>, CommandError> {
-    let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+pub async fn list_jd_analyses(
+    db: State<'_, AppDb>,
+    resume_id: String,
+) -> Result<Vec<analysis_repo::JdAnalysis>, CommandError> {
+    let conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
     analysis_repo::list_jd_analyses(&conn, &resume_id).map_err(Into::into)
 }
 
 #[tauri::command]
-pub async fn get_jd_analysis(db: State<'_, AppDb>, id: String) -> Result<Option<analysis_repo::JdAnalysis>, CommandError> {
-    let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+pub async fn get_jd_analysis(
+    db: State<'_, AppDb>,
+    id: String,
+) -> Result<Option<analysis_repo::JdAnalysis>, CommandError> {
+    let conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
     analysis_repo::get_jd_analysis(&conn, &id).map_err(Into::into)
 }
 
 #[tauri::command]
 pub async fn delete_jd_analysis(db: State<'_, AppDb>, id: String) -> Result<(), CommandError> {
-    let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+    let conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
     analysis_repo::delete_jd_analysis(&conn, &id).map_err(Into::into)
 }
 
@@ -192,18 +339,31 @@ pub async fn ai_translate(
     target_language: String,
 ) -> Result<Value, CommandError> {
     let cfg = cfg_from(config);
-    let lang_name = if target_language == "zh" { "Simplified Chinese" } else { "English" };
+    let lang_name = if target_language == "zh" {
+        "Simplified Chinese"
+    } else {
+        "English"
+    };
 
     let sections = {
-        let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+        let conn = db.conn.lock().map_err(|e| CommandError {
+            message: e.to_string(),
+        })?;
         let resume = resume_repo::find_by_id_any(&conn, &resume_id)
-            .map_err(|e| CommandError { message: e.to_string() })?
-            .ok_or(CommandError { message: "Resume not found".into() })?;
+            .map_err(|e| CommandError {
+                message: e.to_string(),
+            })?
+            .ok_or(CommandError {
+                message: "Resume not found".into(),
+            })?;
         resume.sections
     };
 
     let total = sections.len();
-    let _ = app.emit("ai-translate-progress", json!({ "total": total, "done": 0 }));
+    let _ = app.emit(
+        "ai-translate-progress",
+        json!({ "total": total, "done": 0 }),
+    );
 
     let mut succeeded = 0usize;
     let mut failed = 0usize;
@@ -219,7 +379,10 @@ pub async fn ai_translate(
         let section_json = serde_json::to_string(&section_obj).unwrap_or_default();
 
         let (system, prompt) = ai::prompts::translate_prompt(&section_json, lang_name);
-        let messages = vec![ChatMessage { role: "user".into(), content: prompt }];
+        let messages = vec![ChatMessage {
+            role: "user".into(),
+            content: prompt,
+        }];
         let req = ai::provider::GenerateRequest {
             config: &cfg,
             system: Some(&system),
@@ -233,11 +396,33 @@ pub async fn ai_translate(
         match translation_result {
             Ok(r) => {
                 if let Ok(parsed) = ai::extract_json::extract_json(&r.text) {
-                    let sec_id = parsed.get("sectionId").and_then(|v| v.as_str()).unwrap_or(&section.id).to_string();
-                    let title = parsed.get("title").and_then(|v| v.as_str()).unwrap_or(&section.title).to_string();
-                    let content = parsed.get("content").cloned().unwrap_or(section.content.clone());
-                    let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
-                    if resume_repo::update_section(&conn, &sec_id, &title, section.sort_order, section.visible, &content).is_ok() {
+                    let sec_id = parsed
+                        .get("sectionId")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(&section.id)
+                        .to_string();
+                    let title = parsed
+                        .get("title")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(&section.title)
+                        .to_string();
+                    let content = parsed
+                        .get("content")
+                        .cloned()
+                        .unwrap_or(section.content.clone());
+                    let conn = db.conn.lock().map_err(|e| CommandError {
+                        message: e.to_string(),
+                    })?;
+                    if resume_repo::update_section(
+                        &conn,
+                        &sec_id,
+                        &title,
+                        section.sort_order,
+                        section.visible,
+                        &content,
+                    )
+                    .is_ok()
+                    {
                         succeeded += 1;
                     } else {
                         failed += 1;
@@ -251,11 +436,16 @@ pub async fn ai_translate(
             }
         }
 
-        let _ = app.emit("ai-translate-progress", json!({ "total": total, "done": i + 1 }));
+        let _ = app.emit(
+            "ai-translate-progress",
+            json!({ "total": total, "done": i + 1 }),
+        );
     }
 
     {
-        let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+        let conn = db.conn.lock().map_err(|e| CommandError {
+            message: e.to_string(),
+        })?;
         let _ = resume_repo::update_language(&conn, &resume_id, &target_language);
     }
 
@@ -279,7 +469,10 @@ pub async fn ai_generate_resume(
     let lang = language.unwrap_or_else(|| "en".into());
 
     let (system, prompt) = ai::prompts::generate_resume_prompt(&description, &lang);
-    let messages = vec![ChatMessage { role: "user".into(), content: prompt }];
+    let messages = vec![ChatMessage {
+        role: "user".into(),
+        content: prompt,
+    }];
     let req = ai::provider::GenerateRequest {
         config: &cfg,
         system: Some(&system),
@@ -288,26 +481,62 @@ pub async fn ai_generate_resume(
         json_mode: true,
         max_tokens: Some(8192),
     };
-    let res = ai::provider::generate(req).await.map_err(|e| CommandError { message: e.to_string() })?;
-    let parsed = ai::extract_json::extract_json(&res.text).map_err(|e| CommandError { message: e })?;
+    let res = ai::provider::generate(req)
+        .await
+        .map_err(|e| CommandError {
+            message: e.to_string(),
+        })?;
+    let parsed =
+        ai::extract_json::extract_json(&res.text).map_err(|e| CommandError { message: e })?;
 
-    let title = parsed.get("title").and_then(|v| v.as_str()).unwrap_or("AI Generated Resume").to_string();
-    let sections = parsed.get("sections").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+    let title = parsed
+        .get("title")
+        .and_then(|v| v.as_str())
+        .unwrap_or("AI Generated Resume")
+        .to_string();
+    let sections = parsed
+        .get("sections")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
 
-    let mut conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+    let mut conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
     let theme = import::standard_import_theme();
     let tx = conn.transaction()?;
-    let resume_id = resume_repo::create(&tx, &user_id, &title, "classic", &lang, &theme)
-        .map_err(|e| CommandError { message: e.to_string() })?;
+    let resume_id =
+        resume_repo::create(&tx, &user_id, &title, "classic", &lang, &theme).map_err(|e| {
+            CommandError {
+                message: e.to_string(),
+            }
+        })?;
 
     for (i, sec) in sections.iter().enumerate() {
-        let sec_type = sec.get("type").and_then(|v| v.as_str()).unwrap_or("custom").to_string();
-        let sec_title = sec.get("title").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let content = sec.get("content").cloned().unwrap_or(Value::Object(Default::default()));
-        resume_repo::create_section(&tx, &resume_id, &sec_type, &sec_title, i as i32, true, &content)
-            .map_err(|e| CommandError { message: e.to_string() })?;
+        let sec_type = sec
+            .get("type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("custom")
+            .to_string();
+        let sec_title = sec
+            .get("title")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let content = sec
+            .get("content")
+            .cloned()
+            .unwrap_or(Value::Object(Default::default()));
+        resume_repo::create_section(
+            &tx, &resume_id, &sec_type, &sec_title, i as i32, true, &content,
+        )
+        .map_err(|e| CommandError {
+            message: e.to_string(),
+        })?;
     }
-    tx.commit().map_err(|e| CommandError { message: e.to_string() })?;
+    tx.commit().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
 
     Ok(resume_id)
 }
@@ -315,7 +544,9 @@ pub async fn ai_generate_resume(
 #[tauri::command]
 pub async fn ai_fetch_github_repo(url: String) -> Result<Value, CommandError> {
     let re = regex::Regex::new(r"github\.com/([^/]+)/([^/]+)").unwrap();
-    let caps = re.captures(&url).ok_or(CommandError { message: "Invalid GitHub URL".into() })?;
+    let caps = re.captures(&url).ok_or(CommandError {
+        message: "Invalid GitHub URL".into(),
+    })?;
     let owner = &caps[1];
     let repo = caps[2].trim_end_matches(".git");
 
@@ -327,13 +558,19 @@ pub async fn ai_fetch_github_repo(url: String) -> Result<Value, CommandError> {
         .header("User-Agent", "reseumer-tauri")
         .send()
         .await
-        .map_err(|e| CommandError { message: e.to_string() })?;
+        .map_err(|e| CommandError {
+            message: e.to_string(),
+        })?;
 
     if !res.status().is_success() {
-        return Err(CommandError { message: format!("GitHub API error: {}", res.status()) });
+        return Err(CommandError {
+            message: format!("GitHub API error: {}", res.status()),
+        });
     }
 
-    let data: Value = res.json().await.map_err(|e| CommandError { message: e.to_string() })?;
+    let data: Value = res.json().await.map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
     Ok(json!({
         "name": data.get("full_name"),
         "stars": data.get("stargazers_count"),
@@ -363,10 +600,12 @@ pub async fn parse_resume_file(
     let (text, avatar, theme) = if file_type
         == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     {
-        let assets = import::parse_docx_assets(&file_data).map_err(|message| CommandError { message })?;
+        let assets =
+            import::parse_docx_assets(&file_data).map_err(|message| CommandError { message })?;
         (assets.text, assets.avatar, assets.theme)
     } else if file_type == "application/pdf" {
-        let assets = import::parse_pdf_assets(&file_data).map_err(|message| CommandError { message })?;
+        let assets =
+            import::parse_pdf_assets(&file_data).map_err(|message| CommandError { message })?;
         (assets.text, assets.avatar, assets.theme)
     } else if ["image/png", "image/jpeg", "image/webp"].contains(&file_type.as_str()) {
         let base64_data = BASE64.encode(&file_data);
@@ -429,12 +668,21 @@ pub async fn parse_resume_file(
     })
 }
 
-async fn generate_vision(cfg: &AIConfig, language: &str, mime_type: &str, base64_data: &str) -> Result<String, String> {
+async fn generate_vision(
+    cfg: &AIConfig,
+    language: &str,
+    mime_type: &str,
+    base64_data: &str,
+) -> Result<String, String> {
     if cfg.api_key.is_empty() {
         return Err("API key is required. Please configure it in Settings.".into());
     }
     let client = ai::provider::http_client();
-    let lang_name = if language == "zh" { "Simplified Chinese" } else { "English" };
+    let lang_name = if language == "zh" {
+        "Simplified Chinese"
+    } else {
+        "English"
+    };
     let system = format!(
         "You are a resume parsing expert. Extract structured data from the given resume image in {}.\n\
         CRITICAL: Return a single valid JSON object. No markdown, no code fences.\n\
@@ -444,11 +692,16 @@ async fn generate_vision(cfg: &AIConfig, language: &str, mime_type: &str, base64
         lang_name,
         ai::prompts::resume_content_schema()
     );
-    let instruction = "Extract all resume information from this image into the required JSON structure.".to_string();
+    let instruction =
+        "Extract all resume information from this image into the required JSON structure."
+            .to_string();
 
     match cfg.provider.as_str() {
         "anthropic" => {
-            let url = format!("{}/v1/messages", cfg.base_url.trim_end_matches('/').trim_end_matches("/v1"));
+            let url = format!(
+                "{}/v1/messages",
+                cfg.base_url.trim_end_matches('/').trim_end_matches("/v1")
+            );
             let body = json!({
                 "model": cfg.model,
                 "max_tokens": 16384,
@@ -479,7 +732,10 @@ async fn generate_vision(cfg: &AIConfig, language: &str, mime_type: &str, base64
             let text = data
                 .get("content")
                 .and_then(|v| v.as_array())
-                .and_then(|arr| arr.iter().find(|p| p.get("type").and_then(|v| v.as_str()) == Some("text")))
+                .and_then(|arr| {
+                    arr.iter()
+                        .find(|p| p.get("type").and_then(|v| v.as_str()) == Some("text"))
+                })
                 .and_then(|p| p.get("text").and_then(|v| v.as_str()))
                 .unwrap_or("")
                 .to_string();
@@ -487,7 +743,12 @@ async fn generate_vision(cfg: &AIConfig, language: &str, mime_type: &str, base64
         }
         "gemini" => {
             let base = cfg.base_url.trim_end_matches('/');
-            let url = format!("{}/models/{}:generateContent?key={}", base, cfg.model, urlencoding::encode(&cfg.api_key));
+            let url = format!(
+                "{}/models/{}:generateContent?key={}",
+                base,
+                cfg.model,
+                urlencoding::encode(&cfg.api_key)
+            );
             let body = json!({
                 "systemInstruction": { "parts": [{ "text": system }] },
                 "contents": [{
@@ -502,7 +763,12 @@ async fn generate_vision(cfg: &AIConfig, language: &str, mime_type: &str, base64
                     "responseMimeType": "application/json",
                 },
             });
-            let res = client.post(&url).json(&body).send().await.map_err(|e| e.to_string())?;
+            let res = client
+                .post(&url)
+                .json(&body)
+                .send()
+                .await
+                .map_err(|e| e.to_string())?;
             if !res.status().is_success() {
                 let status = res.status();
                 let txt = res.text().await.unwrap_or_default();
@@ -556,4 +822,3 @@ async fn generate_vision(cfg: &AIConfig, language: &str, mime_type: &str, base64
         }
     }
 }
-

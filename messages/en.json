@@ -354,7 +354,11 @@
       "copyFailed": "Copy failed"
     },
     "webSearch": {
-      "title": "Web search"
+      "title": "Web search",
+      "off": "Off",
+      "native": "Model built-in",
+      "tavily": "Tavily",
+      "grok": "Grok"
     }
   },
   "themeEditor": {

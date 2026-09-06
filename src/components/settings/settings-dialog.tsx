@@ -13,6 +13,7 @@ import {
   PlugZap,
   CheckCircle2,
   AlertCircle,
+  Globe,
   Plus,
   X,
   PenLine,
@@ -36,7 +37,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { useUIStore } from '@/stores/ui-store';
 import { useSettingsStore, type AIProvider } from '@/stores/settings-store';
 import { cn } from '@/lib/utils';
@@ -74,6 +79,16 @@ export function SettingsDialog() {
     aiApiKey,
     aiBaseURL,
     aiModel,
+    webSearchMode,
+    tavilyApiKey,
+    grokApiKey,
+    grokBaseURL,
+    grokModel,
+    setWebSearchMode,
+    setTavilyApiKey,
+    setGrokApiKey,
+    setGrokBaseURL,
+    setGrokModel,
     channels,
     activeChannelId,
     selectChannel,
@@ -90,10 +105,18 @@ export function SettingsDialog() {
 
   const activeChannel = channels.find((c) => c.id === activeChannelId) || null;
   const patchActive = useCallback(
-    (patch: Partial<{ name: string; provider: AIProvider; baseURL: string; apiKey: string; model: string }>) => {
+    (
+      patch: Partial<{
+        name: string;
+        provider: AIProvider;
+        baseURL: string;
+        apiKey: string;
+        model: string;
+      }>,
+    ) => {
       if (activeChannelId) updateChannel(activeChannelId, patch);
     },
-    [activeChannelId, updateChannel]
+    [activeChannelId, updateChannel],
   );
   const [showApiKey, setShowApiKey] = useState(false);
   const isOpen = activeModal === 'settings';
@@ -103,7 +126,9 @@ export function SettingsDialog() {
   const [modelSearch, setModelSearch] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerSearch, setPickerSearch] = useState('');
-  const [renamingChannelId, setRenamingChannelId] = useState<string | null>(null);
+  const [renamingChannelId, setRenamingChannelId] = useState<string | null>(
+    null,
+  );
   const [renameDraft, setRenameDraft] = useState('');
   const commitChannelRename = () => {
     if (renamingChannelId) {
@@ -115,19 +140,38 @@ export function SettingsDialog() {
   const [fetchedModels, setFetchedModels] = useState<string[]>([]);
   const [modelsFetching, setModelsFetching] = useState(false);
   const [modelsFetched, setModelsFetched] = useState(false);
-  const [connectionState, setConnectionState] = useState<ConnectionState>('idle');
+  const [connectionState, setConnectionState] =
+    useState<ConnectionState>('idle');
   const [connectionMessage, setConnectionMessage] = useState('');
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const modelSearchRef = useRef<HTMLInputElement>(null);
   const canQueryAI = Boolean(aiApiKey.trim() && aiBaseURL.trim());
   const queriedModelSignatureRef = useRef('');
 
-  const buildAIConfig = useCallback(() => ({
-    provider: aiProvider,
-    apiKey: aiApiKey.trim(),
-    baseUrl: aiBaseURL.trim(),
-    model: aiModel.trim(),
-  }), [aiProvider, aiApiKey, aiBaseURL, aiModel]);
+  const buildAIConfig = useCallback(
+    () => ({
+      provider: aiProvider,
+      apiKey: aiApiKey.trim(),
+      baseUrl: aiBaseURL.trim(),
+      model: aiModel.trim(),
+      webSearchMode,
+      tavilyApiKey,
+      grokApiKey,
+      grokBaseUrl: grokBaseURL,
+      grokModel,
+    }),
+    [
+      aiProvider,
+      aiApiKey,
+      aiBaseURL,
+      aiModel,
+      webSearchMode,
+      tavilyApiKey,
+      grokApiKey,
+      grokBaseURL,
+      grokModel,
+    ],
+  );
 
   const modelQuerySignature = useMemo(() => {
     if (!canQueryAI) return '';
@@ -135,44 +179,52 @@ export function SettingsDialog() {
   }, [aiProvider, aiApiKey, aiBaseURL, canQueryAI]);
 
   const applyFetchedModels = useCallback((models: AiModelOption[]) => {
-    const ids = Array.from(new Set((models || []).map((model) => model.id).filter(Boolean)));
+    const ids = Array.from(
+      new Set((models || []).map((model) => model.id).filter(Boolean)),
+    );
     setFetchedModels(ids);
     setModelsFetched(true);
   }, []);
 
-  const fetchModels = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
-    if (!canQueryAI) {
-      setFetchedModels([]);
-      setModelsFetched(false);
-      if (!silent) {
-        setConnectionState('error');
-        setConnectionMessage(t('ai.apiKeyRequired'));
+  const fetchModels = useCallback(
+    async ({ silent = false }: { silent?: boolean } = {}) => {
+      if (!canQueryAI) {
+        setFetchedModels([]);
+        setModelsFetched(false);
+        if (!silent) {
+          setConnectionState('error');
+          setConnectionMessage(t('ai.apiKeyRequired'));
+        }
+        return [];
       }
-      return [];
-    }
 
-    queriedModelSignatureRef.current = modelQuerySignature;
-    setModelsFetching(true);
-    try {
-      const models: AiModelOption[] = await tauriApi.aiListModels(buildAIConfig());
-      applyFetchedModels(models);
-      if (!silent) {
-        setConnectionState('success');
-        setConnectionMessage(t('ai.modelsUpdated', { count: models.length }));
+      queriedModelSignatureRef.current = modelQuerySignature;
+      setModelsFetching(true);
+      try {
+        const models: AiModelOption[] =
+          await tauriApi.aiListModels(buildAIConfig());
+        applyFetchedModels(models);
+        if (!silent) {
+          setConnectionState('success');
+          setConnectionMessage(t('ai.modelsUpdated', { count: models.length }));
+        }
+        return models;
+      } catch (error: any) {
+        setFetchedModels([]);
+        setModelsFetched(true);
+        if (!silent) {
+          setConnectionState('error');
+          setConnectionMessage(
+            error?.message || t('ai.connectionFailedGeneric'),
+          );
+        }
+        return [];
+      } finally {
+        setModelsFetching(false);
       }
-      return models;
-    } catch (error: any) {
-      setFetchedModels([]);
-      setModelsFetched(true);
-      if (!silent) {
-        setConnectionState('error');
-        setConnectionMessage(error?.message || t('ai.connectionFailedGeneric'));
-      }
-      return [];
-    } finally {
-      setModelsFetching(false);
-    }
-  }, [applyFetchedModels, buildAIConfig, canQueryAI, modelQuerySignature, t]);
+    },
+    [applyFetchedModels, buildAIConfig, canQueryAI, modelQuerySignature, t],
+  );
 
   const fetchModelsRef = useRef(fetchModels);
 
@@ -189,15 +241,20 @@ export function SettingsDialog() {
 
     setIsTestingConnection(true);
     try {
-      const result: AiConnectionTestResult = await tauriApi.aiTestConnection(buildAIConfig());
+      const result: AiConnectionTestResult =
+        await tauriApi.aiTestConnection(buildAIConfig());
       applyFetchedModels(result.models || []);
 
       if (result.currentModel && !result.currentModelAvailable) {
         setConnectionState('warning');
-        setConnectionMessage(t('ai.connectionSuccessModelMissing', { count: result.modelCount }));
+        setConnectionMessage(
+          t('ai.connectionSuccessModelMissing', { count: result.modelCount }),
+        );
       } else {
         setConnectionState('success');
-        setConnectionMessage(t('ai.connectionSuccess', { count: result.modelCount }));
+        setConnectionMessage(
+          t('ai.connectionSuccess', { count: result.modelCount }),
+        );
       }
     } catch (error: any) {
       setConnectionState('error');
@@ -253,13 +310,13 @@ export function SettingsDialog() {
   }, [aiModel, fetchedModels]);
 
   const filteredModels = availableModels.filter((m) =>
-    m.toLowerCase().includes(modelSearch.toLowerCase())
+    m.toLowerCase().includes(modelSearch.toLowerCase()),
   );
 
   const favoriteModels = activeChannel?.models || [];
   const favoriteSet = useMemo(() => new Set(favoriteModels), [favoriteModels]);
   const pickerFilteredModels = availableModels.filter((m) =>
-    m.toLowerCase().includes(pickerSearch.toLowerCase())
+    m.toLowerCase().includes(pickerSearch.toLowerCase()),
   );
 
   useEffect(() => {
@@ -277,421 +334,562 @@ export function SettingsDialog() {
           <DialogDescription>{t('ai.description')}</DialogDescription>
           <div className="flex flex-wrap items-center gap-4 px-6 pb-4 text-sm">
             <LocaleSwitcher />
-            <label className="flex items-center gap-2"><span>{t('editorTab.autoSave')}</span><Switch checked={autoSave} onCheckedChange={setAutoSave} /></label>
-            <label className="flex items-center gap-2"><span>{t('editorTab.autoSaveInterval')}</span><Slider className="w-24" value={[autoSaveInterval]} onValueChange={([value]) => setAutoSaveInterval(value)} min={300} max={5000} step={100} disabled={!autoSave} /></label>
+            <label className="flex items-center gap-2">
+              <span>{t('editorTab.autoSave')}</span>
+              <Switch checked={autoSave} onCheckedChange={setAutoSave} />
+            </label>
+            <label className="flex items-center gap-2">
+              <span>{t('editorTab.autoSaveInterval')}</span>
+              <Slider
+                className="w-24"
+                value={[autoSaveInterval]}
+                onValueChange={([value]) => setAutoSaveInterval(value)}
+                min={300}
+                max={5000}
+                step={100}
+                disabled={!autoSave}
+              />
+            </label>
+          </div>
+          <div className="mx-6 space-y-2 rounded-lg border border-border bg-muted/40 p-3">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Globe className="h-4 w-4" />
+              {t('webSearch.title')}
+            </div>
+            <Select
+              value={webSearchMode}
+              onValueChange={(value) =>
+                setWebSearchMode(value as typeof webSearchMode)
+              }
+            >
+              <SelectTrigger className="w-full sm:w-64">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="off">{t('webSearch.off')}</SelectItem>
+                <SelectItem value="native">{t('webSearch.native')}</SelectItem>
+                <SelectItem value="tavily">{t('webSearch.tavily')}</SelectItem>
+                <SelectItem value="grok">{t('webSearch.grok')}</SelectItem>
+              </SelectContent>
+            </Select>
+            {webSearchMode === 'tavily' && (
+              <Input
+                type="password"
+                value={tavilyApiKey}
+                onChange={(event) => setTavilyApiKey(event.target.value)}
+                placeholder="tvly-..."
+              />
+            )}
+            {webSearchMode === 'grok' && (
+              <div className="grid gap-2 sm:grid-cols-3">
+                <Input
+                  value={grokBaseURL}
+                  onChange={(event) => setGrokBaseURL(event.target.value)}
+                  placeholder="https://api.x.ai/v1"
+                />
+                <Input
+                  value={grokModel}
+                  onChange={(event) => setGrokModel(event.target.value)}
+                  placeholder="grok-4-fast"
+                />
+                <Input
+                  type="password"
+                  value={grokApiKey}
+                  onChange={(event) => setGrokApiKey(event.target.value)}
+                  placeholder="xai-..."
+                />
+              </div>
+            )}
           </div>
         </DialogHeader>
 
         {/* 左：渠道列表；右：选中渠道的配置 */}
         <div>
-            <div className="flex h-[64vh]">
-              {/* Left: channel rail */}
-              <div className="flex w-44 shrink-0 flex-col border-r border-border">
-                <div className="min-h-0 flex-1 overflow-y-auto p-2">
-                  <div className="space-y-0.5">
-                    {channels.map((ch) => {
-                      const active = ch.id === activeChannelId;
-                      const renaming = ch.id === renamingChannelId;
-                      return (
-                        <div
-                          key={ch.id}
-                          onClick={() => !renaming && selectChannel(ch.id)}
-                          onDoubleClick={() => {
-                            setRenameDraft(ch.name);
-                            setRenamingChannelId(ch.id);
-                          }}
-                          title={t('ai.channelRenameHint')}
-                          className={cn(
-                            'group flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-[13px] transition-colors',
-                            active ? 'bg-brand/10 font-medium text-brand' : 'text-foreground hover:bg-muted'
-                          )}
-                        >
-                          {renaming ? (
-                            <input
-                              autoFocus
-                              value={renameDraft}
-                              onChange={(e) => setRenameDraft(e.target.value)}
-                              onClick={(e) => e.stopPropagation()}
-                              onBlur={commitChannelRename}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') commitChannelRename();
-                                else if (e.key === 'Escape') setRenamingChannelId(null);
+          <div className="flex h-[64vh]">
+            {/* Left: channel rail */}
+            <div className="flex w-44 shrink-0 flex-col border-r border-border">
+              <div className="min-h-0 flex-1 overflow-y-auto p-2">
+                <div className="space-y-0.5">
+                  {channels.map((ch) => {
+                    const active = ch.id === activeChannelId;
+                    const renaming = ch.id === renamingChannelId;
+                    return (
+                      <div
+                        key={ch.id}
+                        onClick={() => !renaming && selectChannel(ch.id)}
+                        onDoubleClick={() => {
+                          setRenameDraft(ch.name);
+                          setRenamingChannelId(ch.id);
+                        }}
+                        title={t('ai.channelRenameHint')}
+                        className={cn(
+                          'group flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-[13px] transition-colors',
+                          active
+                            ? 'bg-brand/10 font-medium text-brand'
+                            : 'text-foreground hover:bg-muted',
+                        )}
+                      >
+                        {renaming ? (
+                          <input
+                            autoFocus
+                            value={renameDraft}
+                            onChange={(e) => setRenameDraft(e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            onBlur={commitChannelRename}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') commitChannelRename();
+                              else if (e.key === 'Escape')
+                                setRenamingChannelId(null);
+                            }}
+                            className="min-w-0 flex-1 rounded border border-brand/40 bg-background px-1 py-0.5 text-[13px] outline-none"
+                          />
+                        ) : (
+                          <>
+                            <span className="min-w-0 flex-1 truncate">
+                              {ch.name}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRenameDraft(ch.name);
+                                setRenamingChannelId(ch.id);
                               }}
-                              className="min-w-0 flex-1 rounded border border-brand/40 bg-background px-1 py-0.5 text-[13px] outline-none"
-                            />
-                          ) : (
-                            <>
-                              <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setRenameDraft(ch.name);
-                                  setRenamingChannelId(ch.id);
-                                }}
-                                className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 hover:text-foreground group-hover:opacity-100"
-                                aria-label={t('ai.channelRename')}
-                              >
-                                <PenLine className="h-3 w-3" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  deleteChannel(ch.id);
-                                }}
-                                className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
-                                aria-label={t('ai.channelDelete')}
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="border-t border-border p-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="w-full cursor-pointer"
-                    onClick={() => addChannel('')}
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    <span>{t('ai.channelAdd')}</span>
-                  </Button>
+                              className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 hover:text-foreground group-hover:opacity-100"
+                              aria-label={t('ai.channelRename')}
+                            >
+                              <PenLine className="h-3 w-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteChannel(ch.id);
+                              }}
+                              className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
+                              aria-label={t('ai.channelDelete')}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-
-              {/* Right: config for the active channel */}
-              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
-                {!activeChannel ? (
-                  <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">
-                    {t('ai.channelNone')}
-                  </div>
-                ) : (
-                  <>
-                    {/* Channel name */}
-                    <div className="space-y-1.5">
-                      <Label>{t('ai.channelName')}</Label>
-                      <Input
-                        value={activeChannel.name}
-                        onChange={(e) => patchActive({ name: e.target.value })}
-                        placeholder={t('ai.channelNamePlaceholder')}
-                      />
-                    </div>
-
-                    {/* API 地址 */}
-                    <div className="space-y-2">
-                      <Label>{t('ai.baseURL')}</Label>
-                      <Input
-                        value={activeChannel.baseURL}
-                        onChange={(e) => patchActive({ baseURL: e.target.value })}
-                        placeholder="https://api.openai.com/v1"
-                      />
-                    </div>
-
-                    {/* API Key */}
-                    <div className="space-y-2">
-                      <Label>{t('ai.apiKey')}</Label>
-                      <div className="relative">
-                        <Input
-                          type={showApiKey ? 'text' : 'password'}
-                          value={activeChannel.apiKey}
-                          onChange={(e) => patchActive({ apiKey: e.target.value })}
-                          placeholder={t('ai.apiKeyPlaceholder')}
-                          className="pr-10"
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-xs"
-                          className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground"
-                          onClick={() => setShowApiKey(!showApiKey)}
-                        >
-                          {showApiKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground">{t('ai.apiKeyHint')}</p>
-                    </div>
-
-                    {/* 模型协议 */}
-                    <div className="space-y-2">
-                      <Label>{t('ai.protocol')}</Label>
-                      <Select value={activeChannel.provider} onValueChange={(v) => patchActive({ provider: v as AIProvider })}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {AI_PROVIDERS.map((p) => (
-                            <SelectItem key={p.value} value={p.value}>
-                              {p.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">{t('ai.protocolHint')}</p>
-                    </div>
-
-                    {/* 默认模型 — Combobox */}
-                    <div className="space-y-2">
-                      <Label>{t('ai.defaultModel')}</Label>
-              <Popover open={modelOpen} onOpenChange={setModelOpen} modal={false}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={modelOpen}
-                    className="w-full justify-between cursor-pointer font-normal"
-                  >
-                    <span className="truncate">{aiModel || t('ai.modelPlaceholder')}</span>
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                  {/* Search input */}
-                  <div className="border-b px-3 py-2">
-                    <Input
-                      ref={modelSearchRef}
-                      value={modelSearch}
-                      onChange={(e) => setModelSearch(e.target.value)}
-                      placeholder={tCommon('search')}
-                      className="h-8 border-0 p-0 shadow-none focus-visible:ring-0"
-                    />
-                  </div>
-
-                  {/* Model list */}
-                  <div className="max-h-48 overflow-y-auto p-1" onWheel={(e) => e.stopPropagation()}>
-                    {modelsFetching && (
-                      <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        {tCommon('loading')}
-                      </div>
-                    )}
-
-                    {!modelsFetching && filteredModels.length === 0 && modelsFetched && (
-                      <div className="py-3 text-center text-xs text-muted-foreground">
-                        {t('ai.noModelsFound')}
-                      </div>
-                    )}
-
-                    {filteredModels.map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        className={cn(
-                          'flex w-full cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm hover:bg-muted',
-                          aiModel === m && 'bg-muted'
-                        )}
-                        onClick={() => {
-                          patchActive({ model: m });
-                          setModelOpen(false);
-                        }}
-                      >
-                        <Check className={cn('mr-2 h-4 w-4', aiModel === m ? 'opacity-100' : 'opacity-0')} />
-                        <span className="truncate">{m}</span>
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Manual entry */}
-                  <div className="border-t px-3 py-2">
-                    <Input
-                      value={aiModel}
-                      onChange={(e) => patchActive({ model: e.target.value })}
-                      placeholder={t('ai.modelPlaceholder')}
-                      className="h-8 text-sm"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') setModelOpen(false);
-                      }}
-                    />
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            {/* Curated model shortlist — what the chat model pickers show */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>{t('ai.modelListTitle')}</Label>
+              <div className="border-t border-border p-2">
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
-                  className="cursor-pointer"
-                  onClick={() => setPickerOpen(true)}
-                  disabled={availableModels.length === 0}
+                  className="w-full cursor-pointer"
+                  onClick={() => addChannel('')}
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  <span>{t('ai.modelListEdit')}</span>
+                  <span>{t('ai.channelAdd')}</span>
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">{t('ai.modelListHint')}</p>
-              {favoriteModels.length === 0 ? (
-                <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-                  {availableModels.length === 0 ? t('ai.modelListEmpty') : t('ai.modelListNone')}
-                </p>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {favoriteModels.map((m) => (
-                    <span
-                      key={m}
-                      className="flex max-w-full items-center gap-1 rounded-full border border-border bg-muted/60 py-1 pl-3 pr-1.5 text-xs"
-                    >
-                      <span className="truncate">{m}</span>
-                      <button
-                        type="button"
-                        onClick={() => activeChannelId && toggleChannelModel(activeChannelId, m)}
-                        className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-                        aria-label={t('ai.modelListRemove')}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
             </div>
 
-            {/* Model picker — searchable multi-select in its own modal */}
-            <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
-              <DialogContent className="gap-0 p-0 sm:max-w-[420px]">
-                <DialogHeader className="px-5 pb-2 pt-5">
-                  <DialogTitle>{t('ai.modelPickerTitle')}</DialogTitle>
-                  <DialogDescription>{t('ai.modelPickerHint')}</DialogDescription>
-                </DialogHeader>
-                <div className="border-y px-4 py-2">
-                  <Input
-                    value={pickerSearch}
-                    onChange={(e) => setPickerSearch(e.target.value)}
-                    placeholder={tCommon('search')}
-                    className="h-8 border-0 p-0 shadow-none focus-visible:ring-0"
-                  />
+            {/* Right: config for the active channel */}
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
+              {!activeChannel ? (
+                <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">
+                  {t('ai.channelNone')}
                 </div>
-                <div className="max-h-[50vh] space-y-0.5 overflow-y-auto p-2">
-                  {pickerFilteredModels.length === 0 ? (
-                    <p className="py-6 text-center text-xs text-muted-foreground">
-                      {t('ai.noModelsFound')}
+              ) : (
+                <>
+                  {/* Channel name */}
+                  <div className="space-y-1.5">
+                    <Label>{t('ai.channelName')}</Label>
+                    <Input
+                      value={activeChannel.name}
+                      onChange={(e) => patchActive({ name: e.target.value })}
+                      placeholder={t('ai.channelNamePlaceholder')}
+                    />
+                  </div>
+
+                  {/* API 地址 */}
+                  <div className="space-y-2">
+                    <Label>{t('ai.baseURL')}</Label>
+                    <Input
+                      value={activeChannel.baseURL}
+                      onChange={(e) => patchActive({ baseURL: e.target.value })}
+                      placeholder="https://api.openai.com/v1"
+                    />
+                  </div>
+
+                  {/* API Key */}
+                  <div className="space-y-2">
+                    <Label>{t('ai.apiKey')}</Label>
+                    <div className="relative">
+                      <Input
+                        type={showApiKey ? 'text' : 'password'}
+                        value={activeChannel.apiKey}
+                        onChange={(e) =>
+                          patchActive({ apiKey: e.target.value })
+                        }
+                        placeholder={t('ai.apiKeyPlaceholder')}
+                        className="pr-10"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground"
+                        onClick={() => setShowApiKey(!showApiKey)}
+                      >
+                        {showApiKey ? (
+                          <EyeOff className="h-3.5 w-3.5" />
+                        ) : (
+                          <Eye className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {t('ai.apiKeyHint')}
                     </p>
-                  ) : (
-                    pickerFilteredModels.map((m) => {
-                      const checked = favoriteSet.has(m);
-                      return (
-                        <button
-                          key={m}
-                          type="button"
-                          onClick={() => activeChannelId && toggleChannelModel(activeChannelId, m)}
-                          className={cn(
-                            'flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted',
-                            checked && 'bg-muted/70'
-                          )}
+                  </div>
+
+                  {/* 模型协议 */}
+                  <div className="space-y-2">
+                    <Label>{t('ai.protocol')}</Label>
+                    <Select
+                      value={activeChannel.provider}
+                      onValueChange={(v) =>
+                        patchActive({ provider: v as AIProvider })
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {AI_PROVIDERS.map((p) => (
+                          <SelectItem key={p.value} value={p.value}>
+                            {p.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {t('ai.protocolHint')}
+                    </p>
+                  </div>
+
+                  {/* 默认模型 — Combobox */}
+                  <div className="space-y-2">
+                    <Label>{t('ai.defaultModel')}</Label>
+                    <Popover
+                      open={modelOpen}
+                      onOpenChange={setModelOpen}
+                      modal={false}
+                    >
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={modelOpen}
+                          className="w-full justify-between cursor-pointer font-normal"
                         >
-                          <span
-                            className={cn(
-                              'flex h-4 w-4 shrink-0 items-center justify-center rounded border',
-                              checked ? 'border-brand bg-brand text-white' : 'border-border'
-                            )}
-                          >
-                            {checked && <Check className="h-3 w-3" />}
+                          <span className="truncate">
+                            {aiModel || t('ai.modelPlaceholder')}
                           </span>
-                          <span className="truncate">{m}</span>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-                <DialogFooter className="flex-row items-center border-t px-5 py-3 sm:justify-between">
-                  <span className="text-xs text-muted-foreground">
-                    {t('ai.modelListSelected', { count: favoriteModels.length })}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    {favoriteModels.length > 0 && (
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="w-[--radix-popover-trigger-width] p-0"
+                        align="start"
+                      >
+                        {/* Search input */}
+                        <div className="border-b px-3 py-2">
+                          <Input
+                            ref={modelSearchRef}
+                            value={modelSearch}
+                            onChange={(e) => setModelSearch(e.target.value)}
+                            placeholder={tCommon('search')}
+                            className="h-8 border-0 p-0 shadow-none focus-visible:ring-0"
+                          />
+                        </div>
+
+                        {/* Model list */}
+                        <div
+                          className="max-h-48 overflow-y-auto p-1"
+                          onWheel={(e) => e.stopPropagation()}
+                        >
+                          {modelsFetching && (
+                            <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              {tCommon('loading')}
+                            </div>
+                          )}
+
+                          {!modelsFetching &&
+                            filteredModels.length === 0 &&
+                            modelsFetched && (
+                              <div className="py-3 text-center text-xs text-muted-foreground">
+                                {t('ai.noModelsFound')}
+                              </div>
+                            )}
+
+                          {filteredModels.map((m) => (
+                            <button
+                              key={m}
+                              type="button"
+                              className={cn(
+                                'flex w-full cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm hover:bg-muted',
+                                aiModel === m && 'bg-muted',
+                              )}
+                              onClick={() => {
+                                patchActive({ model: m });
+                                setModelOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  'mr-2 h-4 w-4',
+                                  aiModel === m ? 'opacity-100' : 'opacity-0',
+                                )}
+                              />
+                              <span className="truncate">{m}</span>
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Manual entry */}
+                        <div className="border-t px-3 py-2">
+                          <Input
+                            value={aiModel}
+                            onChange={(e) =>
+                              patchActive({ model: e.target.value })
+                            }
+                            placeholder={t('ai.modelPlaceholder')}
+                            className="h-8 text-sm"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') setModelOpen(false);
+                            }}
+                          />
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  {/* Curated model shortlist — what the chat model pickers show */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label>{t('ai.modelListTitle')}</Label>
                       <Button
                         type="button"
                         size="sm"
-                        variant="ghost"
-                        className="cursor-pointer text-muted-foreground"
-                        onClick={() => activeChannelId && setChannelModels(activeChannelId, [])}
+                        variant="outline"
+                        className="cursor-pointer"
+                        onClick={() => setPickerOpen(true)}
+                        disabled={availableModels.length === 0}
                       >
-                        {t('ai.modelListClear')}
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>{t('ai.modelListEdit')}</span>
                       </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {t('ai.modelListHint')}
+                    </p>
+                    {favoriteModels.length === 0 ? (
+                      <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
+                        {availableModels.length === 0
+                          ? t('ai.modelListEmpty')
+                          : t('ai.modelListNone')}
+                      </p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {favoriteModels.map((m) => (
+                          <span
+                            key={m}
+                            className="flex max-w-full items-center gap-1 rounded-full border border-border bg-muted/60 py-1 pl-3 pr-1.5 text-xs"
+                          >
+                            <span className="truncate">{m}</span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                activeChannelId &&
+                                toggleChannelModel(activeChannelId, m)
+                              }
+                              className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+                              aria-label={t('ai.modelListRemove')}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
                     )}
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="cursor-pointer bg-brand hover:bg-brand-hover"
-                      onClick={() => setPickerOpen(false)}
-                    >
-                      {t('ai.modelPickerDone')}
-                    </Button>
                   </div>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
 
-            <div className="space-y-3 rounded-lg border border-border bg-muted/60 p-3">
-              <p className="text-xs text-muted-foreground">
-                {t('ai.connectionHint')}
-              </p>
+                  {/* Model picker — searchable multi-select in its own modal */}
+                  <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+                    <DialogContent className="gap-0 p-0 sm:max-w-[420px]">
+                      <DialogHeader className="px-5 pb-2 pt-5">
+                        <DialogTitle>{t('ai.modelPickerTitle')}</DialogTitle>
+                        <DialogDescription>
+                          {t('ai.modelPickerHint')}
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="border-y px-4 py-2">
+                        <Input
+                          value={pickerSearch}
+                          onChange={(e) => setPickerSearch(e.target.value)}
+                          placeholder={tCommon('search')}
+                          className="h-8 border-0 p-0 shadow-none focus-visible:ring-0"
+                        />
+                      </div>
+                      <div className="max-h-[50vh] space-y-0.5 overflow-y-auto p-2">
+                        {pickerFilteredModels.length === 0 ? (
+                          <p className="py-6 text-center text-xs text-muted-foreground">
+                            {t('ai.noModelsFound')}
+                          </p>
+                        ) : (
+                          pickerFilteredModels.map((m) => {
+                            const checked = favoriteSet.has(m);
+                            return (
+                              <button
+                                key={m}
+                                type="button"
+                                onClick={() =>
+                                  activeChannelId &&
+                                  toggleChannelModel(activeChannelId, m)
+                                }
+                                className={cn(
+                                  'flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted',
+                                  checked && 'bg-muted/70',
+                                )}
+                              >
+                                <span
+                                  className={cn(
+                                    'flex h-4 w-4 shrink-0 items-center justify-center rounded border',
+                                    checked
+                                      ? 'border-brand bg-brand text-white'
+                                      : 'border-border',
+                                  )}
+                                >
+                                  {checked && <Check className="h-3 w-3" />}
+                                </span>
+                                <span className="truncate">{m}</span>
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                      <DialogFooter className="flex-row items-center border-t px-5 py-3 sm:justify-between">
+                        <span className="text-xs text-muted-foreground">
+                          {t('ai.modelListSelected', {
+                            count: favoriteModels.length,
+                          })}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          {favoriteModels.length > 0 && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="cursor-pointer text-muted-foreground"
+                              onClick={() =>
+                                activeChannelId &&
+                                setChannelModels(activeChannelId, [])
+                              }
+                            >
+                              {t('ai.modelListClear')}
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="cursor-pointer bg-brand hover:bg-brand-hover"
+                            onClick={() => setPickerOpen(false)}
+                          >
+                            {t('ai.modelPickerDone')}
+                          </Button>
+                        </div>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
 
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => void fetchModels()}
-                  disabled={!canQueryAI || modelsFetching || isTestingConnection}
-                  className="cursor-pointer"
-                >
-                  {modelsFetching ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-3.5 w-3.5" />
-                  )}
-                  <span>{modelsFetching ? t('ai.fetchingModels') : t('ai.fetchModels')}</span>
-                </Button>
+                  <div className="space-y-3 rounded-lg border border-border bg-muted/60 p-3">
+                    <p className="text-xs text-muted-foreground">
+                      {t('ai.connectionHint')}
+                    </p>
 
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => void handleTestConnection()}
-                  disabled={!canQueryAI || isTestingConnection || modelsFetching}
-                  className="cursor-pointer bg-brand hover:bg-brand-hover"
-                >
-                  {isTestingConnection ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <PlugZap className="h-3.5 w-3.5" />
-                  )}
-                  <span>{isTestingConnection ? t('ai.testingConnection') : t('ai.testConnection')}</span>
-                </Button>
-              </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void fetchModels()}
+                        disabled={
+                          !canQueryAI || modelsFetching || isTestingConnection
+                        }
+                        className="cursor-pointer"
+                      >
+                        {modelsFetching ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3.5 w-3.5" />
+                        )}
+                        <span>
+                          {modelsFetching
+                            ? t('ai.fetchingModels')
+                            : t('ai.fetchModels')}
+                        </span>
+                      </Button>
 
-              {connectionState === 'idle' ? null : (
-                <div
-                  className={cn(
-                    'flex items-start gap-2 rounded-md px-3 py-2 text-xs',
-                    connectionState === 'success' && 'bg-emerald-50 text-emerald-700',
-                    connectionState === 'warning' && 'bg-amber-50 text-amber-700',
-                    connectionState === 'error' && 'bg-red-50 text-red-700'
-                  )}
-                >
-                  {connectionState === 'success' ? (
-                    <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  ) : (
-                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  )}
-                  <span className="leading-relaxed break-all">{connectionMessage}</span>
-                </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => void handleTestConnection()}
+                        disabled={
+                          !canQueryAI || isTestingConnection || modelsFetching
+                        }
+                        className="cursor-pointer bg-brand hover:bg-brand-hover"
+                      >
+                        {isTestingConnection ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <PlugZap className="h-3.5 w-3.5" />
+                        )}
+                        <span>
+                          {isTestingConnection
+                            ? t('ai.testingConnection')
+                            : t('ai.testConnection')}
+                        </span>
+                      </Button>
+                    </div>
+
+                    {connectionState === 'idle' ? null : (
+                      <div
+                        className={cn(
+                          'flex items-start gap-2 rounded-md px-3 py-2 text-xs',
+                          connectionState === 'success' &&
+                            'bg-emerald-50 text-emerald-700',
+                          connectionState === 'warning' &&
+                            'bg-amber-50 text-amber-700',
+                          connectionState === 'error' &&
+                            'bg-red-50 text-red-700',
+                        )}
+                      >
+                        {connectionState === 'success' ? (
+                          <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        ) : (
+                          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        )}
+                        <span className="leading-relaxed break-all">
+                          {connectionMessage}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </div>
-                  </>
-                )}
-              </div>
-            </div>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

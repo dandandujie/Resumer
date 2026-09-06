@@ -4,11 +4,11 @@
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, State};
 
-use crate::ai::provider::{AIConfig, ChatMessage};
-use crate::ai::{prompts, stream};
-use crate::db::AppDb;
-use crate::db::repo::resume as resume_repo;
 use super::CommandError;
+use crate::ai::provider::{AIConfig, ChatMessage};
+use crate::ai::{prompts, search, stream};
+use crate::db::repo::resume as resume_repo;
+use crate::db::AppDb;
 
 fn cfg_from(config: Value) -> AIConfig {
     serde_json::from_value(config).unwrap_or_default()
@@ -35,9 +35,12 @@ pub async fn interview_chat(
     round: Option<String>,
 ) -> Result<Value, CommandError> {
     let cfg = cfg_from(config);
+    let should_prefetch = messages.is_empty();
 
     let resume_context = if let Some(rid) = &resume_id {
-        let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+        let conn = db.conn.lock().map_err(|e| CommandError {
+            message: e.to_string(),
+        })?;
         match resume_repo::find_by_id_any(&conn, rid) {
             Ok(Some(r)) => serde_json::to_string(&r.sections).unwrap_or_default(),
             _ => String::new(),
@@ -46,37 +49,74 @@ pub async fn interview_chat(
         String::new()
     };
 
-    let system_prompt = prompts::interview_system_prompt(
+    let company = company.as_deref().unwrap_or("");
+    let role = role.as_deref().unwrap_or("");
+    let jd = jd.as_deref().unwrap_or("");
+    let query = format!("{company} {role} 面试流程 面经");
+    let external = if should_prefetch && search::tool_enabled(&cfg) {
+        match search::web_search(&cfg, &query).await {
+            Ok(value) => value
+                .get("results")
+                .and_then(Value::as_array)
+                .map(|results| {
+                    serde_json::to_string(&results.iter().take(5).collect::<Vec<_>>())
+                        .unwrap_or_default()
+                })
+                .unwrap_or_default(),
+            Err(error) => {
+                // Search is an enhancement, so a failed prefetch must not block interview chat.
+                log::warn!("interview web prefetch skipped: {error}");
+                String::new()
+            }
+        }
+    } else {
+        String::new()
+    };
+    let mut system_prompt = prompts::interview_system_prompt(
         &resume_context,
-        company.as_deref().unwrap_or(""),
-        role.as_deref().unwrap_or(""),
-        jd.as_deref().unwrap_or(""),
+        company,
+        role,
+        jd,
         round.as_deref().unwrap_or(""),
     );
+    if !external.is_empty() {
+        system_prompt.push_str("\n\n## 外部参考\n");
+        system_prompt.push_str(&external);
+    }
 
     let chat_msgs: Vec<ChatMessage> = messages
         .into_iter()
-        .map(|m| ChatMessage { role: m.role, content: m.content })
+        .map(|m| ChatMessage {
+            role: m.role,
+            content: m.content,
+        })
         .collect();
 
-    let res = match stream::stream_chat(&app, &stream_id, &cfg, &system_prompt, &chat_msgs, None).await {
-        Ok(r) => r,
-        Err(e) => {
-            let msg = e.to_string();
-            log::error!("interview_chat stream failed: {msg}");
-            let _ = app.emit("ai-chat-event", json!({
-                "streamId": &stream_id,
-                "event": { "type": "error", "message": msg }
-            }));
-            return Err(CommandError { message: msg });
-        }
-    };
+    let res =
+        match stream::stream_chat(&app, &stream_id, &cfg, &system_prompt, &chat_msgs, None).await {
+            Ok(r) => r,
+            Err(e) => {
+                let msg = e.to_string();
+                log::error!("interview_chat stream failed: {msg}");
+                let _ = app.emit(
+                    "ai-chat-event",
+                    json!({
+                        "streamId": &stream_id,
+                        "event": { "type": "error", "message": msg }
+                    }),
+                );
+                return Err(CommandError { message: msg });
+            }
+        };
 
     stream::clear_cancel(&stream_id);
-    let _ = app.emit("ai-chat-event", json!({
-        "streamId": &stream_id,
-        "event": { "type": "finish", "finalText": res.text }
-    }));
+    let _ = app.emit(
+        "ai-chat-event",
+        json!({
+            "streamId": &stream_id,
+            "event": { "type": "finish", "finalText": res.text }
+        }),
+    );
 
     Ok(json!({
         "text": res.text,

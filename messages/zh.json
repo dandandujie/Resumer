@@ -354,7 +354,11 @@
       "copyFailed": "复制失败"
     },
     "webSearch": {
-      "title": "联网搜索"
+      "title": "联网搜索",
+      "off": "关闭",
+      "native": "模型自带",
+      "tavily": "Tavily",
+      "grok": "Grok"
     }
   },
   "themeEditor": {

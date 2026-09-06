@@ -139,3 +139,28 @@
 - 删除独立一级导出按钮；窄屏菜单同步加入文件菜单的导入、导出、另存副本和版本历史占位；另存副本复用 `duplicateResume`/`duplicate_resume`。
 - 版本历史当前无现成 UI，使用禁用占位项，待版本历史能力实现后接入。
 - 整理指定文件的 JSX、导入、数据表和长字符串格式，单行均不超过 120 字符；对格式专属文件使用 `git diff -w` 自检，未发现逻辑性变更。
+
+## WP5 联网搜索还原与接入
+
+- 还原资产
+  - 从 `a2eb4ce` 整文件还原 `src-tauri/src/ai/search.rs` 与 `src/hooks/use-web-search-mode.ts`，并在 `src-tauri/src/ai/mod.rs` 注册搜索模块。
+  - 按历史差异逐段恢复 `AIConfig` 的联网搜索字段、stream native 搜索注入与失败降级重试、`webSearch` 工具及设置存储/设置界面联网搜索区块；未整体 checkout 已改动文件。
+- 接入链路
+  - `tools::tool_specs(web_search_enabled)` 仅在 free/Bing/Google/百度/Tavily/Grok 模式开启 `webSearch`；`chat.rs` 异步分发搜索结果。
+  - 恢复 Anthropic `web_search_20250305`、Gemini `google_search`、xAI `search_parameters` 注入；native 搜索被上游拒绝时只重试一次并关闭 native 搜索。
+  - AI 消息新增来源卡片，显示标题、链接和摘要。
+  - 设置支持关闭、模型自带、Tavily、Grok，并将搜索配置随 AI request config 传入 Rust。
+- 非流式场景预检索
+  - JD 分析、求职文案和模拟面试首轮在搜索开启且使用外部搜索引擎时确定性预检索，并把最多 5 条结果注入 prompt/system prompt。
+  - 预检索失败只记录 `warn` 并跳过：搜索是增强能力，不应阻断主 AI 任务；关闭搜索时不执行预检索，主路径保持原行为。
+- 未完成项与原因
+  - 未使用真实联网凭据执行人工验收；当前环境没有可复现的外部搜索账号，避免伪造搜索结果或验收结论。
+  - 版本历史仍为 WP4 的占位项；未开始 WP6。
+- 验收结果
+  - `pnpm type-check`：通过。
+  - `pnpm lint`：通过，0 error、31 warning。
+  - `(cd src-tauri && cargo test)`：通过，20 个测试全部通过。
+  - `pnpm build:vite`：通过。
+- 决策记录
+  - 搜索默认关闭，确保关闭搜索时与 WP4 前行为一致；`native` 只走 provider 原生注入，不伪造本地预检索结果。
+  - 非流式预检索只在首轮执行；搜索失败不影响 JD 分析、文案生成和面试主任务。

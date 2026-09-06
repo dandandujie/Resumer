@@ -1,11 +1,11 @@
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, State};
 
-use crate::ai::provider::{AIConfig, ChatMessage, ToolCall};
-use crate::ai::{prompts, stream, tools};
-use crate::db::AppDb;
-use crate::db::repo::{chat as chat_repo, journal as journal_repo, resume as resume_repo};
 use super::CommandError;
+use crate::ai::provider::{AIConfig, ChatMessage, ToolCall};
+use crate::ai::{prompts, search, stream, tools};
+use crate::db::repo::{chat as chat_repo, journal as journal_repo, resume as resume_repo};
+use crate::db::AppDb;
 
 const MAX_ROUNDS: usize = 10;
 const MAX_STEPS: usize = 25;
@@ -19,7 +19,9 @@ pub async fn list_chat_sessions(
     db: State<'_, AppDb>,
     resume_id: String,
 ) -> Result<Vec<chat_repo::ChatSession>, CommandError> {
-    let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+    let conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
     chat_repo::find_sessions_by_resume_id(&conn, &resume_id).map_err(Into::into)
 }
 
@@ -28,7 +30,9 @@ pub async fn get_chat_session(
     db: State<'_, AppDb>,
     session_id: String,
 ) -> Result<Option<chat_repo::ChatSession>, CommandError> {
-    let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+    let conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
     chat_repo::find_session(&conn, &session_id).map_err(Into::into)
 }
 
@@ -39,7 +43,9 @@ pub async fn list_chat_messages(
     limit: Option<i64>,
     offset: Option<i64>,
 ) -> Result<Value, CommandError> {
-    let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+    let conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
     let limit = limit.unwrap_or(50);
     let offset = offset.unwrap_or(0);
     let total = chat_repo::count_messages(&conn, &session_id)?;
@@ -53,7 +59,9 @@ pub async fn create_chat_session(
     resume_id: String,
     title: Option<String>,
 ) -> Result<String, CommandError> {
-    let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+    let conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
     let t = title.unwrap_or_else(|| "新对话".into());
     chat_repo::create_session(&conn, &resume_id, &t).map_err(Into::into)
 }
@@ -63,7 +71,9 @@ pub async fn delete_chat_session(
     db: State<'_, AppDb>,
     session_id: String,
 ) -> Result<(), CommandError> {
-    let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+    let conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
     chat_repo::delete_session(&conn, &session_id).map_err(Into::into)
 }
 
@@ -78,7 +88,9 @@ pub async fn truncate_chat_messages(
     session_id: String,
     message_id: String,
 ) -> Result<(), CommandError> {
-    let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+    let conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
     chat_repo::truncate_from_message(&conn, &session_id, &message_id).map_err(Into::into)
 }
 
@@ -104,7 +116,9 @@ pub async fn ai_chat(
     // Persist the user message; the first message names the session.
     if let (Some(sid), Some(last)) = (&session_id, messages.last()) {
         if last.role == "user" && !last.content.is_empty() {
-            let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+            let conn = db.conn.lock().map_err(|e| CommandError {
+                message: e.to_string(),
+            })?;
             let existing = chat_repo::find_messages(&conn, sid, 1, 0).unwrap_or_default();
             if existing.is_empty() {
                 let title: String = last.content.chars().take(50).collect();
@@ -115,21 +129,37 @@ pub async fn ai_chat(
     }
 
     let (resume_context, applications_context) = {
-        let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+        let conn = db.conn.lock().map_err(|e| CommandError {
+            message: e.to_string(),
+        })?;
         let resume = resume_repo::find_by_id_any(&conn, &resume_id)
-            .map_err(|e| CommandError { message: e.to_string() })?
-            .ok_or(CommandError { message: "Resume not found".into() })?;
+            .map_err(|e| CommandError {
+                message: e.to_string(),
+            })?
+            .ok_or(CommandError {
+                message: "Resume not found".into(),
+            })?;
         let applications = journal_repo::context_for_resume(&conn, &resume_id).unwrap_or_default();
-        (serde_json::to_string(&resume.sections).unwrap_or_default(), applications)
+        (
+            serde_json::to_string(&resume.sections).unwrap_or_default(),
+            applications,
+        )
     };
 
-    let system_prompt = prompts::with_response_format(prompts::get_system_prompt(&resume_context, &applications_context));
-    let tool_specs = tools::tool_specs();
+    let system_prompt = prompts::with_response_format(prompts::get_system_prompt(
+        &resume_context,
+        &applications_context,
+    ));
+    let tool_specs = tools::tool_specs(search::tool_enabled(&cfg));
 
-    let mut chat_msgs: Vec<ChatMessage> = messages.into_iter()
+    let mut chat_msgs: Vec<ChatMessage> = messages
+        .into_iter()
         .rev()
         .take(MAX_ROUNDS * 2)
-        .map(|m| ChatMessage { role: m.role, content: m.content })
+        .map(|m| ChatMessage {
+            role: m.role,
+            content: m.content,
+        })
         .collect();
     chat_msgs.reverse();
 
@@ -138,24 +168,43 @@ pub async fn ai_chat(
     let mut usage_total = stream::Usage::default();
 
     for _step in 0..MAX_STEPS {
-        let res = match stream::stream_chat(&app, &stream_id, &cfg, &system_prompt, &chat_msgs, Some(tool_specs.as_slice())).await {
+        let res = match stream::stream_chat(
+            &app,
+            &stream_id,
+            &cfg,
+            &system_prompt,
+            &chat_msgs,
+            Some(tool_specs.as_slice()),
+        )
+        .await
+        {
             Ok(r) => r,
             Err(e) => {
                 // Persist whatever already streamed so it survives reloads.
                 if let Some(sid) = &session_id {
                     if !final_text.is_empty() || !ordered_parts.is_empty() {
                         if let Ok(conn) = db.conn.lock() {
-                            let metadata = json!({ "orderedParts": ordered_parts, "partial": true });
-                            let _ = chat_repo::add_message(&conn, sid, "assistant", &final_text, &metadata);
+                            let metadata =
+                                json!({ "orderedParts": ordered_parts, "partial": true });
+                            let _ = chat_repo::add_message(
+                                &conn,
+                                sid,
+                                "assistant",
+                                &final_text,
+                                &metadata,
+                            );
                         }
                     }
                 }
                 let msg = e.to_string();
                 log::error!("ai_chat stream failed: {}", msg);
-                let _ = app.emit("ai-chat-event", json!({
-                    "streamId": &stream_id,
-                    "event": { "type": "error", "message": msg }
-                }));
+                let _ = app.emit(
+                    "ai-chat-event",
+                    json!({
+                        "streamId": &stream_id,
+                        "event": { "type": "error", "message": msg }
+                    }),
+                );
                 return Err(CommandError { message: msg });
             }
         };
@@ -172,10 +221,13 @@ pub async fn ai_chat(
             let notice = "\n\n> ⏹ 已停止生成";
             final_text.push_str(notice);
             ordered_parts.push(json!({ "type": "text", "text": notice }));
-            let _ = app.emit("ai-chat-event", json!({
-                "streamId": &stream_id,
-                "event": { "type": "textDelta", "text": notice }
-            }));
+            let _ = app.emit(
+                "ai-chat-event",
+                json!({
+                    "streamId": &stream_id,
+                    "event": { "type": "textDelta", "text": notice }
+                }),
+            );
             break;
         }
 
@@ -185,19 +237,34 @@ pub async fn ai_chat(
 
         let mut tool_results: Vec<(ToolCall, Value)> = Vec::new();
         for tc in &res.tool_calls {
-            let result = {
-                let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+            let result = if tc.name == "webSearch" {
+                let query = tc
+                    .arguments
+                    .get("query")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                match search::web_search(&cfg, query).await {
+                    Ok(data) => data,
+                    Err(error) => json!({ "success": false, "error": error }),
+                }
+            } else {
+                let conn = db.conn.lock().map_err(|e| CommandError {
+                    message: e.to_string(),
+                })?;
                 tools::execute_tool(&conn, &resume_id, &tc.name, &tc.arguments)
             };
-            let _ = app.emit("ai-chat-event", json!({
-                "streamId": &stream_id,
-                "event": {
-                    "type": "toolResult",
-                    "id": tc.id,
-                    "name": tc.name,
-                    "result": result,
-                }
-            }));
+            let _ = app.emit(
+                "ai-chat-event",
+                json!({
+                    "streamId": &stream_id,
+                    "event": {
+                        "type": "toolResult",
+                        "id": tc.id,
+                        "name": tc.name,
+                        "result": result,
+                    }
+                }),
+            );
             ordered_parts.push(json!({
                 "type": "tool",
                 "toolName": tc.name,
@@ -210,12 +277,18 @@ pub async fn ai_chat(
         // Append assistant tool-use message and tool results to chat history
         if cfg.provider == "anthropic" {
             // Anthropic needs the assistant message with tool_use content
-            let tool_uses: Vec<Value> = res.tool_calls.iter().map(|tc| json!({
-                "type": "tool_use",
-                "id": tc.id,
-                "name": tc.name,
-                "input": tc.arguments,
-            })).collect();
+            let tool_uses: Vec<Value> = res
+                .tool_calls
+                .iter()
+                .map(|tc| {
+                    json!({
+                        "type": "tool_use",
+                        "id": tc.id,
+                        "name": tc.name,
+                        "input": tc.arguments,
+                    })
+                })
+                .collect();
             let assistant_content = if res.text.is_empty() {
                 Value::Array(tool_uses)
             } else {
@@ -223,14 +296,25 @@ pub async fn ai_chat(
                 parts.extend(tool_uses);
                 Value::Array(parts)
             };
-            chat_msgs.push(ChatMessage { role: "assistant".into(), content: assistant_content.to_string() });
+            chat_msgs.push(ChatMessage {
+                role: "assistant".into(),
+                content: assistant_content.to_string(),
+            });
 
-            let user_content: Vec<Value> = tool_results.iter().map(|(tc, r)| json!({
-                "type": "tool_result",
-                "tool_use_id": tc.id,
-                "content": r.to_string(),
-            })).collect();
-            chat_msgs.push(ChatMessage { role: "user".into(), content: Value::Array(user_content).to_string() });
+            let user_content: Vec<Value> = tool_results
+                .iter()
+                .map(|(tc, r)| {
+                    json!({
+                        "type": "tool_result",
+                        "tool_use_id": tc.id,
+                        "content": r.to_string(),
+                    })
+                })
+                .collect();
+            chat_msgs.push(ChatMessage {
+                role: "user".into(),
+                content: Value::Array(user_content).to_string(),
+            });
         } else {
             // OpenAI-compatible: a bare role:"tool" message without tool_call_id
             // is rejected (400) by strict endpoints. Feed results back as a
@@ -240,7 +324,10 @@ pub async fn ai_chat(
             } else {
                 res.text.clone()
             };
-            chat_msgs.push(ChatMessage { role: "assistant".into(), content: assistant_text });
+            chat_msgs.push(ChatMessage {
+                role: "assistant".into(),
+                content: assistant_text,
+            });
             let blocks = tool_results
                 .iter()
                 .map(|(tc, r)| format!("Tool {} returned: {}", tc.name, r))
@@ -255,8 +342,14 @@ pub async fn ai_chat(
 
     // Persist assistant message
     if let Some(sid) = &session_id {
-        if !final_text.is_empty() || ordered_parts.iter().any(|p| p.get("type").and_then(|v| v.as_str()) == Some("tool")) {
-            let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+        if !final_text.is_empty()
+            || ordered_parts
+                .iter()
+                .any(|p| p.get("type").and_then(|v| v.as_str()) == Some("tool"))
+        {
+            let conn = db.conn.lock().map_err(|e| CommandError {
+                message: e.to_string(),
+            })?;
             let metadata = json!({ "orderedParts": ordered_parts });
             let _ = chat_repo::add_message(&conn, sid, "assistant", &final_text, &metadata);
         }
@@ -264,10 +357,13 @@ pub async fn ai_chat(
 
     stream::clear_cancel(&stream_id);
 
-    let _ = app.emit("ai-chat-event", json!({
-        "streamId": &stream_id,
-        "event": { "type": "finish", "finalText": final_text }
-    }));
+    let _ = app.emit(
+        "ai-chat-event",
+        json!({
+            "streamId": &stream_id,
+            "event": { "type": "finish", "finalText": final_text }
+        }),
+    );
 
     Ok(json!({
         "text": final_text,

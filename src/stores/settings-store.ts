@@ -2,6 +2,15 @@ import { create } from 'zustand';
 import * as api from '@/lib/tauri-api';
 
 export type AIProvider = 'openai' | 'anthropic' | 'gemini';
+export type WebSearchMode =
+  | 'off'
+  | 'native'
+  | 'free'
+  | 'bing'
+  | 'google'
+  | 'baidu'
+  | 'tavily'
+  | 'grok';
 
 /** 一个保存好的 API 渠道：协议 + 地址 + Key + 默认模型 + 常用模型列表。 */
 export interface AIChannel {
@@ -16,15 +25,65 @@ export interface AIChannel {
 }
 
 /** 首次运行时预置的官方渠道（Key 留空等用户填写）。 */
-export const CHANNEL_PRESETS: Array<Omit<AIChannel, 'id' | 'apiKey' | 'models'>> = [
-  { name: 'OpenAI', provider: 'openai', baseURL: 'https://api.openai.com/v1', model: 'gpt-4o', builtin: true },
-  { name: 'Anthropic', provider: 'anthropic', baseURL: 'https://api.anthropic.com', model: 'claude-sonnet-4-20250514', builtin: true },
-  { name: 'Gemini', provider: 'gemini', baseURL: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-2.5-flash', builtin: true },
-  { name: 'Grok (xAI)', provider: 'openai', baseURL: 'https://api.x.ai/v1', model: 'grok-4-fast', builtin: true },
-  { name: 'DeepSeek', provider: 'openai', baseURL: 'https://api.deepseek.com/v1', model: 'deepseek-chat', builtin: true },
-  { name: 'Moonshot (Kimi)', provider: 'openai', baseURL: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k', builtin: true },
-  { name: 'MiniMax', provider: 'openai', baseURL: 'https://api.minimax.chat/v1', model: 'abab6.5s-chat', builtin: true },
-  { name: '智谱 (Zhipu GLM)', provider: 'openai', baseURL: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-plus', builtin: true },
+export const CHANNEL_PRESETS: Array<
+  Omit<AIChannel, 'id' | 'apiKey' | 'models'>
+> = [
+  {
+    name: 'OpenAI',
+    provider: 'openai',
+    baseURL: 'https://api.openai.com/v1',
+    model: 'gpt-4o',
+    builtin: true,
+  },
+  {
+    name: 'Anthropic',
+    provider: 'anthropic',
+    baseURL: 'https://api.anthropic.com',
+    model: 'claude-sonnet-4-20250514',
+    builtin: true,
+  },
+  {
+    name: 'Gemini',
+    provider: 'gemini',
+    baseURL: 'https://generativelanguage.googleapis.com/v1beta',
+    model: 'gemini-2.5-flash',
+    builtin: true,
+  },
+  {
+    name: 'Grok (xAI)',
+    provider: 'openai',
+    baseURL: 'https://api.x.ai/v1',
+    model: 'grok-4-fast',
+    builtin: true,
+  },
+  {
+    name: 'DeepSeek',
+    provider: 'openai',
+    baseURL: 'https://api.deepseek.com/v1',
+    model: 'deepseek-chat',
+    builtin: true,
+  },
+  {
+    name: 'Moonshot (Kimi)',
+    provider: 'openai',
+    baseURL: 'https://api.moonshot.cn/v1',
+    model: 'moonshot-v1-8k',
+    builtin: true,
+  },
+  {
+    name: 'MiniMax',
+    provider: 'openai',
+    baseURL: 'https://api.minimax.chat/v1',
+    model: 'abab6.5s-chat',
+    builtin: true,
+  },
+  {
+    name: '智谱 (Zhipu GLM)',
+    provider: 'openai',
+    baseURL: 'https://open.bigmodel.cn/api/paas/v4',
+    model: 'glm-4-plus',
+    builtin: true,
+  },
 ];
 
 interface SettingsStore {
@@ -33,6 +92,11 @@ interface SettingsStore {
   aiApiKey: string;
   aiBaseURL: string;
   aiModel: string;
+  webSearchMode: WebSearchMode;
+  tavilyApiKey: string;
+  grokApiKey: string;
+  grokBaseURL: string;
+  grokModel: string;
   channels: AIChannel[];
   activeChannelId: string | null;
   // 编辑器偏好
@@ -43,15 +107,30 @@ interface SettingsStore {
 
   selectChannel: (id: string) => void;
   addChannel: (name: string) => string;
-  updateChannel: (id: string, patch: Partial<Omit<AIChannel, 'id' | 'builtin'>>) => void;
+  updateChannel: (
+    id: string,
+    patch: Partial<Omit<AIChannel, 'id' | 'builtin'>>,
+  ) => void;
   deleteChannel: (id: string) => void;
   toggleChannelModel: (id: string, model: string) => void;
   setChannelModels: (id: string, models: string[]) => void;
+  setWebSearchMode: (mode: WebSearchMode) => void;
+  setTavilyApiKey: (key: string) => void;
+  setGrokApiKey: (key: string) => void;
+  setGrokBaseURL: (url: string) => void;
+  setGrokModel: (model: string) => void;
   setAutoSave: (enabled: boolean) => void;
   setAutoSaveInterval: (interval: number) => void;
   hydrate: () => Promise<void>;
 }
 
+const WEB_SEARCH_MODE_KEY = 'jade_web_search_mode';
+const TAVILY_KEY_STORAGE_KEY = 'jade_tavily_key';
+const GROK_KEY_STORAGE_KEY = 'jade_grok_key';
+const GROK_BASE_URL_KEY = 'jade_grok_base_url';
+const GROK_MODEL_KEY = 'jade_grok_model';
+const GROK_DEFAULT_BASE_URL = 'https://api.x.ai/v1';
+const GROK_DEFAULT_MODEL = 'grok-4-fast';
 const CHANNELS_KEY = 'jade_channels';
 const ACTIVE_CHANNEL_KEY = 'jade_active_channel';
 
@@ -63,23 +142,48 @@ const LEGACY_KEYS = [
   LEGACY_API_KEY,
   LEGACY_PROVIDER_CONFIGS,
   LEGACY_ACTIVE_PROVIDER,
-  'jade_web_search_mode',
-  'jade_web_search_mode:project',
-  'jade_web_search_mode:global',
-  'jade_tavily_key',
-  'jade_grok_key',
-  'jade_grok_base_url',
-  'jade_grok_model',
   'resumer_ai_usage_logs_v1',
   'jade_fingerprint',
 ];
+
+function loadWebSearchMode(): WebSearchMode {
+  if (typeof window === 'undefined') return 'off';
+  const value = localStorage.getItem(WEB_SEARCH_MODE_KEY);
+  return [
+    'native',
+    'free',
+    'bing',
+    'google',
+    'baidu',
+    'tavily',
+    'grok',
+  ].includes(value || '')
+    ? (value as WebSearchMode)
+    : 'off';
+}
+
+function loadLocal(key: string, fallback = ''): string {
+  if (typeof window === 'undefined') return fallback;
+  return localStorage.getItem(key) || fallback;
+}
+
+function saveLocal(key: string, value: string) {
+  if (typeof window === 'undefined') return;
+  if (value) localStorage.setItem(key, value);
+  else localStorage.removeItem(key);
+}
 
 function genChannelId(): string {
   return `ch_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 }
 
 function normHost(url: string): string {
-  return (url || '').trim().replace(/\/+$/, '').replace(/\/v1$/, '').replace(/\/+$/, '').toLowerCase();
+  return (url || '')
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(/\/v1$/, '')
+    .replace(/\/+$/, '')
+    .toLowerCase();
 }
 
 function normalizeProvider(value: unknown): AIProvider {
@@ -118,8 +222,12 @@ function clearLegacyKeys() {
  * 读取渠道；首次运行时预置官方渠道，并把旧版单服务商配置迁进匹配的渠道，
  * 保证升级后 API Key / 模型不丢。
  */
-function loadOrSeedChannels(): { channels: AIChannel[]; activeChannelId: string | null } {
-  if (typeof window === 'undefined') return { channels: [], activeChannelId: null };
+function loadOrSeedChannels(): {
+  channels: AIChannel[];
+  activeChannelId: string | null;
+} {
+  if (typeof window === 'undefined')
+    return { channels: [], activeChannelId: null };
 
   let stored: AIChannel[] = [];
   try {
@@ -145,15 +253,21 @@ function loadOrSeedChannels(): { channels: AIChannel[]; activeChannelId: string 
     if (mutated) saveChannels(stored);
     clearLegacyKeys();
     const activeId = localStorage.getItem(ACTIVE_CHANNEL_KEY);
-    const activeChannelId = stored.some((c) => c.id === activeId) ? activeId : stored[0].id;
+    const activeChannelId = stored.some((c) => c.id === activeId)
+      ? activeId
+      : stored[0].id;
     return { channels: stored, activeChannelId };
   }
 
-  const curProvider = normalizeProvider(localStorage.getItem(LEGACY_ACTIVE_PROVIDER));
+  const curProvider = normalizeProvider(
+    localStorage.getItem(LEGACY_ACTIVE_PROVIDER),
+  );
   const curKey = localStorage.getItem(LEGACY_API_KEY) || '';
   let curCfg: { baseURL?: string; model?: string } | undefined;
   try {
-    curCfg = JSON.parse(localStorage.getItem(LEGACY_PROVIDER_CONFIGS) || '{}')?.[curProvider];
+    curCfg = JSON.parse(
+      localStorage.getItem(LEGACY_PROVIDER_CONFIGS) || '{}',
+    )?.[curProvider];
   } catch {
     curCfg = undefined;
   }
@@ -170,7 +284,9 @@ function loadOrSeedChannels(): { channels: AIChannel[]; activeChannelId: string 
   let activeChannelId: string | null = channels[0].id;
   if (curKey) {
     const byHost = channels.find(
-      (c) => c.provider === curProvider && normHost(c.baseURL) === normHost(curBaseURL)
+      (c) =>
+        c.provider === curProvider &&
+        normHost(c.baseURL) === normHost(curBaseURL),
     );
     const byProvider = channels.find((c) => c.provider === curProvider);
     const target = byHost || byProvider;
@@ -208,7 +324,10 @@ function syncEditorPrefs(state: SettingsStore) {
   if (syncTimeout) clearTimeout(syncTimeout);
   syncTimeout = setTimeout(async () => {
     try {
-      await api.updateSettings({ autoSave: state.autoSave, autoSaveInterval: state.autoSaveInterval });
+      await api.updateSettings({
+        autoSave: state.autoSave,
+        autoSaveInterval: state.autoSaveInterval,
+      });
     } catch {
       // 本地状态已是最新，后端同步失败可忽略
     }
@@ -232,6 +351,11 @@ function initialAIState() {
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
   ...initialAIState(),
+  webSearchMode: loadWebSearchMode(),
+  tavilyApiKey: loadLocal(TAVILY_KEY_STORAGE_KEY),
+  grokApiKey: loadLocal(GROK_KEY_STORAGE_KEY),
+  grokBaseURL: loadLocal(GROK_BASE_URL_KEY, GROK_DEFAULT_BASE_URL),
+  grokModel: loadLocal(GROK_MODEL_KEY, GROK_DEFAULT_MODEL),
   autoSave: true,
   autoSaveInterval: 500,
   _hydrated: false,
@@ -264,7 +388,11 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     const next = get().channels.map((c) => {
       if (c.id !== id) return c;
       const merged = { ...c, ...patch };
-      if (typeof patch.model === 'string' && patch.model && !merged.models.includes(patch.model)) {
+      if (
+        typeof patch.model === 'string' &&
+        patch.model &&
+        !merged.models.includes(patch.model)
+      ) {
         merged.models = [...merged.models, patch.model];
       }
       return merged;
@@ -302,6 +430,31 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     get().updateChannel(id, { models });
   },
 
+  setWebSearchMode: (mode) => {
+    set({ webSearchMode: mode });
+    saveLocal(WEB_SEARCH_MODE_KEY, mode);
+  },
+
+  setTavilyApiKey: (key) => {
+    set({ tavilyApiKey: key });
+    saveLocal(TAVILY_KEY_STORAGE_KEY, key);
+  },
+
+  setGrokApiKey: (key) => {
+    set({ grokApiKey: key });
+    saveLocal(GROK_KEY_STORAGE_KEY, key);
+  },
+
+  setGrokBaseURL: (url) => {
+    set({ grokBaseURL: url });
+    saveLocal(GROK_BASE_URL_KEY, url);
+  },
+
+  setGrokModel: (model) => {
+    set({ grokModel: model });
+    saveLocal(GROK_MODEL_KEY, model);
+  },
+
   setAutoSave: (enabled) => {
     set({ autoSave: enabled });
     syncEditorPrefs(get());
@@ -318,13 +471,19 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       const data = await api.getSettings();
       if (data && typeof data === 'object') {
         set({
-          ...(typeof data.autoSave === 'boolean' && { autoSave: data.autoSave }),
-          ...(typeof data.autoSaveInterval === 'number' && { autoSaveInterval: data.autoSaveInterval }),
+          ...(typeof data.autoSave === 'boolean' && {
+            autoSave: data.autoSave,
+          }),
+          ...(typeof data.autoSaveInterval === 'number' && {
+            autoSaveInterval: data.autoSaveInterval,
+          }),
           _hydrated: true,
         });
         return;
       }
-    } catch { /* fall through */ }
+    } catch {
+      /* fall through */
+    }
     set({ _hydrated: true });
   },
 }));

@@ -18,11 +18,26 @@ async function getCachedUserId(): Promise<string> {
 
 export type AIProviderId = 'openai' | 'anthropic' | 'gemini';
 
+export type WebSearchMode =
+  | 'off'
+  | 'native'
+  | 'free'
+  | 'bing'
+  | 'google'
+  | 'baidu'
+  | 'tavily'
+  | 'grok';
+
 export interface AIRequestConfig {
   provider: AIProviderId;
   apiKey: string;
   baseUrl: string;
   model: string;
+  webSearchMode?: WebSearchMode;
+  tavilyApiKey?: string;
+  grokApiKey?: string;
+  grokBaseUrl?: string;
+  grokModel?: string;
 }
 
 interface SettingsSnapshot {
@@ -30,6 +45,11 @@ interface SettingsSnapshot {
   aiApiKey: string;
   aiBaseURL: string;
   aiModel: string;
+  webSearchMode: WebSearchMode;
+  tavilyApiKey: string;
+  grokApiKey: string;
+  grokBaseURL: string;
+  grokModel: string;
 }
 
 const DEFAULT_CONFIG: AIRequestConfig = {
@@ -37,6 +57,11 @@ const DEFAULT_CONFIG: AIRequestConfig = {
   apiKey: '',
   baseUrl: 'https://api.openai.com/v1',
   model: 'gpt-4o',
+  webSearchMode: 'off',
+  tavilyApiKey: '',
+  grokApiKey: '',
+  grokBaseUrl: '',
+  grokModel: '',
 };
 
 /**
@@ -44,10 +69,23 @@ const DEFAULT_CONFIG: AIRequestConfig = {
  * settings-store 通过 window 暴露自身，避免与本模块形成静态导入环。
  */
 export function getAIConfig(modelOverride?: string): AIRequestConfig {
-  const store = typeof window !== 'undefined' ? (window as any).__jadeSettingsStore : undefined;
+  const store =
+    typeof window !== 'undefined'
+      ? (window as any).__jadeSettingsStore
+      : undefined;
   const state: SettingsSnapshot | undefined = store?.getState?.();
   const base: AIRequestConfig = state
-    ? { provider: state.aiProvider, apiKey: state.aiApiKey, baseUrl: state.aiBaseURL, model: state.aiModel }
+    ? {
+        provider: state.aiProvider,
+        apiKey: state.aiApiKey,
+        baseUrl: state.aiBaseURL,
+        model: state.aiModel,
+        webSearchMode: state.webSearchMode,
+        tavilyApiKey: state.tavilyApiKey,
+        grokApiKey: state.grokApiKey,
+        grokBaseUrl: state.grokBaseURL,
+        grokModel: state.grokModel,
+      }
     : DEFAULT_CONFIG;
   const model = modelOverride?.trim();
   return model ? { ...base, model } : base;
@@ -59,7 +97,9 @@ export function isAIConfigured(): boolean {
 }
 
 export async function aiListModels(config: AIRequestConfig) {
-  return invoke<{ id: string; label?: string | null }[]>('ai_list_models', { config });
+  return invoke<{ id: string; label?: string | null }[]>('ai_list_models', {
+    config,
+  });
 }
 
 export async function aiTestConnection(config: AIRequestConfig) {
@@ -104,17 +144,19 @@ export async function updateResume(
     template?: string;
     themeConfig?: any;
     sections?: any[];
-  }
+  },
 ) {
   const userId = await getCachedUserId();
-  const payload = JSON.parse(JSON.stringify({
-    id,
-    userId,
-    title: data.title,
-    template: data.template,
-    themeConfig: data.themeConfig,
-    sections: data.sections,
-  }));
+  const payload = JSON.parse(
+    JSON.stringify({
+      id,
+      userId,
+      title: data.title,
+      template: data.template,
+      themeConfig: data.themeConfig,
+      sections: data.sections,
+    }),
+  );
   return invoke<void>('update_resume', { payload });
 }
 
@@ -142,7 +184,10 @@ export async function updateSettings(settings: Record<string, any>) {
 
 // ── 单次 AI 任务 ──
 
-export async function aiGrammarCheck(data: { resumeId: string; language?: string }) {
+export async function aiGrammarCheck(data: {
+  resumeId: string;
+  language?: string;
+}) {
   return invoke<any>('ai_grammar_check', {
     config: getAIConfig(),
     resumeId: data.resumeId,
@@ -167,7 +212,10 @@ export async function aiCoverLetter(data: {
   });
 }
 
-export async function aiJdAnalysis(data: { resumeId: string; jobDescription: string }) {
+export async function aiJdAnalysis(data: {
+  resumeId: string;
+  jobDescription: string;
+}) {
   return invoke<any>('ai_jd_analysis', {
     config: getAIConfig(),
     resumeId: data.resumeId,
@@ -175,7 +223,10 @@ export async function aiJdAnalysis(data: { resumeId: string; jobDescription: str
   });
 }
 
-export async function aiTranslate(data: { resumeId: string; targetLanguage: 'zh' | 'en' }) {
+export async function aiTranslate(data: {
+  resumeId: string;
+  targetLanguage: 'zh' | 'en';
+}) {
   return invoke<any>('ai_translate', {
     config: getAIConfig(),
     resumeId: data.resumeId,
@@ -183,7 +234,10 @@ export async function aiTranslate(data: { resumeId: string; targetLanguage: 'zh'
   });
 }
 
-export async function aiGenerateResume(data: { description: string; language?: string }) {
+export async function aiGenerateResume(data: {
+  description: string;
+  language?: string;
+}) {
   const userId = await getCachedUserId();
   return invoke<string>('ai_generate_resume', {
     config: getAIConfig(),
@@ -222,17 +276,31 @@ export async function deleteJdAnalysis(id: string) {
 }
 
 /** 上传 JSON/PDF/DOCX/图片，解析或替换简历，返回 resumeId。 */
-export async function parseResumeFile(data: { file: File; language?: string; targetResumeId?: string }): Promise<string> {
+export async function parseResumeFile(data: {
+  file: File;
+  language?: string;
+  targetResumeId?: string;
+}): Promise<string> {
   const buffer = await data.file.arrayBuffer();
   const userId = await getCachedUserId();
   return invoke<string>('parse_resume_file', {
     config: getAIConfig(),
     userId,
     fileData: Array.from(new Uint8Array(buffer)),
-    fileType: data.file.type || ({
-      json: 'application/json', pdf: 'application/pdf', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp',
-    } as Record<string, string>)[data.file.name.split('.').pop()?.toLowerCase() || ''] || '',
+    fileType:
+      data.file.type ||
+      (
+        {
+          json: 'application/json',
+          pdf: 'application/pdf',
+          docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          png: 'image/png',
+          jpg: 'image/jpeg',
+          jpeg: 'image/jpeg',
+          webp: 'image/webp',
+        } as Record<string, string>
+      )[data.file.name.split('.').pop()?.toLowerCase() || ''] ||
+      '',
     language: data.language,
     targetResumeId: data.targetResumeId,
   });
@@ -248,7 +316,11 @@ export async function getChatSession(sessionId: string) {
   return invoke<any>('get_chat_session', { sessionId });
 }
 
-export async function listChatMessages(sessionId: string, limit?: number, offset?: number) {
+export async function listChatMessages(
+  sessionId: string,
+  limit?: number,
+  offset?: number,
+) {
   return invoke<any>('list_chat_messages', { sessionId, limit, offset });
 }
 
@@ -260,7 +332,10 @@ export async function cancelAiStream(streamId: string) {
   return invoke<void>('cancel_ai_stream', { streamId });
 }
 
-export async function truncateChatMessages(sessionId: string, messageId: string) {
+export async function truncateChatMessages(
+  sessionId: string,
+  messageId: string,
+) {
   return invoke<void>('truncate_chat_messages', { sessionId, messageId });
 }
 
@@ -352,8 +427,14 @@ export async function deleteApplication(id: string) {
   return invoke<void>('delete_application', { id });
 }
 
-export async function importLegacyJournal(applications: ApplicationRecord[], mockInterviews: MockInterviewRecord[]) {
-  return invoke<number>('import_legacy_journal', { applications, mockInterviews });
+export async function importLegacyJournal(
+  applications: ApplicationRecord[],
+  mockInterviews: MockInterviewRecord[],
+) {
+  return invoke<number>('import_legacy_journal', {
+    applications,
+    mockInterviews,
+  });
 }
 
 export async function listMockInterviews() {
@@ -370,13 +451,21 @@ export async function deleteMockInterview(id: string) {
 
 // ── 导出 ──
 
-export async function exportPdf(resumeId: string, html: string, filename?: string) {
+export async function exportPdf(
+  resumeId: string,
+  html: string,
+  filename?: string,
+) {
   return invoke<string | null>('export_pdf', {
     options: { resumeId, html, filename },
   });
 }
 
-export async function exportHtml(resumeId: string, html: string, filename?: string) {
+export async function exportHtml(
+  resumeId: string,
+  html: string,
+  filename?: string,
+) {
   return invoke<string | null>('export_html', {
     options: { resumeId, html, filename },
   });
@@ -394,6 +483,10 @@ export async function exportJson(resumeId: string, filename?: string) {
   return invoke<string | null>('export_json', { resumeId, filename });
 }
 
-export async function exportDocx(resumeId: string, theme: unknown, filename?: string) {
+export async function exportDocx(
+  resumeId: string,
+  theme: unknown,
+  filename?: string,
+) {
   return invoke<string | null>('export_docx', { resumeId, theme, filename });
 }

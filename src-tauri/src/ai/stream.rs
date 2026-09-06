@@ -11,13 +11,31 @@ use super::provider::{AIConfig, ChatMessage, ProviderError, ToolSpec};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum StreamEvent {
-    TextDelta { text: String },
-    ReasoningDelta { text: String },
-    ToolCallStart { id: String, name: String },
-    ToolCallArgs { id: String, args: Value },
-    ToolResult { id: String, name: String, result: Value },
-    Finish { final_text: String },
-    Error { message: String },
+    TextDelta {
+        text: String,
+    },
+    ReasoningDelta {
+        text: String,
+    },
+    ToolCallStart {
+        id: String,
+        name: String,
+    },
+    ToolCallArgs {
+        id: String,
+        args: Value,
+    },
+    ToolResult {
+        id: String,
+        name: String,
+        result: Value,
+    },
+    Finish {
+        final_text: String,
+    },
+    Error {
+        message: String,
+    },
 }
 
 /// Cooperative cancellation — the stop button inserts a stream_id here and
@@ -61,6 +79,21 @@ pub struct ChatStreamResult {
     pub usage: Usage,
 }
 
+fn is_native_search_error(msg: &str) -> bool {
+    let m = msg.to_ascii_lowercase();
+    m.contains("search")
+        || m.contains("google_search")
+        || m.contains("web_search")
+        || m.contains("grounding")
+        || m.contains("tool_config")
+        || m.contains("server_side_tool")
+        || m.contains("server-side tool")
+        || m.contains("built-in tool")
+        || m.contains("builtin tool")
+        || m.contains("live search")
+        || m.contains("search_parameters")
+}
+
 pub async fn stream_chat(
     app: &AppHandle,
     stream_id: &str,
@@ -69,7 +102,18 @@ pub async fn stream_chat(
     messages: &[ChatMessage],
     tools: Option<&[ToolSpec]>,
 ) -> Result<ChatStreamResult, ProviderError> {
-    stream_dispatch(app, stream_id, config, system, messages, tools).await
+    let result = stream_dispatch(app, stream_id, config, system, messages, tools).await;
+    if config.web_search_mode == "native" {
+        if let Err(error) = &result {
+            if is_native_search_error(&error.to_string()) {
+                log::warn!("native search rejected ({error}); retrying without built-in search");
+                let mut fallback = config.clone();
+                fallback.web_search_mode = "off".into();
+                return stream_dispatch(app, stream_id, &fallback, system, messages, tools).await;
+            }
+        }
+    }
+    result
 }
 
 async fn stream_dispatch(
@@ -88,10 +132,13 @@ async fn stream_dispatch(
             // is unavailable (e.g. a relay that only speaks chat/completions), the
             // request fails before anything streams, so we fall back to chat.
             if config.model.to_ascii_lowercase().contains("gpt") {
-                match stream_openai_responses(app, stream_id, config, system, messages, tools).await {
+                match stream_openai_responses(app, stream_id, config, system, messages, tools).await
+                {
                     Ok(r) => Ok(r),
                     Err(e) => {
-                        log::warn!("responses API unavailable ({e}); falling back to chat/completions");
+                        log::warn!(
+                            "responses API unavailable ({e}); falling back to chat/completions"
+                        );
                         stream_openai(app, stream_id, config, system, messages, tools).await
                     }
                 }
@@ -138,7 +185,8 @@ async fn stream_openai(
     // (e.g. 1024) and silently cut replies mid-sentence — always be explicit.
     // o-series / gpt-5 家族 reject max_tokens and want max_completion_tokens.
     let ml = config.model.to_ascii_lowercase();
-    if ml.starts_with("o1") || ml.starts_with("o3") || ml.starts_with("o4") || ml.contains("gpt-5") {
+    if ml.starts_with("o1") || ml.starts_with("o3") || ml.starts_with("o4") || ml.contains("gpt-5")
+    {
         body["max_completion_tokens"] = json!(8192);
     } else {
         body["max_tokens"] = json!(8192);
@@ -146,16 +194,25 @@ async fn stream_openai(
 
     if let Some(ts) = tools {
         if !ts.is_empty() {
-            body["tools"] = json!(
-                ts.iter().map(|t| json!({
+            body["tools"] = json!(ts
+                .iter()
+                .map(|t| json!({
                     "type": "function",
                     "function": {
                         "name": t.name,
                         "description": t.description,
                         "parameters": t.parameters,
                     }
-                })).collect::<Vec<_>>()
-            );
+                }))
+                .collect::<Vec<_>>());
+        }
+    }
+
+    if config.web_search_mode == "native" {
+        let is_grok = config.base_url.to_ascii_lowercase().contains("x.ai")
+            || config.model.to_ascii_lowercase().contains("grok");
+        if is_grok {
+            body["search_parameters"] = json!({ "mode": "auto", "return_citations": true });
         }
     }
 
@@ -178,12 +235,14 @@ async fn stream_openai(
     let mut text_out = String::new();
     let mut tool_calls: Vec<super::provider::ToolCall> = Vec::new();
     // Accumulate tool-call argument strings by index
-    let mut pending_tc: std::collections::HashMap<u32, (String, String, String)> = std::collections::HashMap::new();
+    let mut pending_tc: std::collections::HashMap<u32, (String, String, String)> =
+        std::collections::HashMap::new();
     // Wire-tap diagnostics: figure out WHY a stream ended.
     let mut frame_count: u64 = 0;
     let mut last_finish_reason: Option<String> = None;
     let mut saw_done = false;
     let mut last_raw_tail = String::new();
+    let mut citations: Vec<String> = Vec::new();
     let mut usage = Usage::default();
 
     while let Some(chunk) = stream.next().await {
@@ -225,29 +284,61 @@ async fn stream_openai(
                         continue;
                     }
                     if let Ok(v) = serde_json::from_str::<Value>(data) {
+                        if let Some(cits) = v.get("citations").and_then(|c| c.as_array()) {
+                            citations = cits
+                                .iter()
+                                .filter_map(|c| c.as_str().map(str::to_string))
+                                .collect();
+                        }
                         if let Some(u) = v.get("usage").filter(|u| !u.is_null()) {
                             let p = u.get("prompt_tokens").and_then(|x| x.as_u64()).unwrap_or(0);
-                            let c = u.get("completion_tokens").and_then(|x| x.as_u64()).unwrap_or(0);
-                            let tot = u.get("total_tokens").and_then(|x| x.as_u64()).unwrap_or(p + c);
+                            let c = u
+                                .get("completion_tokens")
+                                .and_then(|x| x.as_u64())
+                                .unwrap_or(0);
+                            let tot = u
+                                .get("total_tokens")
+                                .and_then(|x| x.as_u64())
+                                .unwrap_or(p + c);
                             if p + c + tot > 0 {
-                                usage = Usage { prompt_tokens: p, completion_tokens: c, total_tokens: tot };
+                                usage = Usage {
+                                    prompt_tokens: p,
+                                    completion_tokens: c,
+                                    total_tokens: tot,
+                                };
                             }
                         }
-                        let choice = v.get("choices").and_then(|c| c.get(0)).cloned().unwrap_or(Value::Null);
+                        let choice = v
+                            .get("choices")
+                            .and_then(|c| c.get(0))
+                            .cloned()
+                            .unwrap_or(Value::Null);
                         if let Some(fr) = choice.get("finish_reason").and_then(|f| f.as_str()) {
                             last_finish_reason = Some(fr.to_string());
                         }
                         if choice.get("finish_reason").and_then(|f| f.as_str()) == Some("length") {
                             let notice = "\n\n> ⚠️ 输出达到长度上限被截断，可回复“继续”接着生成。";
                             text_out.push_str(notice);
-                            emit(app, stream_id, StreamEvent::TextDelta { text: notice.to_string() });
+                            emit(
+                                app,
+                                stream_id,
+                                StreamEvent::TextDelta {
+                                    text: notice.to_string(),
+                                },
+                            );
                         }
                         let delta = choice.get("delta").cloned().unwrap_or(Value::Null);
 
                         if let Some(content) = delta.get("content").and_then(|c| c.as_str()) {
                             if !content.is_empty() {
                                 text_out.push_str(content);
-                                emit(app, stream_id, StreamEvent::TextDelta { text: content.to_string() });
+                                emit(
+                                    app,
+                                    stream_id,
+                                    StreamEvent::TextDelta {
+                                        text: content.to_string(),
+                                    },
+                                );
                             }
                         }
 
@@ -260,14 +351,23 @@ async fn stream_openai(
                             .or_else(|| delta.get("reasoning").and_then(|c| c.as_str()))
                         {
                             if !reasoning.is_empty() {
-                                emit(app, stream_id, StreamEvent::ReasoningDelta { text: reasoning.to_string() });
+                                emit(
+                                    app,
+                                    stream_id,
+                                    StreamEvent::ReasoningDelta {
+                                        text: reasoning.to_string(),
+                                    },
+                                );
                             }
                         }
 
                         if let Some(tcs) = delta.get("tool_calls").and_then(|a| a.as_array()) {
                             for tc in tcs {
-                                let idx = tc.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-                                let entry = pending_tc.entry(idx).or_insert_with(|| (String::new(), String::new(), String::new()));
+                                let idx =
+                                    tc.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+                                let entry = pending_tc.entry(idx).or_insert_with(|| {
+                                    (String::new(), String::new(), String::new())
+                                });
                                 if let Some(id) = tc.get("id").and_then(|v| v.as_str()) {
                                     if entry.0.is_empty() {
                                         entry.0 = id.to_string();
@@ -277,10 +377,18 @@ async fn stream_openai(
                                     if let Some(name) = f.get("name").and_then(|v| v.as_str()) {
                                         if entry.1.is_empty() {
                                             entry.1 = name.to_string();
-                                            emit(app, stream_id, StreamEvent::ToolCallStart { id: entry.0.clone(), name: name.to_string() });
+                                            emit(
+                                                app,
+                                                stream_id,
+                                                StreamEvent::ToolCallStart {
+                                                    id: entry.0.clone(),
+                                                    name: name.to_string(),
+                                                },
+                                            );
                                         }
                                     }
-                                    if let Some(args) = f.get("arguments").and_then(|v| v.as_str()) {
+                                    if let Some(args) = f.get("arguments").and_then(|v| v.as_str())
+                                    {
                                         entry.2.push_str(args);
                                     }
                                 }
@@ -305,9 +413,16 @@ async fn stream_openai(
     // A stream that ends with no finish_reason and no [DONE] was cut upstream
     // (proxy timeout / connection drop) — tell the user instead of silence.
     if !saw_done && last_finish_reason.is_none() && pending_tc.is_empty() && !text_out.is_empty() {
-        let notice = "\n\n> ⚠️ 上游连接中断，回复不完整（可能是代理/网关超时）。可回复“继续”接着生成。";
+        let notice =
+            "\n\n> ⚠️ 上游连接中断，回复不完整（可能是代理/网关超时）。可回复“继续”接着生成。";
         text_out.push_str(notice);
-        emit(app, stream_id, StreamEvent::TextDelta { text: notice.to_string() });
+        emit(
+            app,
+            stream_id,
+            StreamEvent::TextDelta {
+                text: notice.to_string(),
+            },
+        );
     }
     // Content-filter style stops are otherwise invisible.
     if let Some(fr) = &last_finish_reason {
@@ -318,17 +433,42 @@ async fn stream_openai(
         }
     }
 
+    if !citations.is_empty() && pending_tc.is_empty() {
+        let mut footer = String::from("\n\n---\n**参考来源**\n");
+        for (index, citation) in citations.iter().enumerate() {
+            footer.push_str(&format!("{}. {}\n", index + 1, citation));
+        }
+        text_out.push_str(&footer);
+        emit(app, stream_id, StreamEvent::TextDelta { text: footer });
+    }
+
     // Finalize tool calls
     let mut indices: Vec<u32> = pending_tc.keys().copied().collect();
     indices.sort();
     for idx in indices {
         let (id, name, args_str) = pending_tc.remove(&idx).unwrap();
-        let args: Value = serde_json::from_str(&args_str).unwrap_or(Value::Object(Default::default()));
-        emit(app, stream_id, StreamEvent::ToolCallArgs { id: id.clone(), args: args.clone() });
-        tool_calls.push(super::provider::ToolCall { id, name, arguments: args });
+        let args: Value =
+            serde_json::from_str(&args_str).unwrap_or(Value::Object(Default::default()));
+        emit(
+            app,
+            stream_id,
+            StreamEvent::ToolCallArgs {
+                id: id.clone(),
+                args: args.clone(),
+            },
+        );
+        tool_calls.push(super::provider::ToolCall {
+            id,
+            name,
+            arguments: args,
+        });
     }
 
-    Ok(ChatStreamResult { text: text_out, tool_calls, usage })
+    Ok(ChatStreamResult {
+        text: text_out,
+        tool_calls,
+        usage,
+    })
 }
 
 /// OpenAI Responses API (`/responses`) streaming. Returns Err *before emitting
@@ -396,7 +536,8 @@ async fn stream_openai_responses(
     let mut tool_calls: Vec<super::provider::ToolCall> = Vec::new();
     let mut usage = Usage::default();
     // item_id -> (call_id, name, accumulated args)
-    let mut fn_calls: std::collections::HashMap<String, (String, String, String)> = std::collections::HashMap::new();
+    let mut fn_calls: std::collections::HashMap<String, (String, String, String)> =
+        std::collections::HashMap::new();
 
     while let Some(chunk) = stream.next().await {
         if is_cancelled(stream_id) {
@@ -427,37 +568,67 @@ async fn stream_openai_responses(
             let block = buffer[..idx].to_string();
             buffer.drain(..idx + 2);
             for l in block.lines() {
-                let Some(data) = l.strip_prefix("data: ").or_else(|| l.strip_prefix("data:")) else {
+                let Some(data) = l.strip_prefix("data: ").or_else(|| l.strip_prefix("data:"))
+                else {
                     continue;
                 };
                 if data.trim() == "[DONE]" {
                     continue;
                 }
-                let Ok(v) = serde_json::from_str::<Value>(data) else { continue };
+                let Ok(v) = serde_json::from_str::<Value>(data) else {
+                    continue;
+                };
                 let ev = v.get("type").and_then(|s| s.as_str()).unwrap_or("");
                 match ev {
                     "response.output_text.delta" => {
                         if let Some(t) = v.get("delta").and_then(|d| d.as_str()) {
                             text_out.push_str(t);
-                            emit(app, stream_id, StreamEvent::TextDelta { text: t.to_string() });
+                            emit(
+                                app,
+                                stream_id,
+                                StreamEvent::TextDelta {
+                                    text: t.to_string(),
+                                },
+                            );
                         }
                     }
                     "response.reasoning_summary_text.delta" | "response.reasoning_text.delta" => {
                         if let Some(t) = v.get("delta").and_then(|d| d.as_str()) {
-                            emit(app, stream_id, StreamEvent::ReasoningDelta { text: t.to_string() });
+                            emit(
+                                app,
+                                stream_id,
+                                StreamEvent::ReasoningDelta {
+                                    text: t.to_string(),
+                                },
+                            );
                         }
                     }
                     "response.output_item.added" => {
                         if let Some(item) = v.get("item") {
                             if item.get("type").and_then(|t| t.as_str()) == Some("function_call") {
-                                let item_id = item.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string();
+                                let item_id = item
+                                    .get("id")
+                                    .and_then(|x| x.as_str())
+                                    .unwrap_or("")
+                                    .to_string();
                                 let call_id = item
                                     .get("call_id")
                                     .and_then(|x| x.as_str())
                                     .unwrap_or(&item_id)
                                     .to_string();
-                                let name = item.get("name").and_then(|x| x.as_str()).unwrap_or("").to_string();
-                                emit(app, stream_id, StreamEvent::ToolCallStart { id: call_id.clone(), name: name.clone() });
+                                let name = item
+                                    .get("name")
+                                    .and_then(|x| x.as_str())
+                                    .unwrap_or("")
+                                    .to_string();
+                                emit(
+                                    app,
+                                    stream_id,
+                                    StreamEvent::ToolCallStart {
+                                        id: call_id.clone(),
+                                        name: name.clone(),
+                                    },
+                                );
                                 fn_calls.insert(item_id, (call_id, name, String::new()));
                             }
                         }
@@ -473,12 +644,25 @@ async fn stream_openai_responses(
                     "response.output_item.done" => {
                         if let Some(item) = v.get("item") {
                             if item.get("type").and_then(|t| t.as_str()) == Some("function_call") {
-                                let item_id = item.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string();
-                                let (call_id, name, acc) = fn_calls.remove(&item_id).unwrap_or_else(|| {
-                                    let call_id = item.get("call_id").and_then(|x| x.as_str()).unwrap_or("").to_string();
-                                    let name = item.get("name").and_then(|x| x.as_str()).unwrap_or("").to_string();
-                                    (call_id, name, String::new())
-                                });
+                                let item_id = item
+                                    .get("id")
+                                    .and_then(|x| x.as_str())
+                                    .unwrap_or("")
+                                    .to_string();
+                                let (call_id, name, acc) =
+                                    fn_calls.remove(&item_id).unwrap_or_else(|| {
+                                        let call_id = item
+                                            .get("call_id")
+                                            .and_then(|x| x.as_str())
+                                            .unwrap_or("")
+                                            .to_string();
+                                        let name = item
+                                            .get("name")
+                                            .and_then(|x| x.as_str())
+                                            .unwrap_or("")
+                                            .to_string();
+                                        (call_id, name, String::new())
+                                    });
                                 // Prefer the complete arguments on the done item.
                                 let args_str = item
                                     .get("arguments")
@@ -486,9 +670,21 @@ async fn stream_openai_responses(
                                     .filter(|s| !s.is_empty())
                                     .map(|s| s.to_string())
                                     .unwrap_or(acc);
-                                let args: Value = serde_json::from_str(&args_str).unwrap_or(Value::Object(Default::default()));
-                                emit(app, stream_id, StreamEvent::ToolCallArgs { id: call_id.clone(), args: args.clone() });
-                                tool_calls.push(super::provider::ToolCall { id: call_id, name, arguments: args });
+                                let args: Value = serde_json::from_str(&args_str)
+                                    .unwrap_or(Value::Object(Default::default()));
+                                emit(
+                                    app,
+                                    stream_id,
+                                    StreamEvent::ToolCallArgs {
+                                        id: call_id.clone(),
+                                        args: args.clone(),
+                                    },
+                                );
+                                tool_calls.push(super::provider::ToolCall {
+                                    id: call_id,
+                                    name,
+                                    arguments: args,
+                                });
                             }
                         }
                     }
@@ -496,8 +692,15 @@ async fn stream_openai_responses(
                         if let Some(u) = v.pointer("/response/usage") {
                             let p = u.get("input_tokens").and_then(|x| x.as_u64()).unwrap_or(0);
                             let c = u.get("output_tokens").and_then(|x| x.as_u64()).unwrap_or(0);
-                            let tot = u.get("total_tokens").and_then(|x| x.as_u64()).unwrap_or(p + c);
-                            usage = Usage { prompt_tokens: p, completion_tokens: c, total_tokens: tot };
+                            let tot = u
+                                .get("total_tokens")
+                                .and_then(|x| x.as_u64())
+                                .unwrap_or(p + c);
+                            usage = Usage {
+                                prompt_tokens: p,
+                                completion_tokens: c,
+                                total_tokens: tot,
+                            };
                         }
                     }
                     "response.failed" | "error" => {
@@ -514,7 +717,11 @@ async fn stream_openai_responses(
         }
     }
 
-    Ok(ChatStreamResult { text: text_out, tool_calls, usage })
+    Ok(ChatStreamResult {
+        text: text_out,
+        tool_calls,
+        usage,
+    })
 }
 
 async fn stream_anthropic(
@@ -526,7 +733,13 @@ async fn stream_anthropic(
     tools: Option<&[ToolSpec]>,
 ) -> Result<ChatStreamResult, ProviderError> {
     let client = super::provider::http_client();
-    let url = format!("{}/v1/messages", config.base_url.trim_end_matches('/').trim_end_matches("/v1"));
+    let url = format!(
+        "{}/v1/messages",
+        config
+            .base_url
+            .trim_end_matches('/')
+            .trim_end_matches("/v1")
+    );
 
     let mut body = json!({
         "model": config.model,
@@ -547,17 +760,26 @@ async fn stream_anthropic(
         body["system"] = json!(system);
     }
     {
-        let tool_list: Vec<Value> = tools
+        let mut tool_list: Vec<Value> = tools
             .map(|ts| {
                 ts.iter()
-                    .map(|t| json!({
-                        "name": t.name,
-                        "description": t.description,
-                        "input_schema": t.parameters,
-                    }))
+                    .map(|t| {
+                        json!({
+                            "name": t.name,
+                            "description": t.description,
+                            "input_schema": t.parameters,
+                        })
+                    })
                     .collect()
             })
             .unwrap_or_default();
+        if config.web_search_mode == "native" {
+            tool_list.push(json!({
+                "type": "web_search_20250305",
+                "name": "web_search",
+                "max_uses": 3,
+            }));
+        }
         if !tool_list.is_empty() {
             body["tools"] = json!(tool_list);
         }
@@ -601,37 +823,76 @@ async fn stream_anthropic(
                         let ev_type = v.get("type").and_then(|s| s.as_str()).unwrap_or("");
                         // Anthropic reports input tokens on message_start and
                         // output tokens (cumulative) on message_delta.
-                        if let Some(iu) = v.pointer("/message/usage/input_tokens").and_then(|x| x.as_u64()) {
+                        if let Some(iu) = v
+                            .pointer("/message/usage/input_tokens")
+                            .and_then(|x| x.as_u64())
+                        {
                             usage.prompt_tokens = iu;
                         }
-                        if let Some(ou) = v.pointer("/usage/output_tokens").and_then(|x| x.as_u64()) {
+                        if let Some(ou) = v.pointer("/usage/output_tokens").and_then(|x| x.as_u64())
+                        {
                             usage.completion_tokens = ou;
                         }
                         match ev_type {
                             "content_block_start" => {
                                 if let Some(block) = v.get("content_block") {
-                                    if block.get("type").and_then(|v| v.as_str()) == Some("tool_use") {
-                                        let id = block.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                        let name = block.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                        emit(app, stream_id, StreamEvent::ToolCallStart { id: id.clone(), name: name.clone() });
+                                    if block.get("type").and_then(|v| v.as_str())
+                                        == Some("tool_use")
+                                    {
+                                        let id = block
+                                            .get("id")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("")
+                                            .to_string();
+                                        let name = block
+                                            .get("name")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("")
+                                            .to_string();
+                                        emit(
+                                            app,
+                                            stream_id,
+                                            StreamEvent::ToolCallStart {
+                                                id: id.clone(),
+                                                name: name.clone(),
+                                            },
+                                        );
                                         current_tool = Some((id, name, String::new()));
                                     }
                                 }
                             }
                             "content_block_delta" => {
                                 if let Some(delta) = v.get("delta") {
-                                    let dt = delta.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                                    let dt =
+                                        delta.get("type").and_then(|v| v.as_str()).unwrap_or("");
                                     if dt == "text_delta" {
-                                        if let Some(t) = delta.get("text").and_then(|v| v.as_str()) {
+                                        if let Some(t) = delta.get("text").and_then(|v| v.as_str())
+                                        {
                                             text_out.push_str(t);
-                                            emit(app, stream_id, StreamEvent::TextDelta { text: t.to_string() });
+                                            emit(
+                                                app,
+                                                stream_id,
+                                                StreamEvent::TextDelta {
+                                                    text: t.to_string(),
+                                                },
+                                            );
                                         }
                                     } else if dt == "thinking_delta" {
-                                        if let Some(t) = delta.get("thinking").and_then(|v| v.as_str()) {
-                                            emit(app, stream_id, StreamEvent::ReasoningDelta { text: t.to_string() });
+                                        if let Some(t) =
+                                            delta.get("thinking").and_then(|v| v.as_str())
+                                        {
+                                            emit(
+                                                app,
+                                                stream_id,
+                                                StreamEvent::ReasoningDelta {
+                                                    text: t.to_string(),
+                                                },
+                                            );
                                         }
                                     } else if dt == "input_json_delta" {
-                                        if let Some(part) = delta.get("partial_json").and_then(|v| v.as_str()) {
+                                        if let Some(part) =
+                                            delta.get("partial_json").and_then(|v| v.as_str())
+                                        {
                                             if let Some((_, _, ref mut acc)) = current_tool {
                                                 acc.push_str(part);
                                             }
@@ -641,9 +902,21 @@ async fn stream_anthropic(
                             }
                             "content_block_stop" => {
                                 if let Some((id, name, args_str)) = current_tool.take() {
-                                    let args: Value = serde_json::from_str(&args_str).unwrap_or(Value::Object(Default::default()));
-                                    emit(app, stream_id, StreamEvent::ToolCallArgs { id: id.clone(), args: args.clone() });
-                                    tool_calls.push(super::provider::ToolCall { id, name, arguments: args });
+                                    let args: Value = serde_json::from_str(&args_str)
+                                        .unwrap_or(Value::Object(Default::default()));
+                                    emit(
+                                        app,
+                                        stream_id,
+                                        StreamEvent::ToolCallArgs {
+                                            id: id.clone(),
+                                            args: args.clone(),
+                                        },
+                                    );
+                                    tool_calls.push(super::provider::ToolCall {
+                                        id,
+                                        name,
+                                        arguments: args,
+                                    });
                                 }
                             }
                             _ => {}
@@ -655,7 +928,11 @@ async fn stream_anthropic(
     }
 
     usage.total_tokens = usage.prompt_tokens + usage.completion_tokens;
-    Ok(ChatStreamResult { text: text_out, tool_calls, usage })
+    Ok(ChatStreamResult {
+        text: text_out,
+        tool_calls,
+        usage,
+    })
 }
 
 async fn stream_gemini(
@@ -677,7 +954,11 @@ async fn stream_gemini(
 
     let mut contents: Vec<Value> = Vec::new();
     for m in messages {
-        let role = if m.role == "assistant" { "model" } else { "user" };
+        let role = if m.role == "assistant" {
+            "model"
+        } else {
+            "user"
+        };
         contents.push(json!({ "role": role, "parts": [{ "text": m.content }] }));
     }
 
@@ -686,7 +967,10 @@ async fn stream_gemini(
         body["systemInstruction"] = json!({ "parts": [{ "text": system }] });
     }
     let ml = config.model.to_ascii_lowercase();
-    let thinking_capable = ml.contains("2.5") || ml.contains("thinking") || ml.contains("gemini-3") || ml.contains("gemini-exp");
+    let thinking_capable = ml.contains("2.5")
+        || ml.contains("thinking")
+        || ml.contains("gemini-3")
+        || ml.contains("gemini-exp");
     if thinking_capable {
         // Gemini only returns chain-of-thought when explicitly asked.
         body["generationConfig"] = json!({
@@ -698,8 +982,10 @@ async fn stream_gemini(
     }
     {
         let mut tool_list: Vec<Value> = Vec::new();
+        let mut has_functions = false;
         if let Some(ts) = tools {
             if !ts.is_empty() {
+                has_functions = true;
                 tool_list.push(json!({
                     "functionDeclarations": ts.iter().map(|t| json!({
                         "name": t.name,
@@ -707,6 +993,12 @@ async fn stream_gemini(
                         "parameters": t.parameters,
                     })).collect::<Vec<_>>()
                 }));
+            }
+        }
+        if config.web_search_mode == "native" {
+            tool_list.push(json!({ "google_search": {} }));
+            if has_functions {
+                body["toolConfig"] = json!({ "includeServerSideToolInvocations": true });
             }
         }
         if !tool_list.is_empty() {
@@ -738,27 +1030,46 @@ async fn stream_gemini(
 
     // Line-based SSE parser — robust to \n vs \r\n vs missing trailing newline.
     let process_data = |data: &str,
-                            text_out: &mut String,
-                            tool_calls: &mut Vec<super::provider::ToolCall>,
-                            usage: &mut Usage| {
+                        text_out: &mut String,
+                        tool_calls: &mut Vec<super::provider::ToolCall>,
+                        usage: &mut Usage| {
         let data = data.trim();
         if data.is_empty() || data == "[DONE]" {
             return;
         }
         let Ok(v) = serde_json::from_str::<Value>(data) else {
-            eprintln!("[gemini stream] failed to parse JSON: {}", data.chars().take(120).collect::<String>());
+            eprintln!(
+                "[gemini stream] failed to parse JSON: {}",
+                data.chars().take(120).collect::<String>()
+            );
             return;
         };
         // usageMetadata is cumulative across chunks; keep the latest.
         if let Some(um) = v.get("usageMetadata") {
-            let p = um.get("promptTokenCount").and_then(|x| x.as_u64()).unwrap_or(0);
-            let c = um.get("candidatesTokenCount").and_then(|x| x.as_u64()).unwrap_or(0);
-            let tot = um.get("totalTokenCount").and_then(|x| x.as_u64()).unwrap_or(p + c);
+            let p = um
+                .get("promptTokenCount")
+                .and_then(|x| x.as_u64())
+                .unwrap_or(0);
+            let c = um
+                .get("candidatesTokenCount")
+                .and_then(|x| x.as_u64())
+                .unwrap_or(0);
+            let tot = um
+                .get("totalTokenCount")
+                .and_then(|x| x.as_u64())
+                .unwrap_or(p + c);
             if p + c + tot > 0 {
-                *usage = Usage { prompt_tokens: p, completion_tokens: c, total_tokens: tot };
+                *usage = Usage {
+                    prompt_tokens: p,
+                    completion_tokens: c,
+                    total_tokens: tot,
+                };
             }
         }
-        if let Some(fr) = v.pointer("/candidates/0/finishReason").and_then(|f| f.as_str()) {
+        if let Some(fr) = v
+            .pointer("/candidates/0/finishReason")
+            .and_then(|f| f.as_str())
+        {
             if fr != "STOP" {
                 let notice = if fr == "MAX_TOKENS" {
                     "\n\n> ⚠️ 输出达到长度上限被截断，可回复“继续”接着生成。".to_string()
@@ -770,26 +1081,70 @@ async fn stream_gemini(
             }
             log::info!("gemini stream finishReason={fr}");
         }
-        if let Some(parts) = v.pointer("/candidates/0/content/parts").and_then(|p| p.as_array()) {
+        if let Some(parts) = v
+            .pointer("/candidates/0/content/parts")
+            .and_then(|p| p.as_array())
+        {
             for part in parts {
                 if let Some(t) = part.get("text").and_then(|v| v.as_str()) {
                     if !t.is_empty() {
                         // Gemini marks chain-of-thought parts with thought=true.
-                        if part.get("thought").and_then(|v| v.as_bool()).unwrap_or(false) {
-                            emit(app, stream_id, StreamEvent::ReasoningDelta { text: t.to_string() });
+                        if part
+                            .get("thought")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false)
+                        {
+                            emit(
+                                app,
+                                stream_id,
+                                StreamEvent::ReasoningDelta {
+                                    text: t.to_string(),
+                                },
+                            );
                         } else {
                             text_out.push_str(t);
-                            emit(app, stream_id, StreamEvent::TextDelta { text: t.to_string() });
+                            emit(
+                                app,
+                                stream_id,
+                                StreamEvent::TextDelta {
+                                    text: t.to_string(),
+                                },
+                            );
                         }
                     }
                 }
                 if let Some(fc) = part.get("functionCall") {
-                    let name = fc.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                    let arguments = fc.get("args").cloned().unwrap_or(Value::Object(Default::default()));
+                    let name = fc
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let arguments = fc
+                        .get("args")
+                        .cloned()
+                        .unwrap_or(Value::Object(Default::default()));
                     let id = uuid::Uuid::new_v4().to_string();
-                    emit(app, stream_id, StreamEvent::ToolCallStart { id: id.clone(), name: name.clone() });
-                    emit(app, stream_id, StreamEvent::ToolCallArgs { id: id.clone(), args: arguments.clone() });
-                    tool_calls.push(super::provider::ToolCall { id, name, arguments });
+                    emit(
+                        app,
+                        stream_id,
+                        StreamEvent::ToolCallStart {
+                            id: id.clone(),
+                            name: name.clone(),
+                        },
+                    );
+                    emit(
+                        app,
+                        stream_id,
+                        StreamEvent::ToolCallArgs {
+                            id: id.clone(),
+                            args: arguments.clone(),
+                        },
+                    );
+                    tool_calls.push(super::provider::ToolCall {
+                        id,
+                        name,
+                        arguments,
+                    });
                 }
             }
         }
@@ -811,7 +1166,9 @@ async fn stream_gemini(
             }
             Err(e) => {
                 let valid = e.valid_up_to();
-                let t = std::str::from_utf8(&byte_buf[..valid]).unwrap_or("").to_string();
+                let t = std::str::from_utf8(&byte_buf[..valid])
+                    .unwrap_or("")
+                    .to_string();
                 byte_buf.drain(..valid);
                 t
             }
@@ -823,7 +1180,12 @@ async fn stream_gemini(
             // and a raw &s[..160] panics on a char boundary, killing the
             // whole stream task (this exact bug truncated every 中文 reply).
             let preview: String = s.chars().take(60).collect();
-            log::info!("gemini stream chunk #{} len={} preview={:?}", chunk_count, s.len(), preview);
+            log::info!(
+                "gemini stream chunk #{} len={} preview={:?}",
+                chunk_count,
+                s.len(),
+                preview
+            );
         }
 
         // Process every complete line in the buffer.
@@ -831,7 +1193,10 @@ async fn stream_gemini(
             let Some(nl) = buffer.find('\n') else { break };
             let line = buffer[..nl].trim_end_matches('\r').to_string();
             buffer.drain(..nl + 1);
-            if let Some(data) = line.strip_prefix("data: ").or_else(|| line.strip_prefix("data:")) {
+            if let Some(data) = line
+                .strip_prefix("data: ")
+                .or_else(|| line.strip_prefix("data:"))
+            {
                 process_data(data, &mut text_out, &mut tool_calls, &mut usage);
             }
         }
@@ -840,7 +1205,10 @@ async fn stream_gemini(
     // Tail: handle any remaining buffer that didn't end with a newline.
     if !buffer.is_empty() {
         let line = buffer.trim_end_matches('\r');
-        if let Some(data) = line.strip_prefix("data: ").or_else(|| line.strip_prefix("data:")) {
+        if let Some(data) = line
+            .strip_prefix("data: ")
+            .or_else(|| line.strip_prefix("data:"))
+        {
             process_data(data, &mut text_out, &mut tool_calls, &mut usage);
         }
     }
