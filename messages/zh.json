@@ -168,7 +168,9 @@
       "coverLetter": "求职文案",
       "aiTools": "AI 工具",
       "more": "更多",
-      "file": "文件"
+      "file": "文件",
+      "duplicate": "另存副本",
+      "history": "版本历史"
     },
     "aiPolish": "AI 润色",
     "invalidSectionContent": "该模块数据异常，请使用 AI 重新生成内容",

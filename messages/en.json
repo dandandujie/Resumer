@@ -168,7 +168,9 @@
       "coverLetter": "Outreach",
       "aiTools": "AI tools",
       "more": "More",
-      "file": "File"
+      "file": "File",
+      "duplicate": "Save a copy",
+      "history": "Version history"
     },
     "aiPolish": "AI Polish",
     "invalidSectionContent": "This section has invalid data. Please use AI to regenerate the content.",

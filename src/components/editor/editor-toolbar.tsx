@@ -3,15 +3,36 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
-import { ArrowLeft, Undo2, Redo2, Download, Upload, Settings, Palette, Save, Languages, SpellCheck, BookOpenCheck, MoreHorizontal, PenLine, MessagesSquare, FileSearch, Sparkles, ChevronDown } from 'lucide-react';
+import {
+  ArrowLeft,
+  Undo2,
+  Redo2,
+  Download,
+  Upload,
+  Settings,
+  Palette,
+  Save,
+  Languages,
+  SpellCheck,
+  BookOpenCheck,
+  MoreHorizontal,
+  PenLine,
+  MessagesSquare,
+  FileSearch,
+  Sparkles,
+  ChevronDown,
+  Copy,
+  History,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from '@/components/ui/dropdown-menu';
 import { useEditorStore } from '@/stores/editor-store';
+import * as api from '@/lib/tauri-api';
 import { useResumeStore } from '@/stores/resume-store';
 import { useUIStore } from '@/stores/ui-store';
 import { cn } from '@/lib/utils';
@@ -19,8 +40,23 @@ import { cn } from '@/lib/utils';
 export function EditorToolbar() {
   const t = useTranslations('editor.toolbar');
   const router = useRouter();
-  const { toggleThemeEditor, showThemeEditor, undo, redo, undoStack, redoStack } = useEditorStore();
-  const { isSaving, isDirty, currentResume, reorderSections, updateThemeConfig, flushPendingSave, setTitle } = useResumeStore();
+  const {
+    toggleThemeEditor,
+    showThemeEditor,
+    undo,
+    redo,
+    undoStack,
+    redoStack,
+  } = useEditorStore();
+  const {
+    isSaving,
+    isDirty,
+    currentResume,
+    reorderSections,
+    updateThemeConfig,
+    flushPendingSave,
+    setTitle,
+  } = useResumeStore();
   const { openModal } = useUIStore();
 
   const [editingTitle, setEditingTitle] = useState(false);
@@ -57,17 +93,30 @@ export function EditorToolbar() {
     }
   };
 
+  const handleDuplicate = async () => {
+    if (!currentResume) return;
+    await flushPendingSave();
+    const newId = await api.duplicateResume(currentResume.id);
+    router.push(`/editor/${newId}`);
+  };
+
   return (
     <div
       data-tauri-drag-region
-      className="flex h-12 min-w-0 items-center justify-between gap-2 overflow-x-auto border-b border-[var(--whale-divider)] bg-[var(--whale-sidebar)] pl-20 pr-2 sm:pr-3"
+      className={cn(
+        'flex h-12 min-w-0 items-center justify-between gap-2 overflow-x-auto border-b',
+        'border-[var(--whale-divider)] bg-[var(--whale-sidebar)] pl-20 pr-2 sm:pr-3',
+      )}
     >
       <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
         <Button
           variant="ghost"
           size="icon"
           onClick={() => void handleBack()}
-          className="h-8 w-8 shrink-0 cursor-pointer text-[var(--whale-ink-soft)] hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]"
+          className={cn(
+            'h-8 w-8 shrink-0 cursor-pointer text-[var(--whale-ink-soft)]',
+            'hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]',
+          )}
           disabled={isSaving}
         >
           <ArrowLeft className="h-4 w-4" />
@@ -82,7 +131,11 @@ export function EditorToolbar() {
               if (e.key === 'Enter') commitTitle();
               else if (e.key === 'Escape') setEditingTitle(false);
             }}
-            className="min-w-0 max-w-[8rem] rounded border border-[var(--whale-ink)]/30 bg-[var(--whale-card)] px-1.5 py-0.5 text-sm font-semibold text-[var(--whale-ink)] outline-none focus:border-[var(--whale-ink)]/50 sm:max-w-48"
+            className={cn(
+              'min-w-0 max-w-[8rem] rounded border border-[var(--whale-ink)]/30',
+              'bg-[var(--whale-card)] px-1.5 py-0.5 text-sm font-semibold',
+              'text-[var(--whale-ink)] outline-none focus:border-[var(--whale-ink)]/50 sm:max-w-48',
+            )}
           />
         ) : (
           <button
@@ -94,7 +147,10 @@ export function EditorToolbar() {
             <span className="min-w-0 max-w-[8rem] truncate text-sm font-semibold text-[var(--whale-ink)] sm:max-w-48">
               {currentResume?.title || ''}
             </span>
-            <PenLine className="h-3 w-3 shrink-0 text-[var(--whale-ink-muted)] opacity-0 transition-opacity group-hover:opacity-100" />
+            <PenLine
+              className="h-3 w-3 shrink-0 text-[var(--whale-ink-muted)] opacity-0 transition-opacity
+              group-hover:opacity-100"
+            />
           </button>
         )}
         <span className="hidden text-xs text-[var(--whale-ink-muted)] sm:inline">
@@ -103,13 +159,70 @@ export function EditorToolbar() {
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
-        {/* Primary: undo/redo — always visible */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn(
+                'h-8 cursor-pointer gap-1 text-[var(--whale-ink-soft)]',
+                'hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]',
+              )}
+              title={t('file')}
+            >
+              <MoreHorizontal className="h-4 w-4" />
+              <span className="text-xs">{t('file')}</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem
+              className="cursor-pointer"
+              disabled={!currentResume || !isDirty || isSaving}
+              onClick={() => void flushPendingSave()}
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {t('save')}{' '}
+              <span className="ml-auto pl-4 text-xs text-muted-foreground">
+                ⌘S
+              </span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="cursor-pointer"
+              onClick={() => openModal('import')}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              {t('import')}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="cursor-pointer"
+              onClick={() => openModal('export')}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {t('exportPdf')}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="cursor-pointer"
+              onClick={() => void handleDuplicate()}
+            >
+              <Copy className="mr-2 h-4 w-4" />
+              {t('duplicate')}
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled>
+              <History className="mr-2 h-4 w-4" />
+              {t('history')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <Button
           variant="ghost"
           size="icon"
           onClick={handleUndo}
           disabled={undoStack.length === 0}
-          className="h-8 w-8 cursor-pointer text-[var(--whale-ink-soft)] hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)] disabled:opacity-40"
+          className={cn(
+            'h-8 w-8 cursor-pointer text-[var(--whale-ink-soft)]',
+            'hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)] disabled:opacity-40',
+          )}
           title={t('undo')}
         >
           <Undo2 className="h-4 w-4" />
@@ -119,39 +232,38 @@ export function EditorToolbar() {
           size="icon"
           onClick={handleRedo}
           disabled={redoStack.length === 0}
-          className="h-8 w-8 cursor-pointer text-[var(--whale-ink-soft)] hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)] disabled:opacity-40"
+          className={cn(
+            'h-8 w-8 cursor-pointer text-[var(--whale-ink-soft)]',
+            'hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)] disabled:opacity-40',
+          )}
           title={t('redo')}
         >
           <Redo2 className="h-4 w-4" />
         </Button>
-        {currentResume && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => void flushPendingSave()}
-            disabled={!isDirty || isSaving}
-            className={cn(
-              'shrink-0 cursor-pointer gap-1 transition-colors',
-              isDirty
-                ? 'border border-[var(--whale-ink)] bg-[var(--whale-ink)] text-[var(--whale-cream)] hover:bg-[var(--whale-ink-soft)] hover:text-[var(--whale-cream)]'
-                : 'text-[var(--whale-ink-muted)]'
-            )}
-            title={t('save')}
-          >
-            <Save className="h-3.5 w-3.5" />
-            <span className="hidden text-xs sm:inline">{t('save')}</span>
-          </Button>
-        )}
 
         <span className="mx-1 hidden h-5 w-px bg-[var(--whale-divider)] md:inline-block" />
 
         {/* 求职主线：JD 匹配 → 投递记录 → 模拟面试 */}
         <div className="hidden items-center gap-0.5 md:flex">
-          <ToolbarSecondary onClick={() => openModal('jd-analysis')} title={t('jdAnalysis')} icon={FileSearch} label={t('jdAnalysis')} />
-          <ToolbarSecondary onClick={() => openModal('journal')} title={t('journal')} icon={BookOpenCheck} label={t('journal')} />
-          <ToolbarSecondary onClick={() => openModal('interview')} title={t('interview')} icon={MessagesSquare} label={t('interview')} />
+          <ToolbarSecondary
+            onClick={() => openModal('jd-analysis')}
+            title={t('jdAnalysis')}
+            icon={FileSearch}
+            label={t('jdAnalysis')}
+          />
+          <ToolbarSecondary
+            onClick={() => openModal('journal')}
+            title={t('journal')}
+            icon={BookOpenCheck}
+            label={t('journal')}
+          />
+          <ToolbarSecondary
+            onClick={() => openModal('interview')}
+            title={t('interview')}
+            icon={MessagesSquare}
+            label={t('interview')}
+          />
           <span className="mx-1 h-5 w-px bg-[var(--whale-divider)]" />
-          <ToolbarSecondary onClick={() => openModal('export')} title={t('exportPdf')} icon={Download} label={t('exportPdf')} />
 
           {/* 其余 AI 工具收进一个菜单，工具栏不再一字排开十几个按钮 */}
           <DropdownMenu>
@@ -159,7 +271,10 @@ export function EditorToolbar() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="cursor-pointer gap-1 text-[var(--whale-ink-soft)] hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]"
+                className={cn(
+                  'cursor-pointer gap-1 text-[var(--whale-ink-soft)]',
+                  'hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]',
+                )}
                 title={t('aiTools')}
               >
                 <Sparkles className="h-4 w-4" />
@@ -168,40 +283,26 @@ export function EditorToolbar() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem className="cursor-pointer" onClick={() => openModal('grammar-check')}>
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={() => openModal('grammar-check')}
+              >
                 <SpellCheck className="mr-2 h-4 w-4" />
                 {t('grammarCheck')}
               </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer" onClick={() => openModal('translate')}>
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={() => openModal('translate')}
+              >
                 <Languages className="mr-2 h-4 w-4" />
                 {t('translate')}
               </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer" onClick={() => openModal('cover-letter')}>
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={() => openModal('cover-letter')}
+              >
                 <PenLine className="mr-2 h-4 w-4" />
                 {t('coverLetter')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 cursor-pointer gap-1 text-[var(--whale-ink-soft)] hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]" title={t('file')}>
-                <MoreHorizontal className="h-4 w-4" />
-                <span className="hidden text-xs sm:inline">{t('file')}</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem className="cursor-pointer" onClick={() => openModal('import')}>
-                <Upload className="mr-2 h-4 w-4" />
-                {t('import')}
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer" onClick={() => openModal('export')}>
-                <Download className="mr-2 h-4 w-4" />
-                {t('exportPdf')}
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer" onClick={() => openModal('settings')}>
-                <Settings className="mr-2 h-4 w-4" />
-                {t('settings')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -211,7 +312,11 @@ export function EditorToolbar() {
         <div className="md:hidden">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-[var(--whale-ink-soft)]">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-[var(--whale-ink-soft)]"
+              >
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -228,13 +333,21 @@ export function EditorToolbar() {
                 <MessagesSquare className="mr-2 h-4 w-4" />
                 {t('interview')}
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => openModal('import')}>
+                <Upload className="mr-2 h-4 w-4" />
+                {t('import')}
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => openModal('export')}>
                 <Download className="mr-2 h-4 w-4" />
                 {t('exportPdf')}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => openModal('import')}>
-                <Upload className="mr-2 h-4 w-4" />
-                {t('import')}
+              <DropdownMenuItem onClick={() => void handleDuplicate()}>
+                <Copy className="mr-2 h-4 w-4" />
+                {t('duplicate')}
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled>
+                <History className="mr-2 h-4 w-4" />
+                {t('history')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => openModal('grammar-check')}>
                 <SpellCheck className="mr-2 h-4 w-4" />
@@ -248,13 +361,23 @@ export function EditorToolbar() {
                 <PenLine className="mr-2 h-4 w-4" />
                 {t('coverLetter')}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => openModal('settings')}>
-                <Settings className="mr-2 h-4 w-4" />
-                {t('settings')}
-              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => openModal('settings')}
+          className={cn(
+            'h-8 w-8 cursor-pointer text-[var(--whale-ink-soft)]',
+            'hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)] sm:w-auto sm:px-3',
+          )}
+          title={t('settings')}
+        >
+          <Settings className="h-4 w-4" />
+          <span className="ml-1 hidden text-xs sm:inline">{t('settings')}</span>
+        </Button>
 
         {/* Primary: theme toggle — always visible */}
         <Button
@@ -265,7 +388,7 @@ export function EditorToolbar() {
             'h-8 w-8 cursor-pointer transition-colors sm:w-auto sm:px-3',
             showThemeEditor
               ? 'bg-[var(--whale-mint)]/50 text-[var(--whale-ink)] hover:bg-[var(--whale-mint)]/60'
-              : 'text-[var(--whale-ink-soft)] hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]'
+              : 'text-[var(--whale-ink-soft)] hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]',
           )}
           title={t('theme')}
         >
@@ -293,7 +416,10 @@ function ToolbarSecondary({
       variant="ghost"
       size="sm"
       onClick={onClick}
-      className="cursor-pointer text-[var(--whale-ink-soft)] hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]"
+      className={cn(
+        'cursor-pointer text-[var(--whale-ink-soft)]',
+        'hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]',
+      )}
       title={title}
     >
       <Icon className="h-4 w-4" />
