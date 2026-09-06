@@ -2,6 +2,7 @@ mod commands;
 mod db;
 mod ai;
 mod export;
+mod import;
 
 use db::AppDb;
 use tauri::Manager;
