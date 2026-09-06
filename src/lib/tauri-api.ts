@@ -206,6 +206,14 @@ export async function knowledgeGraph() {
   return invoke<KnowledgeGraphData>('knowledge_graph');
 }
 
+export async function knowledgeReflect(applicationId: string) {
+  return invoke<any>('knowledge_reflect', { applicationId, config: getAIConfig() });
+}
+
+export async function knowledgeStrategyReview() {
+  return invoke<any>('knowledge_strategy_review', { config: getAIConfig() });
+}
+
 export async function knowledgeReindex() {
   return invoke<number>('knowledge_reindex');
 }

@@ -60,14 +60,18 @@ pub fn get_system_prompt(resume_context: &str, applications_context: &str) -> St
                     let t = s.get("type").and_then(|v| v.as_str()).unwrap_or("");
                     let title = s.get("title").and_then(|v| v.as_str()).unwrap_or("");
                     let id = s.get("id").and_then(|v| v.as_str()).unwrap_or("");
-                    section_list.push_str(&format!("  - [{}] \"{}\" (sectionId: {})\n", t, title, id));
+                    section_list
+                        .push_str(&format!("  - [{}] \"{}\" (sectionId: {})\n", t, title, id));
                 }
             }
         }
     }
 
     let section_block = if !section_list.is_empty() {
-        format!("\n当前简历包含以下模块（填充简历时必须全部覆盖）：\n{}\n", section_list)
+        format!(
+            "\n当前简历包含以下模块（填充简历时必须全部覆盖）：\n{}\n",
+            section_list
+        )
     } else {
         String::new()
     };
@@ -81,11 +85,14 @@ pub fn get_system_prompt(resume_context: &str, applications_context: &str) -> St
     let applications_block = if applications_context.trim().is_empty() {
         String::new()
     } else {
-        format!("## 这份简历的投递情况（用户在「求职动态」中记录，可直接引用）\n{}\n\n", applications_context.trim())
+        format!(
+            "## 这份简历的投递情况（用户在「求职动态」中记录，可直接引用）\n{}\n\n",
+            applications_context.trim()
+        )
     };
 
     format!(
-r#"你是 Resumer 的简历优化专家——一位深谙中国就业市场的资深猎头兼大厂 HR。你的目标不是"润色文字"，而是实质性提升这份简历的初筛通过率和面试转化率。
+        r#"你是 Resumer 的简历优化专家——一位深谙中国就业市场的资深猎头兼大厂 HR。你的目标不是"润色文字"，而是实质性提升这份简历的初筛通过率和面试转化率。
 
 {expertise}
 
@@ -198,7 +205,11 @@ pub fn translate_prompt(section_json: &str, target_lang_name: &str) -> (String, 
 }
 
 pub fn generate_resume_prompt(description: &str, language: &str) -> (String, String) {
-    let lang_name = if language == "zh" { "Simplified Chinese" } else { "English" };
+    let lang_name = if language == "zh" {
+        "Simplified Chinese"
+    } else {
+        "English"
+    };
     let system = format!(
         "你是资深简历写作专家，深谙中国就业市场的初筛逻辑。根据用户描述生成一份完整、专业、可直接编辑投递的简历（语言：{lang_name}）。\n\n\
         ## 内容质量要求\n\
@@ -222,7 +233,10 @@ pub fn generate_resume_prompt(description: &str, language: &str) -> (String, Str
         }}",
         lang_name = lang_name
     );
-    let prompt = format!("User description:\n{}\n\nGenerate a complete resume as JSON.", description);
+    let prompt = format!(
+        "User description:\n{}\n\nGenerate a complete resume as JSON.",
+        description
+    );
     (system, prompt)
 }
 
@@ -296,8 +310,16 @@ pub fn interview_system_prompt(
 ) -> String {
     const MAX_JD_CHARS: usize = 4000;
     const MAX_RESUME_CHARS: usize = 6000;
-    let company = if company.trim().is_empty() { "（未指定公司）" } else { company.trim() };
-    let role = if role.trim().is_empty() { "（未指定岗位）" } else { role.trim() };
+    let company = if company.trim().is_empty() {
+        "（未指定公司）"
+    } else {
+        company.trim()
+    };
+    let role = if role.trim().is_empty() {
+        "（未指定岗位）"
+    } else {
+        role.trim()
+    };
     let jd_block = if jd.trim().is_empty() {
         "（未提供 JD——基于岗位常识与简历推断考察重点）".to_string()
     } else {
@@ -354,7 +376,11 @@ pub fn resume_content_schema() -> &'static str {
 }
 
 pub fn parse_resume_prompt(extracted_text: &str, language: &str) -> (String, String) {
-    let lang_name = if language == "zh" { "Simplified Chinese" } else { "English" };
+    let lang_name = if language == "zh" {
+        "Simplified Chinese"
+    } else {
+        "English"
+    };
     let system = format!(
         "You are a resume parsing expert. Extract structured data from the given resume text in {}.\n\
         Rules:\n\
@@ -369,6 +395,33 @@ pub fn parse_resume_prompt(extracted_text: &str, language: &str) -> (String, Str
         lang_name,
         resume_content_schema()
     );
-    let prompt = format!("Resume text:\n{}\n\nParse into structured JSON.", extracted_text);
+    let prompt = format!(
+        "Resume text:\n{}\n\nParse into structured JSON.",
+        extracted_text
+    );
+    (system, prompt)
+}
+
+pub fn knowledge_reflect_prompt(context: &str) -> (String, String) {
+    let system = format!(
+        "你是 Resumer 的求职复盘助手。只能基于提供的投递、简历、面试和知识库事实输出，绝不编造经历、数字或结果。\n{}\nCRITICAL: 只输出合法 JSON，不要 markdown 或代码围栏。",
+        CN_RESUME_EXPERTISE
+    );
+    let prompt = format!(
+        "请复盘以下投递，输出 JSON：{{\"experiencePage\":{{\"path\":string,\"content\":string}},\"proposals\":[{{\"path\":string,\"newContent\":string,\"reason\":string}}],\"insights\":[string]}}。\n{}",
+        context
+    );
+    (system, prompt)
+}
+
+pub fn knowledge_strategy_review_prompt(context: &str) -> (String, String) {
+    let system = format!(
+        "你是求职策略复盘助手。只能使用输入事实，绝不编造统计数据或经历。输出合法 JSON，不要 markdown。\n{}",
+        CN_RESUME_EXPERTISE
+    );
+    let prompt = format!(
+        "基于以下投递漏斗、渠道统计和经验页，输出 JSON：{{\"path\":string,\"content\":string,\"purposeProposal\":{{\"path\":\"purpose.md\",\"newContent\":string,\"reason\":string}}}}。\n{}",
+        context
+    );
     (system, prompt)
 }

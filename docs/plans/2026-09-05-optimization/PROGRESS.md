@@ -224,3 +224,30 @@
 - 决策记录
   - 不引入 sigma、graphology 或 WebGL 库；canvas 负责绘制，d3-force 只负责布局。
   - 投递和面试图谱节点在前端由 journal-store 合并，避免新增 Rust 跨域查询接口。
+
+### WP7 修正记录
+
+- 删除 Rust 端未使用的 `normalize_company` 和测试，统一由前端归一化函数负责公司名匹配。
+- 前端归一化改为循环剥离 `有限责任公司、股份有限公司、有限公司、股份、集团、科技、公司` 后缀，并新增统一 `pnpm test` 脚本与断言用例。
+
+## WP8 复盘闭环
+
+- 完成项
+  - 新增 `knowledge_reflect(application_id, config)`：收集投递、JD、面试、结果、历史简历快照/当前简历和知识库命中，调用 json_mode LLM 生成复盘结构化结果。
+  - 复盘经验页直接写入 `wiki/experiences/`、更新索引并追加日志；知识修订建议通过既有 `ai-chat-event` 和 `KnowledgeProposalCard` 采纳路径展示，不直接写盘。
+  - 新增 `knowledge_strategy_review(config)`：至少 5 条结束投递可用，输入投递数据与全部经验页，写入 `wiki/market/` 并把 purpose 修订作为提案返回。
+  - 提示词集中放入 `src-tauri/src/ai/prompts.rs`，明确只基于事实且绝不编造。
+  - 结果保存时增加复盘确认；模拟面试存档后增加复盘确认；求职动态每条投递增加「复盘并沉淀」入口。
+  - 增加反射 JSON 写盘单测，LLM 生成结果通过 JSON 解析边界注入，测试不访问网络。
+- 未完成项与原因
+  - 未进行真实 LLM 凭据、桌面弹窗和知识提案人工验收；当前环境无可复现桌面入口和联网凭据。
+  - 简历历史表在旧版本可能没有对应快照时按方案回退当前简历；已有数据库未补造历史快照。
+- 验收结果
+  - `pnpm type-check`：通过。
+  - `pnpm lint`：通过，0 errors，保留既有 warnings。
+  - `(cd src-tauri && cargo test)`：通过，23 个测试全部通过。
+  - `pnpm test`：通过，知识图谱归一化和日期断言均通过。
+  - `pnpm build:vite`：待最终验收命令执行。
+- 决策记录
+  - 复盘结果只自动写入经验事实页，skill/sop/purpose 修改统一走已有知识提案卡，避免新增第二套审核状态。
+  - 策略回顾沿用 JSON mode 单次生成，不引入队列或新存储表；达到 5 条结束投递后才显示入口。

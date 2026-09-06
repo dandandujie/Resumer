@@ -150,7 +150,8 @@ export function useAIChat({ resumeId, sessionId, initialMessages, selectedModel 
 
     listen<StreamEvent>('ai-chat-event', (evt) => {
       const payload = evt.payload;
-      if (!payload || payload.streamId !== streamIdRef.current) return;
+      if (!payload) return;
+      if (payload.event.type !== 'knowledgeProposal' && payload.streamId !== streamIdRef.current) return;
 
       // Fast path for text deltas: buffer them and schedule one flush per frame.
       // This drops re-renders from per-token to ~25fps, which the React DOM

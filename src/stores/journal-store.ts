@@ -416,6 +416,9 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
   addMock: async (data) => {
     const saved = await api.createMockInterview({ ...data, id: generateId(), createdAt: 0 });
     set((state) => ({ mocks: [saved, ...state.mocks] }));
+    if (saved.applicationId && window.confirm('是否复盘并沉淀这次模拟面试？')) {
+      void api.knowledgeReflect(saved.applicationId);
+    }
     return saved;
   },
 

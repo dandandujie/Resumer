@@ -37,6 +37,36 @@ pub struct IngestResult {
     pub entities: Vec<SourceEntity>,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct KnowledgeProposal {
+    pub path: String,
+    #[serde(rename = "newContent")]
+    pub new_content: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ExperiencePage {
+    pub path: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ReflectOutput {
+    #[serde(rename = "experiencePage")]
+    pub experience_page: ExperiencePage,
+    pub proposals: Vec<KnowledgeProposal>,
+    pub insights: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct StrategyOutput {
+    pub path: String,
+    pub content: String,
+    #[serde(rename = "purposeProposal")]
+    pub purpose_proposal: KnowledgeProposal,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct PageSummary {
     pub path: String,
@@ -126,6 +156,37 @@ pub fn write_page(db: &AppDb, root: &Path, path: &str, content: &str) -> Result<
     let conn = db.conn.lock().map_err(|error| error.to_string())?;
     fts::upsert(&conn, &page)?;
     append_log(root, &format!("write {path}"))?;
+    index::rebuild_from_disk(root)?;
+    Ok(())
+}
+
+pub fn reflect_from_json(root: &Path, raw: &str) -> Result<ReflectOutput, String> {
+    let output = serde_json::from_str::<ReflectOutput>(raw)
+        .map_err(|error| format!("复盘 JSON 无效: {error}"))?;
+    write_reflection(root, &output)?;
+    Ok(output)
+}
+
+pub fn write_reflection(root: &Path, output: &ReflectOutput) -> Result<(), String> {
+    if !output.experience_page.path.starts_with("wiki/experiences/") {
+        return Err("复盘经验页必须位于 wiki/experiences/".into());
+    }
+    vault::write(
+        root,
+        &output.experience_page.path,
+        &output.experience_page.content,
+    )?;
+    append_log(root, &format!("reflect → {}", output.experience_page.path))?;
+    index::rebuild_from_disk(root)?;
+    Ok(())
+}
+
+pub fn write_strategy(root: &Path, output: &StrategyOutput) -> Result<(), String> {
+    if !output.path.starts_with("wiki/market/") {
+        return Err("策略回顾必须位于 wiki/market/".into());
+    }
+    vault::write(root, &output.path, &output.content)?;
+    append_log(root, &format!("strategy review → {}", output.path))?;
     index::rebuild_from_disk(root)?;
     Ok(())
 }
@@ -259,6 +320,18 @@ mod tests {
             b"# Acme\n\nA company profile."
         );
         assert!(root.join("wiki/sources/acme.md").exists());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn reflect_json_writes_experience_page_without_llm() {
+        let root = std::env::temp_dir().join(format!("resumer-reflect-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        vault::initialize(&root).unwrap();
+        let raw = r##"{"experiencePage":{"path":"wiki/experiences/acme.md","content":"# 复盘"},"proposals":[],"insights":["事实"]}"##;
+        let output = reflect_from_json(&root, raw).unwrap();
+        assert_eq!(output.experience_page.path, "wiki/experiences/acme.md");
+        assert!(root.join("wiki/experiences/acme.md").exists());
         let _ = std::fs::remove_dir_all(root);
     }
 }

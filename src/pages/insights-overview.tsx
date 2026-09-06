@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
+import { listen } from '@tauri-apps/api/event';
 import {
   AlarmClock,
   Briefcase,
@@ -50,6 +51,7 @@ import {
 import { ApplicationEditor } from '@/components/journal/application-editor';
 import { FORMAT_KEY, STATUS_KEY, formatDateTime, statusTone } from '@/components/journal/journal-labels';
 import { cn } from '@/lib/utils';
+import { KnowledgeProposalCard } from '@/components/ai/ai-proposal-card';
 import * as api from '@/lib/tauri-api';
 import { KnowledgeGraph } from '@/components/graph/knowledge-graph';
 import { ApplicationKanban } from '@/components/journal/application-kanban';
@@ -108,6 +110,7 @@ export default function InsightsOverviewPage() {
   const [pendingDelete, setPendingDelete] = useState<Application | null>(null);
   const [view, setView] = useState<InsightsView>('list');
   const [graph, setGraph] = useState<api.KnowledgeGraphData>({ nodes: [], edges: [] });
+  const [knowledgeProposals, setKnowledgeProposals] = useState<Array<{ path: string; content: string; reason: string }>>([]);
 
   useEffect(() => {
     void hydrate();
@@ -115,11 +118,19 @@ export default function InsightsOverviewPage() {
   useEffect(() => {
     void fetchResumes();
     void api.knowledgeGraph().then(setGraph);
+    let unlisten: (() => void) | undefined;
+    void listen<any>('ai-chat-event', (event) => {
+      if (event.payload?.event?.type === 'knowledgeProposal') {
+        setKnowledgeProposals((items) => [...items, event.payload.event]);
+      }
+    }).then((stop) => { unlisten = stop; });
+    return () => unlisten?.();
   }, [fetchResumes]);
 
   const resumeMap = useMemo(() => new Map(resumes.map((r) => [r.id, r.title])), [resumes]);
   const resumeOptions = useMemo(() => resumes.map((r) => ({ id: r.id, title: r.title })), [resumes]);
   const agg = useMemo(() => aggregateJournal(applications), [applications]);
+  const finishedCount = applications.filter((app) => ['offer', 'rejected', 'declined', 'ghosted'].includes(app.status)).length;
   const agenda = useMemo(() => buildAgenda(applications), [applications]);
   const selected = applications.find((a) => a.id === selectedId) || null;
   const mocks = useJournalStore((state) => state.mocks);
@@ -172,6 +183,13 @@ export default function InsightsOverviewPage() {
           <h1 className="font-display mt-1 text-[2.125rem] font-semibold leading-tight text-[var(--whale-ink)]">{t('journalTitle')}</h1>
           <p className="mt-1 text-[13px] text-[var(--whale-ink-muted)]">{t('insightsHeroSubtitle')}</p>
         </div>
+        {finishedCount >= 5 && (
+          <button
+            type="button"
+            onClick={() => void api.knowledgeStrategyReview()}
+            className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[var(--whale-divider)] px-4 py-2 text-[13px] font-semibold text-[var(--whale-ink)]"
+          >策略回顾</button>
+        )}
         <button
           type="button"
           onClick={() => void handleCreate()}
@@ -289,11 +307,20 @@ export default function InsightsOverviewPage() {
                 onStatusChange={(status) => updateApplication(app.id, { status })}
                 onOpenResume={() => app.resumeId && router.push(`/editor/${app.resumeId}`)}
                 onDelete={() => setPendingDelete(app)}
+                onReflect={() => void api.knowledgeReflect(app.id)}
               />
             ))}
           </ul>
         )}
       </section>}
+
+      {knowledgeProposals.length > 0 && (
+        <div className="space-y-2">
+          {knowledgeProposals.map((proposal, index) => (
+            <KnowledgeProposalCard key={`${proposal.path}-${index}`} {...proposal} />
+          ))}
+        </div>
+      )}
 
       {/* 详情抽屉 */}
       <Sheet open={!!selected} onOpenChange={(open) => !open && setSelectedId(null)}>
@@ -488,7 +515,9 @@ function ApplicationRow({
   onStatusChange,
   onOpenResume,
   onDelete,
+  onReflect,
 }: {
+
   app: Application;
   resumeTitle?: string;
   resumeDeleted: boolean;
@@ -497,6 +526,7 @@ function ApplicationRow({
   onStatusChange: (status: ApplicationStatus) => void;
   onOpenResume: () => void;
   onDelete: () => void;
+  onReflect: () => void;
 }) {
   const t = useTranslations('dashboard');
   const tJournal = useTranslations('journal');
@@ -577,6 +607,9 @@ function ApplicationRow({
           <DropdownMenuItem onClick={onOpenResume} disabled={!app.resumeId || resumeDeleted} className="cursor-pointer">
             <FileText className="mr-2 h-4 w-4" />
             {t('insightsRowOpenResume')}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onReflect} className="cursor-pointer">
+            <FileText className="mr-2 h-4 w-4" />复盘并沉淀
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={onDelete} className="cursor-pointer text-red-600 focus:text-red-600">

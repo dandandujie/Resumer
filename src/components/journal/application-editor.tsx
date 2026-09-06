@@ -1,9 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { listen } from '@tauri-apps/api/event';
 import { useLocale, useTranslations } from 'next-intl';
 import { ChevronDown, FileSearch, MessagesSquare, PenLine, Plus, Trash2 } from 'lucide-react';
 import { useRouter } from '@/i18n/routing';
+import * as api from '@/lib/tauri-api';
+import { KnowledgeProposalCard } from '@/components/ai/ai-proposal-card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -87,14 +90,35 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool }
   const mocks = useJournalStore((s) => s.mocks);
   const launch = useLaunchResumeTool(onBeforeLaunchTool);
   const [jdExpanded, setJdExpanded] = useState(false);
+  const [proposals, setProposals] = useState<Array<{ path: string; content: string; reason: string }>>([]);
+
+  useEffect(() => {
+    let stop: (() => void) | undefined;
+    void listen<any>('ai-chat-event', (event) => {
+      if (event.payload?.event?.type === 'knowledgeProposal') {
+        setProposals((items) => [...items, event.payload.event]);
+      }
+    }).then((unlisten) => { stop = unlisten; });
+    return () => stop?.();
+  }, []);
 
   const set = (patch: Partial<Application>) => update(app.id, patch);
+  const saveOutcome = (result: OutcomeResult | null) => {
+    const next = result ? { ...(app.outcome || {}), result } : null;
+    setOutcome(app.id, next);
+    if (next && window.confirm('是否复盘并沉淀这次投递？')) {
+      void api.knowledgeReflect(app.id);
+    }
+  };
   const linkedMocks = useMemo(() => mocks.filter((m) => m.applicationId === app.id), [mocks, app.id]);
   const resumeMissing = !!resumes && !!app.resumeId && !resumes.some((r) => r.id === app.resumeId);
   const hasResume = !!app.resumeId && !resumeMissing;
 
   return (
     <div className="space-y-4">
+      {proposals.map((proposal, index) => (
+        <KnowledgeProposalCard key={`${proposal.path}-${index}`} {...proposal} />
+      ))}
       <div className="flex items-start gap-2">
         <div className="grid flex-1 grid-cols-2 gap-2">
           <Field label={t('fieldCompany')}>
@@ -251,8 +275,8 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool }
             value={app.outcome?.result ?? NO_RESUME}
             onValueChange={(v) =>
               v === NO_RESUME
-                ? setOutcome(app.id, null)
-                : setOutcome(app.id, { ...(app.outcome || {}), result: v as OutcomeResult })
+                ? saveOutcome(null)
+                : saveOutcome(v as OutcomeResult)
             }
           >
             <SelectTrigger className="h-8 w-36"><SelectValue /></SelectTrigger>
