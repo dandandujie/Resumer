@@ -7,10 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 
 export default function KnowledgePage() {
-  const { pages, selectedPath, selectedContent, loading, load, select, write, ingest, setSelectedContent } = useKnowledgeStore();
+  const { pages, selectedPath, selectedContent, pendingEntities, loading, load, select, write, ingest, setSelectedContent } = useKnowledgeStore();
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [purpose, setPurpose] = useState({ role: '', city: '', industry: '', constraints: '', other: '' });
 
   useEffect(() => {
     void load();
@@ -22,11 +23,26 @@ export default function KnowledgePage() {
   );
   const selected = pages.find((page) => page.path === selectedPath);
 
+  useEffect(() => {
+    if (selectedPath !== 'purpose.md') return;
+    const value = (heading: string) => {
+      const match = selectedContent.match(new RegExp(`## ${heading}\\n([\\s\\S]*?)(?=\\n## |$)`));
+      return match?.[1]?.trim() || '';
+    };
+    setPurpose({
+      role: value('目标岗位'), city: value('期望城市'), industry: value('目标行业'),
+      constraints: value('硬约束'), other: value('其他'),
+    });
+  }, [selectedPath, selectedContent]);
+
+  const purposeMarkdown = () => `# 求职目标\\n\\n## 目标岗位\\n${purpose.role}\\n\\n## 期望城市\\n${purpose.city}\\n\\n## 目标行业\\n${purpose.industry}\\n\\n## 硬约束\\n${purpose.constraints}\\n\\n## 其他\\n${purpose.other}\\n`;
+
   const handleSave = async () => {
     if (!selectedPath) return;
     setSaving(true);
     try {
-      await write(selectedPath, selectedContent);
+      const content = selectedPath === 'purpose.md' ? purposeMarkdown() : selectedContent;
+      await write(selectedPath, content);
       setEditing(false);
     } finally {
       setSaving(false);
@@ -93,7 +109,20 @@ export default function KnowledgePage() {
                   )}
                 </div>
               </div>
-              {editing ? (
+              {editing && selectedPath === 'purpose.md' ? (
+                <div className="space-y-4">
+                  {([
+                    ['role', '目标岗位'], ['city', '期望城市'], ['industry', '目标行业'],
+                    ['constraints', '硬约束'], ['other', '其他'],
+                  ] as const).map(([key, label]) => (
+                    <label key={key} className="block text-sm font-medium">
+                      {label}
+                      <Textarea value={purpose[key]} onChange={(event) => setPurpose({ ...purpose, [key]: event.target.value })} className="mt-1" />
+                    </label>
+                  ))}
+                  <Button onClick={() => setSelectedContent(purposeMarkdown())}>生成 Markdown</Button>
+                </div>
+              ) : editing ? (
                 <Textarea
                   value={selectedContent}
                   onChange={(event) => setSelectedContent(event.target.value)}
@@ -111,6 +140,12 @@ export default function KnowledgePage() {
         </main>
         <aside className="min-h-0 overflow-y-auto border-l border-[var(--whale-divider)] p-4 text-sm">
           <h2 className="mb-3 font-semibold">页面信息</h2>
+          {pendingEntities.length > 0 && (
+            <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-2">
+              <h3 className="mb-2 font-medium">待采纳实体</h3>
+              {pendingEntities.map((entity) => <div key={`${entity.type}-${entity.title}`} className="mb-2 text-xs"><b>{entity.title}</b><div>{entity.content}</div></div>)}
+            </div>
+          )}
           {selected ? (
             <dl className="space-y-3">
               <div><dt className="text-xs text-muted-foreground">类型</dt><dd>{selected.type}</dd></div>

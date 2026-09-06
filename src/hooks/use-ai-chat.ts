@@ -24,6 +24,7 @@ interface StreamEvent {
     | { type: 'toolCallStart'; id: string; name: string }
     | { type: 'toolCallArgs'; id: string; args: unknown }
     | { type: 'toolResult'; id: string; name: string; result: unknown }
+    | { type: 'knowledgeProposal'; path: string; content: string; reason: string; proposalId: string }
     | { type: 'finish'; finalText: string }
     | { type: 'error'; message: string };
 }
@@ -189,6 +190,17 @@ export function useAIChat({ resumeId, sessionId, initialMessages, selectedModel 
         const parts = [...msg.parts];
 
         switch (payload.event.type) {
+          case 'knowledgeProposal': {
+            parts.push({
+              type: 'tool',
+              toolName: 'knowledgeProposal',
+              toolCallId: payload.event.proposalId,
+              args: {},
+              result: payload.event,
+              state: 'output-available',
+            });
+            break;
+          }
           case 'toolCallStart': {
             parts.push({ type: 'tool', toolName: payload.event.name, toolCallId: payload.event.id, args: {}, state: 'input-available' });
             if (isMutationTool(payload.event.name)) {

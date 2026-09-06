@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 import { Check, Undo2, Wand2, Plus, Trash2, RefreshCcw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
@@ -183,6 +183,50 @@ interface AIProposalCardProps {
 
 /** Slim chat card — just a one-line summary + accept/reject buttons.
  *  The detailed diff visualization lives in the preview overlay. */
+export function KnowledgeProposalCard({
+  path,
+  content,
+  reason,
+}: {
+  path: string;
+  content: string;
+  reason: string;
+}) {
+  const [accepted, setAccepted] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const accept = async () => {
+    setSaving(true);
+    try {
+      await api.knowledgeWrite(path, content);
+      setAccepted(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="my-2 rounded-xl border border-[var(--whale-divider)] bg-[var(--whale-cream-soft)] px-3 py-2">
+      <div className="text-[12px] font-semibold text-[var(--whale-ink)]">知识库提案</div>
+      <div className="mt-1 truncate text-[11px] text-[var(--whale-ink-muted)]">{path}</div>
+      <div className="mt-1 text-[11px] text-[var(--whale-ink-soft)]">原因：{reason}</div>
+      <div className="mt-2 line-clamp-3 whitespace-pre-wrap text-[11px] text-[var(--whale-ink-muted)]">{content}</div>
+      <div className="mt-2 flex justify-end gap-1">
+        {accepted ? (
+          <span className="text-[11px] text-[var(--whale-mint-deep)]">已采纳</span>
+        ) : (
+          <>
+            <button type="button" className="rounded-md border px-2 py-1 text-[11px]" onClick={() => setAccepted(true)}>
+              <Undo2 className="mr-1 inline h-3 w-3" />撤销
+            </button>
+            <button type="button" className="rounded-md bg-[var(--whale-ink)] px-2 py-1 text-[11px] text-white" onClick={() => void accept()} disabled={saving}>
+              <Check className="mr-1 inline h-3 w-3" />采纳
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function AIProposalCard({ toolCallId }: AIProposalCardProps) {
   const proposal = useProposalsStore((s) =>
     s.proposals.find((p) => p.toolCallId === toolCallId)

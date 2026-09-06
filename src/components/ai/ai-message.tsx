@@ -20,9 +20,10 @@ import { useTranslations } from 'next-intl';
 import type { UIMessage, MessagePart } from '@/types/chat';
 import { useUIStore } from '@/stores/ui-store';
 import { useProposalsStore, isMutationTool } from '@/stores/proposals-store';
-import { AIProposalCard } from './ai-proposal-card';
+import { AIProposalCard, KnowledgeProposalCard } from './ai-proposal-card';
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
+import * as api from '@/lib/tauri-api';
 
 interface AIMessageProps {
   message: UIMessage;
@@ -325,21 +326,21 @@ function WebSearchSources({ result }: { result: unknown }) {
           url?: string;
           content?: string;
         };
+        const save = async () => {
+          const slug = (source.title || 'web-source').replace(/[^\\p{L}\\p{N}]+/gu, '-');
+          const text = `# ${source.title || source.url}\n\n来源：${source.url || ''}\n\n${source.content || ''}`;
+          await api.knowledgeIngestFile(Array.from(new TextEncoder().encode(text)), `${slug}.md`);
+        };
         return (
-          <a
-            key={`${source.url || 'source'}-${index}`}
-            href={source.url}
-            target="_blank"
-            rel="noreferrer"
-            className="block rounded px-1.5 py-1 hover:bg-muted"
-          >
-            <div className="truncate font-medium text-[var(--whale-ink)]">
-              {source.title || source.url}
-            </div>
-            <div className="line-clamp-2 text-[var(--whale-ink-muted)]">
-              {source.content}
-            </div>
-          </a>
+          <div key={`${source.url || 'source'}-${index}`} className="rounded px-1.5 py-1 hover:bg-muted">
+            <a href={source.url} target="_blank" rel="noreferrer" className="block">
+              <div className="truncate font-medium text-[var(--whale-ink)]">{source.title || source.url}</div>
+              <div className="line-clamp-2 text-[var(--whale-ink-muted)]">{source.content}</div>
+            </a>
+            <button type="button" onClick={() => void save()} className="mt-1 text-[11px] text-[var(--whale-ink-muted)] hover:text-[var(--whale-ink)]">
+              存入知识库
+            </button>
+          </div>
         );
       })}
     </div>
@@ -354,6 +355,16 @@ function ToolBlock({ part }: { part: ToolPart }) {
 
   if (part.toolName === 'webSearch' && part.state === 'output-available') {
     return <WebSearchSources result={part.result} />;
+  }
+  if (part.toolName === 'knowledgeProposal' && part.state === 'output-available') {
+    const proposal = part.result as { path?: string; content?: string; reason?: string };
+    return (
+      <KnowledgeProposalCard
+        path={proposal.path || ''}
+        content={proposal.content || ''}
+        reason={proposal.reason || ''}
+      />
+    );
   }
 
   // If this is a pending mutation, surface the proposal card (the only UI the user sees).

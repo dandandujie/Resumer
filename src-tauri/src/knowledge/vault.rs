@@ -25,8 +25,11 @@ pub struct Page {
 
 pub fn validate_path(path: &str) -> Result<(), String> {
     let candidate = Path::new(path);
-    if candidate.is_absolute() || path.is_empty() || !path.ends_with(".md") {
-        return Err("知识库路径必须是相对 .md 路径".into());
+    if candidate.is_absolute() || path.is_empty() {
+        return Err("知识库路径必须是相对路径".into());
+    }
+    if !path.starts_with("raw/") && !path.ends_with(".md") {
+        return Err("wiki 路径必须是 .md 文件".into());
     }
     if candidate
         .components()

@@ -2,13 +2,39 @@ pub mod fts;
 pub mod index;
 pub mod vault;
 
+use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
 use crate::db::AppDb;
+use crate::import;
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SourceEntity {
+    #[serde(rename = "type")]
+    pub entity_type: String,
+    pub title: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SourceSummary {
+    pub title: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    pub summary: String,
+    #[serde(default)]
+    pub entities: Vec<SourceEntity>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct IngestResult {
+    pub source: PageSummary,
+    pub entities: Vec<SourceEntity>,
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PageSummary {
@@ -37,11 +63,11 @@ pub fn prompt_context(app: &AppHandle) -> Result<String, String> {
     Ok(format!(
         concat!(
             "\n\n## 知识库上下文\n### 求职目标\n{}\n### 索引\n{}\n\n",
-            "定向优化、JD 匹配或面试准备前，先使用 searchKnowledge 查询相关公司、岗位或 SOP；",
+            "定向优化、JD 匹配或面试准备前，先使用 searchKnowledge 查询相关公司、岗位或 ",
+            "SOP；",
             "引用知识页时标注 [[path]]。"
         ),
-        purpose,
-        index
+        purpose, index
     ))
 }
 
@@ -114,19 +140,40 @@ pub fn append_log(root: &Path, message: &str) -> Result<(), String> {
         .map_err(|error| error.to_string())
 }
 
-pub fn ingest(
+pub fn extract_text(filename: &str, bytes: &[u8]) -> Result<String, String> {
+    import::extract_knowledge_text(filename, bytes)
+}
+
+pub async fn ingest_with_generator<F, Fut>(
     db: &AppDb,
     root: &Path,
     bytes: &[u8],
     filename: &str,
-) -> Result<PageSummary, String> {
+    generator: F,
+) -> Result<IngestResult, String>
+where
+    F: FnOnce(String) -> Fut,
+    Fut: Future<Output = Result<SourceSummary, String>>,
+{
+    let text = extract_text(filename, bytes)?;
+    let summary = generator(text).await?;
+    ingest_with_summary(db, root, bytes, filename, summary)
+}
+
+pub fn ingest_with_summary(
+    db: &AppDb,
+    root: &Path,
+    bytes: &[u8],
+    filename: &str,
+    source_summary: SourceSummary,
+) -> Result<IngestResult, String> {
     let safe_name = filename
         .replace(['/', '\\'], "_")
         .trim_end_matches(".md")
         .to_string();
-    let raw_path = format!("raw/{safe_name}.md");
-    let text = String::from_utf8_lossy(bytes).to_string();
-    vault::write(root, &raw_path, &text)?;
+    let extension = filename.rsplit('.').next().unwrap_or("bin");
+    let raw_path = format!("raw/{safe_name}.{extension}");
+    std::fs::write(root.join(&raw_path), bytes).map_err(|error| error.to_string())?;
     let slug = safe_name
         .chars()
         .map(|character| {
@@ -146,28 +193,71 @@ pub fn ingest(
             .as_secs()
     );
     let meta = vault::Frontmatter {
-        title: safe_name.clone(),
+        title: if source_summary.title.trim().is_empty() {
+            safe_name.clone()
+        } else {
+            source_summary.title.clone()
+        },
         page_type: "source".into(),
+        tags: source_summary.tags.clone(),
         sources: vec![raw_path.clone()],
         created: now.clone(),
         updated: now,
         ..vault::Frontmatter::default()
     };
-    let body = format!(
-        "原始资料：[[{raw_path}]]\n\n{}",
-        text.chars().take(4000).collect::<String>()
-    );
-    let page = vault::write(root, &wiki_path, &vault::serialize_page(&meta, &body))?;
+    let body = format!("原始资料：[[{raw_path}]]\n\n{}", source_summary.summary);
+    let source_page = vault::serialize_page(&meta, &body);
+    let page = vault::write(root, &wiki_path, &source_page)?;
     let conn = db.conn.lock().map_err(|error| error.to_string())?;
     fts::upsert(&conn, &page)?;
     append_log(root, &format!("ingest {raw_path} → {wiki_path}"))?;
     index::rebuild_from_disk(root)?;
-    Ok(PageSummary {
-        path: wiki_path,
-        title: page.frontmatter.title,
-        page_type: page.frontmatter.page_type,
-        tags: page.frontmatter.tags,
-        summary: body.chars().take(240).collect(),
-        updated: page.frontmatter.updated,
+    Ok(IngestResult {
+        source: PageSummary {
+            path: wiki_path,
+            title: page.frontmatter.title,
+            page_type: page.frontmatter.page_type,
+            tags: page.frontmatter.tags,
+            summary: body.chars().take(240).collect(),
+            updated: page.frontmatter.updated,
+        },
+        entities: source_summary.entities,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ingest_markdown_writes_raw_and_source_page() {
+        let root = std::env::temp_dir().join(format!("resumer-knowledge-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        crate::db::migrate::run(&conn).unwrap();
+        let db = AppDb {
+            conn: std::sync::Mutex::new(conn),
+        };
+        vault::initialize(&root).unwrap();
+        let result = ingest_with_summary(
+            &db,
+            &root,
+            b"# Acme\n\nA company profile.",
+            "acme.md",
+            SourceSummary {
+                title: "Acme".into(),
+                tags: vec!["company".into()],
+                summary: "# Acme\n\nA company profile.".into(),
+                entities: vec![],
+            },
+        )
+        .unwrap();
+        assert_eq!(result.source.title, "Acme");
+        assert_eq!(
+            std::fs::read(root.join("raw/acme.md")).unwrap(),
+            b"# Acme\n\nA company profile."
+        );
+        assert!(root.join("wiki/sources/acme.md").exists());
+        let _ = std::fs::remove_dir_all(root);
+    }
 }

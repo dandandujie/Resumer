@@ -202,7 +202,7 @@ export async function knowledgeReindex() {
 }
 
 export async function knowledgeIngestFile(bytes: number[], filename: string) {
-  return invoke<KnowledgePageSummary>('knowledge_ingest_file', { bytes, filename });
+  return invoke<any>('knowledge_ingest_file', { config: getAIConfig(), bytes, filename });
 }
 
 // ── 用户设置 ──

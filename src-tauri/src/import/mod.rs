@@ -1,5 +1,5 @@
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use serde_json::{json, Value};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use serde_json::{Value, json};
 use std::io::{Cursor, Read};
 use zip::ZipArchive;
 
@@ -302,16 +302,22 @@ pub(crate) fn parse_pdf_assets(bytes: &[u8]) -> Result<ImportAssets, String> {
                 .and_then(|stream| stream.decompressed_content())
                 .ok();
             raw.and_then(|raw| {
-                if image.bits_per_component != Some(8) { return None; }
+                if image.bits_per_component != Some(8) {
+                    return None;
+                }
                 let width = image.width as u32;
                 let height = image.height as u32;
                 let dynamic = match image.color_space.as_deref() {
-                    Some("DeviceGray") => image::GrayImage::from_raw(width, height, raw).map(image::DynamicImage::ImageLuma8),
-                    Some("DeviceRGB") => image::RgbImage::from_raw(width, height, raw).map(image::DynamicImage::ImageRgb8),
+                    Some("DeviceGray") => image::GrayImage::from_raw(width, height, raw)
+                        .map(image::DynamicImage::ImageLuma8),
+                    Some("DeviceRGB") => image::RgbImage::from_raw(width, height, raw)
+                        .map(image::DynamicImage::ImageRgb8),
                     _ => None,
                 }?;
                 let mut output = Cursor::new(Vec::new());
-                dynamic.write_to(&mut output, image::ImageFormat::Png).ok()?;
+                dynamic
+                    .write_to(&mut output, image::ImageFormat::Png)
+                    .ok()?;
                 Some(output.into_inner())
             })
         } else {
@@ -337,7 +343,31 @@ pub(crate) fn parse_pdf_assets(bytes: &[u8]) -> Result<ImportAssets, String> {
     })
 }
 
-pub(crate) fn crop_avatar_from_box(parsed: &mut Value, bytes: &[u8]) -> Result<Option<String>, String> {
+pub(crate) fn extract_knowledge_text(filename: &str, bytes: &[u8]) -> Result<String, String> {
+    let extension = filename
+        .rsplit('.')
+        .next()
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    match extension.as_str() {
+        "md" | "markdown" | "txt" => String::from_utf8(bytes.to_vec())
+            .map_err(|error| format!("文本编码不是 UTF-8: {error}")),
+        "pdf" => parse_pdf_assets(bytes).map(|assets| assets.text),
+        "docx" => parse_docx_assets(bytes).map(|assets| assets.text),
+        "png" | "jpg" | "jpeg" | "webp" => {
+            image::guess_format(bytes).map_err(|error| format!("图片格式无法识别: {error}"))?;
+            Ok(format!(
+                "图片资料：{filename}（当前导入链路未启用 OCR，请结合图片内容补充摘要）"
+            ))
+        }
+        _ => Err("知识库仅支持 Markdown、TXT、PDF、DOCX 和常见图片".into()),
+    }
+}
+
+pub(crate) fn crop_avatar_from_box(
+    parsed: &mut Value,
+    bytes: &[u8],
+) -> Result<Option<String>, String> {
     let box_value = parsed
         .get("sections")
         .and_then(Value::as_array)
@@ -445,7 +475,6 @@ pub(crate) fn persist_import(
     tx.commit()?;
     Ok(resume_id)
 }
-
 
 #[cfg(test)]
 mod import_tests {
@@ -569,4 +598,3 @@ mod import_tests {
         );
     }
 }
-

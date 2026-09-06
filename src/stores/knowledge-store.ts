@@ -5,6 +5,7 @@ interface KnowledgeStore {
   pages: api.KnowledgePageSummary[];
   selectedPath: string | null;
   selectedContent: string;
+  pendingEntities: Array<{ type: string; title: string; content: string }>;
   loading: boolean;
   load: () => Promise<void>;
   select: (path: string) => Promise<void>;
@@ -17,6 +18,7 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
   pages: [],
   selectedPath: null,
   selectedContent: '',
+  pendingEntities: [],
   loading: false,
 
   load: async () => {
@@ -43,7 +45,8 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
   },
 
   ingest: async (bytes, filename) => {
-    await api.knowledgeIngestFile(bytes, filename);
+    const result = await api.knowledgeIngestFile(bytes, filename);
+    set({ pendingEntities: result.entities || [] });
     await get().load();
   },
 

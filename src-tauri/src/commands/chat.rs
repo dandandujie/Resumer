@@ -269,18 +269,28 @@ pub async fn ai_chat(
                     .unwrap_or("");
                 let root = knowledge::ensure(&app).map_err(|message| CommandError { message })?;
                 match knowledge::vault::read(&root, path) {
-                    Ok(page) => {
-                        json!({ "path": path, "content": knowledge::vault::serialize_page(&page.frontmatter, &page.body) })
-                    }
+                    Ok(page) => json!({
+                        "path": path,
+                        "content": knowledge::vault::serialize_page(&page.frontmatter, &page.body)
+                    }),
                     Err(error) => json!({ "success": false, "error": error }),
                 }
             } else if tc.name == "proposeKnowledgeUpdate" {
-                json!({
-                    "proposal": true,
-                    "path": tc.arguments.get("path"),
-                    "content": tc.arguments.get("content"),
-                    "reason": tc.arguments.get("reason"),
-                })
+                let proposal_id = uuid::Uuid::new_v4().to_string();
+                let _ = app.emit(
+                    "ai-chat-event",
+                    json!({
+                        "streamId": &stream_id,
+                        "event": {
+                            "type": "knowledgeProposal",
+                            "path": tc.arguments.get("path"),
+                            "content": tc.arguments.get("content"),
+                            "reason": tc.arguments.get("reason"),
+                            "proposalId": proposal_id,
+                        }
+                    }),
+                );
+                json!({ "message": "提案已展示给用户，等待采纳。" })
             } else if tc.name == "webSearch" {
                 let query = tc
                     .arguments
