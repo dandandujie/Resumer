@@ -1,5 +1,5 @@
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use serde_json::{json, Value};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter, State};
 
 use super::CommandError;
@@ -7,8 +7,8 @@ use crate::ai::{
     self,
     provider::{AIConfig, ChatMessage},
 };
-use crate::db::repo::{analysis as analysis_repo, resume as resume_repo};
 use crate::db::AppDb;
+use crate::db::repo::{analysis as analysis_repo, resume as resume_repo};
 use crate::export::date::normalize_value_fields;
 use crate::import;
 
@@ -16,32 +16,58 @@ fn cfg_from(config: Value) -> AIConfig {
     serde_json::from_value(config).unwrap_or_default()
 }
 
-async fn prefetch_web_context(cfg: &AIConfig, query: &str) -> String {
+pub(crate) async fn prefetch_context(
+    app: &AppHandle,
+    db: &AppDb,
+    cfg: &AIConfig,
+    query: &str,
+) -> String {
+    let mut sections = Vec::new();
+    if let Ok(root) = crate::knowledge::ensure(app) {
+        if let Ok(conn) = db.conn.lock() {
+            if let Ok(hits) = crate::knowledge::fts::search(&conn, query, None, 5) {
+                if !hits.is_empty() {
+                    sections.push(format!(
+                        "本地知识库：{}",
+                        serde_json::to_string(&hits).unwrap_or_default()
+                    ));
+                }
+            }
+        }
+        let _ = root;
+    }
     if !crate::ai::search::tool_enabled(cfg) {
-        return String::new();
+        return sections.join("\n\n");
     }
     match crate::ai::search::web_search(cfg, query).await {
-        Ok(value) => value
-            .get("results")
-            .and_then(Value::as_array)
-            .map(|results| {
-                results
-                    .iter()
-                    .take(5)
-                    .filter_map(|result| {
-                        let title = result.get("title")?.as_str().unwrap_or("");
-                        let url = result.get("url").and_then(Value::as_str).unwrap_or("");
-                        let content = result.get("content").and_then(Value::as_str).unwrap_or("");
-                        Some(format!("- {title}\n  {url}\n  {content}"))
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            })
-            .unwrap_or_default(),
+        Ok(value) => {
+            let text = value
+                .get("results")
+                .and_then(Value::as_array)
+                .map(|results| {
+                    results
+                        .iter()
+                        .take(5)
+                        .filter_map(|result| {
+                            let title = result.get("title")?.as_str().unwrap_or("");
+                            let url = result.get("url").and_then(Value::as_str).unwrap_or("");
+                            let content =
+                                result.get("content").and_then(Value::as_str).unwrap_or("");
+                            Some(format!("- {title}\n  {url}\n  {content}"))
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                })
+                .unwrap_or_default();
+            if !text.is_empty() {
+                sections.push(format!("外部参考：\n{text}"));
+            }
+            sections.join("\n\n")
+        }
         Err(error) => {
             // Search is an enhancement, so a failed prefetch must not block the core AI task.
             log::warn!("web prefetch skipped: {error}");
-            String::new()
+            sections.join("\n\n")
         }
     }
 }
@@ -140,6 +166,7 @@ pub async fn ai_grammar_check(
 
 #[tauri::command]
 pub async fn ai_cover_letter(
+    app: AppHandle,
     db: State<'_, AppDb>,
     config: Value,
     resume_id: String,
@@ -172,7 +199,7 @@ pub async fn ai_cover_letter(
     let external = if company.is_empty() && role.is_empty() {
         String::new()
     } else {
-        prefetch_web_context(&cfg, &format!("{company} 公司简介 业务 招聘")).await
+        prefetch_context(&app, &db, &cfg, &format!("{company} 公司简介 业务 招聘")).await
     };
     let (system, mut prompt) =
         ai::prompts::cover_letter_prompt(&resume_ctx, job_description, &style, &lang);
@@ -202,6 +229,7 @@ pub async fn ai_cover_letter(
 
 #[tauri::command]
 pub async fn ai_jd_analysis(
+    app: AppHandle,
     db: State<'_, AppDb>,
     config: Value,
     resume_id: String,
@@ -230,7 +258,7 @@ pub async fn ai_jd_analysis(
     let external = if company.is_empty() && role.is_empty() {
         String::new()
     } else {
-        prefetch_web_context(&cfg, &format!("{company} {role} 岗位要求 面试")).await
+        prefetch_context(&app, &db, &cfg, &format!("{company} {role} 岗位要求 面试")).await
     };
     let (system, mut prompt) = ai::prompts::jd_analysis_prompt(&resume_ctx, &job_description);
     if !external.is_empty() {

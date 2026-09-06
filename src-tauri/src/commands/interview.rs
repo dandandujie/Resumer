@@ -1,14 +1,14 @@
 //! 模拟面试：不落库，前端每轮传完整历史。流式输出与 ai_chat 一致，
 //! 但用面试官人设，不带任何简历修改工具。
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter, State};
 
 use super::CommandError;
 use crate::ai::provider::{AIConfig, ChatMessage};
-use crate::ai::{prompts, search, stream};
-use crate::db::repo::resume as resume_repo;
+use crate::ai::{prompts, stream};
 use crate::db::AppDb;
+use crate::db::repo::resume as resume_repo;
 
 fn cfg_from(config: Value) -> AIConfig {
     serde_json::from_value(config).unwrap_or_default()
@@ -53,22 +53,8 @@ pub async fn interview_chat(
     let role = role.as_deref().unwrap_or("");
     let jd = jd.as_deref().unwrap_or("");
     let query = format!("{company} {role} 面试流程 面经");
-    let external = if should_prefetch && search::tool_enabled(&cfg) {
-        match search::web_search(&cfg, &query).await {
-            Ok(value) => value
-                .get("results")
-                .and_then(Value::as_array)
-                .map(|results| {
-                    serde_json::to_string(&results.iter().take(5).collect::<Vec<_>>())
-                        .unwrap_or_default()
-                })
-                .unwrap_or_default(),
-            Err(error) => {
-                // Search is an enhancement, so a failed prefetch must not block interview chat.
-                log::warn!("interview web prefetch skipped: {error}");
-                String::new()
-            }
-        }
+    let external = if should_prefetch && (!company.is_empty() || !role.is_empty()) {
+        crate::commands::ai::prefetch_context(&app, &db, &cfg, &query).await
     } else {
         String::new()
     };
@@ -79,6 +65,9 @@ pub async fn interview_chat(
         jd,
         round.as_deref().unwrap_or(""),
     );
+    if let Ok(context) = crate::knowledge::prompt_context(&app) {
+        system_prompt.push_str(&context);
+    }
     if !external.is_empty() {
         system_prompt.push_str("\n\n## 外部参考\n");
         system_prompt.push_str(&external);

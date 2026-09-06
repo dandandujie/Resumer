@@ -1,8 +1,9 @@
+mod ai;
 mod commands;
 mod db;
-mod ai;
 mod export;
 mod import;
+mod knowledge;
 
 use db::AppDb;
 use tauri::Manager;
@@ -78,6 +79,13 @@ pub fn run() {
             commands::export::export_markdown,
             commands::export::export_json,
             commands::export::export_docx,
+            commands::knowledge::knowledge_list,
+            commands::knowledge::knowledge_read,
+            commands::knowledge::knowledge_write,
+            commands::knowledge::knowledge_search,
+            commands::knowledge::knowledge_reindex,
+            commands::knowledge::knowledge_ingest_file,
+            commands::knowledge::knowledge_purpose,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

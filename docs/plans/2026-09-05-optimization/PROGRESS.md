@@ -171,3 +171,27 @@
 - JD 分析查询改为 `公司 岗位 岗位要求 面试`，求职文案查询改为 `公司 公司简介 业务 招聘`；不再把 JD 正文作为搜索词。
 - JD 分析和求职文案对话框新增公司/岗位两列小号输入，默认读取 `toolPrefill.company/role`，并在有 `sourceApplicationId` 时从投递记录补全。
 - `tauri-api.ts`、客户端 AI service、Rust Tauri 命令及中英文 i18n 已同步；`interview_chat` 保持不变。
+
+## WP6 知识库 v1
+
+- 完成项
+  - 新增 `knowledge_pages` 与 SQLite FTS5 trigram 索引迁移；单测验证 trigram 可用。
+  - 新增 Vault、索引和 FTS 模块：路径白名单拒绝 `..`，使用极简 frontmatter 解析，不引入 YAML 依赖。
+  - 初始化 `purpose.md`、`schema.md`、`index.md`、`log.md` 及知识库目录；从 `a2eb4ce` 导入 9 篇种子页，已存在页面不覆盖。
+  - 检索支持 FTS 命中、wikilink 一跳扩展、类型过滤和数量截断；写入、导入会更新 SQLite、索引和日志。
+  - 增加 `searchKnowledge`、`readKnowledge`、`proposeKnowledgeUpdate` 工具；提案仅返回待采纳内容，不直接写盘。
+  - 系统提示词注入 `purpose.md` 前 2KB 与 `index.md` 前 60 行；JD、文案和面试预检索统一合并本地知识库与 WP5 外部搜索。
+  - 新增 `/knowledge` 三栏页面、导航、知识库 store、页面编辑/目的表编辑、资料上传 ingest 和页面元信息展示。
+- 未完成项与原因
+  - 未使用真实桌面入口执行页面视觉、触控和上传人工验收；当前环境无可复现桌面验收入口。
+  - 未使用真实联网凭据执行外部搜索人工验收；沿用 WP5 的降级策略。
+  - `proposeKnowledgeUpdate` 后续可在现有提案卡具备知识页专用回滚/采纳语义后接入；当前后端已保证提案不写盘。
+- 验收结果
+  - `pnpm type-check`：通过。
+  - `pnpm lint`：通过，0 error、33 warnings（既有告警）。
+  - `(cd src-tauri && cargo test)`：通过，21 个测试全部通过，包含 trigram 单测。
+  - `pnpm build:vite`：通过；保留既有动态/静态导入及大 chunk 警告。
+- 决策记录
+  - 采用标准库文件操作和手写 frontmatter，跳过 `serde_yaml` 与额外 Markdown/索引依赖。
+  - 上传资料保存为 `raw/` 原文并生成 `wiki/sources/` 页面，内容截断为 4000 字符，避免首版无限制膨胀。
+  - 知识库搜索每次先确保初始化并重建索引，优先保证数据一致性；规模扩大后再引入增量索引。

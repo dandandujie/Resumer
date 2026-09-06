@@ -52,6 +52,7 @@ function WhaleSidebar() {
   const tSettings = useTranslations('settings');
   const isDashboard = pathname === '/dashboard';
   const isInsights = pathname.startsWith('/insights');
+  const isKnowledge = pathname.startsWith('/knowledge');
 
   const localePrefix = rawPathname.split('/')[1] || 'zh';
   const goTo = (path: string) => () => navigate(`/${localePrefix}${path}`);
@@ -59,6 +60,7 @@ function WhaleSidebar() {
   const items: { icon: typeof LayoutDashboard; label: string; onClick: () => void; active?: boolean }[] = [
     { icon: LayoutDashboard, label: t('nav'), onClick: goTo('/dashboard'), active: isDashboard },
     { icon: BookOpenCheck, label: t('journalTitle'), onClick: goTo('/insights'), active: isInsights },
+    { icon: BookOpenCheck, label: '知识库', onClick: goTo('/knowledge'), active: isKnowledge },
     { icon: Settings, label: tSettings('title'), onClick: () => openModal('settings') },
   ];
 

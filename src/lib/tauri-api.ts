@@ -170,6 +170,41 @@ export async function duplicateResume(id: string) {
   return invoke<string>('duplicate_resume', { id, userId });
 }
 
+// ── 知识库 ──
+
+export interface KnowledgePageSummary {
+  path: string;
+  title: string;
+  type: string;
+  tags: string[];
+  summary: string;
+  updated: string;
+}
+
+export async function knowledgeList(type?: string) {
+  return invoke<KnowledgePageSummary[]>('knowledge_list', { kind: type });
+}
+
+export async function knowledgeRead(path: string) {
+  return invoke<string>('knowledge_read', { path });
+}
+
+export async function knowledgeWrite(path: string, content: string) {
+  return invoke<void>('knowledge_write', { path, content });
+}
+
+export async function knowledgeSearch(query: string, type?: string, limit = 8) {
+  return invoke<any[]>('knowledge_search', { query, kind: type, limit });
+}
+
+export async function knowledgeReindex() {
+  return invoke<number>('knowledge_reindex');
+}
+
+export async function knowledgeIngestFile(bytes: number[], filename: string) {
+  return invoke<KnowledgePageSummary>('knowledge_ingest_file', { bytes, filename });
+}
+
 // ── 用户设置 ──
 
 export async function getSettings() {

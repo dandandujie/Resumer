@@ -13,6 +13,7 @@ import DashboardPage from '@/pages/dashboard';
 import InsightsOverviewPage from '@/pages/insights-overview';
 import EditorPage from '@/pages/editor';
 import PreviewPage from '@/pages/preview';
+import KnowledgePage from '@/pages/knowledge';
 
 // Resolve the user's preferred locale (persisted by i18next) instead of
 // hardcoding zh, so English users land on English routes after a restart.
@@ -64,6 +65,7 @@ export function AppRouter() {
         <Route element={<WhaleDashboardShell />}>
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="insights" element={<InsightsOverviewPage />} />
+          <Route path="knowledge" element={<KnowledgePage />} />
         </Route>
 
         {/* Editor */}

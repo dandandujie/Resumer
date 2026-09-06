@@ -1,11 +1,12 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter, State};
 
 use super::CommandError;
 use crate::ai::provider::{AIConfig, ChatMessage, ToolCall};
 use crate::ai::{prompts, search, stream, tools};
-use crate::db::repo::{chat as chat_repo, journal as journal_repo, resume as resume_repo};
 use crate::db::AppDb;
+use crate::db::repo::{chat as chat_repo, journal as journal_repo, resume as resume_repo};
+use crate::knowledge;
 
 const MAX_ROUNDS: usize = 10;
 const MAX_STEPS: usize = 25;
@@ -146,10 +147,13 @@ pub async fn ai_chat(
         )
     };
 
-    let system_prompt = prompts::with_response_format(prompts::get_system_prompt(
+    let mut system_prompt = prompts::with_response_format(prompts::get_system_prompt(
         &resume_context,
         &applications_context,
     ));
+    if let Ok(context) = knowledge::prompt_context(&app) {
+        system_prompt.push_str(&context);
+    }
     let tool_specs = tools::tool_specs(search::tool_enabled(&cfg));
 
     let mut chat_msgs: Vec<ChatMessage> = messages
@@ -237,7 +241,47 @@ pub async fn ai_chat(
 
         let mut tool_results: Vec<(ToolCall, Value)> = Vec::new();
         for tc in &res.tool_calls {
-            let result = if tc.name == "webSearch" {
+            let result = if tc.name == "searchKnowledge" {
+                let query = tc
+                    .arguments
+                    .get("query")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let kind = tc.arguments.get("type").and_then(|v| v.as_str());
+                let limit = tc
+                    .arguments
+                    .get("limit")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(8) as usize;
+                knowledge::ensure(&app).map_err(|message| CommandError { message })?;
+                let conn = db.conn.lock().map_err(|e| CommandError {
+                    message: e.to_string(),
+                })?;
+                match knowledge::fts::search(&conn, query, kind, limit) {
+                    Ok(hits) => serde_json::to_value(hits).unwrap_or_else(|_| json!([])),
+                    Err(error) => json!({ "success": false, "error": error }),
+                }
+            } else if tc.name == "readKnowledge" {
+                let path = tc
+                    .arguments
+                    .get("path")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let root = knowledge::ensure(&app).map_err(|message| CommandError { message })?;
+                match knowledge::vault::read(&root, path) {
+                    Ok(page) => {
+                        json!({ "path": path, "content": knowledge::vault::serialize_page(&page.frontmatter, &page.body) })
+                    }
+                    Err(error) => json!({ "success": false, "error": error }),
+                }
+            } else if tc.name == "proposeKnowledgeUpdate" {
+                json!({
+                    "proposal": true,
+                    "path": tc.arguments.get("path"),
+                    "content": tc.arguments.get("content"),
+                    "reason": tc.arguments.get("reason"),
+                })
+            } else if tc.name == "webSearch" {
                 let query = tc
                     .arguments
                     .get("query")

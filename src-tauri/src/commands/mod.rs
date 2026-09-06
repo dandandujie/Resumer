@@ -5,6 +5,7 @@ pub mod chat;
 pub mod export;
 pub mod interview;
 pub mod journal;
+pub mod knowledge;
 
 use serde::Serialize;
 

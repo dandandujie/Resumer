@@ -1,5 +1,5 @@
 use rusqlite::Connection;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::provider::ToolSpec;
 use crate::db::repo::resume as resume_repo;
@@ -70,6 +70,43 @@ pub fn tool_specs(web_search_enabled: bool) -> Vec<ToolSpec> {
             }),
         },
     ];
+    specs.extend([
+        ToolSpec {
+            name: "searchKnowledge".into(),
+            description: "搜索本地知识库，返回相关页面和摘要。".into(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "query": { "type": "string" },
+                    "type": { "type": "string" },
+                    "limit": { "type": "integer" }
+                },
+                "required": ["query"]
+            }),
+        },
+        ToolSpec {
+            name: "readKnowledge".into(),
+            description: "读取本地知识库页面全文。".into(),
+            parameters: json!({
+                "type": "object",
+                "properties": { "path": { "type": "string" } },
+                "required": ["path"]
+            }),
+        },
+        ToolSpec {
+            name: "proposeKnowledgeUpdate".into(),
+            description: "提出知识库页面修改建议，不会直接写盘，等待用户采纳。".into(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" },
+                    "content": { "type": "string" },
+                    "reason": { "type": "string" }
+                },
+                "required": ["path", "content", "reason"]
+            }),
+        },
+    ]);
     if web_search_enabled {
         specs.push(ToolSpec {
             name: "webSearch".into(),
