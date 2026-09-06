@@ -1,6 +1,19 @@
 import { create } from 'zustand';
+import { listen } from '@tauri-apps/api/event';
 import { generateId } from '@/lib/utils';
 import * as api from '@/lib/tauri-api';
+
+export interface ReflectionState {
+  status: 'running' | 'done' | 'error';
+  result?: api.ReflectOutput;
+  error?: string;
+}
+
+export interface KnowledgeProposal {
+  path: string;
+  content: string;
+  reason: string;
+}
 
 /* ────────────────────────────────────────────────────────────────────────────
    求职动态：以「投递」为中心的数据模型。
@@ -264,9 +277,13 @@ interface JournalStore {
   setOutcome: (appId: string, outcome: Outcome | null) => void;
   addMock: (data: Omit<MockInterview, 'id' | 'createdAt'>) => Promise<MockInterview>;
   removeMock: (id: string) => Promise<void>;
+  reflections: Record<string, ReflectionState>;
+  knowledgeProposals: Record<string, KnowledgeProposal[]>;
+  reflectApplication: (id: string) => Promise<void>;
 }
 
 let hydratePromise: Promise<void> | null = null;
+let proposalListenerStarted = false;
 const persistTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 /** 文本框逐字输入会高频触发更新；按投递 id 合并写库。 */
@@ -292,6 +309,8 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
   applications: [],
   mocks: [],
   loaded: false,
+  reflections: {},
+  knowledgeProposals: {},
 
   hydrate: () => {
     if (hydratePromise) return hydratePromise;
@@ -300,6 +319,23 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
         await migrateLegacyStorage();
       } catch (err) {
         console.error('Legacy journal migration failed:', err);
+      }
+      if (!proposalListenerStarted) {
+        proposalListenerStarted = true;
+        void listen<any>('ai-chat-event', (event) => {
+          const item = event.payload?.event;
+          if (item?.type !== 'knowledgeProposal' || !item.applicationId) return;
+          set((state) => ({
+            knowledgeProposals: {
+              ...state.knowledgeProposals,
+              [item.applicationId]: [...(state.knowledgeProposals[item.applicationId] || []), {
+                path: item.path,
+                content: item.content,
+                reason: item.reason,
+              }],
+            },
+          }));
+        });
       }
       try {
         const [apps, mocks] = await Promise.all([api.listApplications(), api.listMockInterviews()]);
@@ -416,10 +452,20 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
   addMock: async (data) => {
     const saved = await api.createMockInterview({ ...data, id: generateId(), createdAt: 0 });
     set((state) => ({ mocks: [saved, ...state.mocks] }));
-    if (saved.applicationId && window.confirm('是否复盘并沉淀这次模拟面试？')) {
-      void api.knowledgeReflect(saved.applicationId);
-    }
     return saved;
+  },
+
+  reflectApplication: async (id) => {
+    set((state) => ({ reflections: { ...state.reflections, [id]: { status: 'running' } } }));
+    try {
+      const result = await api.knowledgeReflect(id);
+      set((state) => ({ reflections: { ...state.reflections, [id]: { status: 'done', result } } }));
+    } catch (error) {
+      const message = String((error as Error)?.message || error);
+      set((state) => ({ reflections: { ...state.reflections, [id]: { status: 'error', error: message } } }));
+      const { logError } = await import('@/stores/error-log-store');
+      logError('复盘失败', message);
+    }
   },
 
   removeMock: async (id) => {

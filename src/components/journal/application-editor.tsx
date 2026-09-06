@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { listen } from '@tauri-apps/api/event';
 import { useLocale, useTranslations } from 'next-intl';
 import { ChevronDown, FileSearch, MessagesSquare, PenLine, Plus, Trash2 } from 'lucide-react';
 import { useRouter } from '@/i18n/routing';
@@ -10,6 +9,10 @@ import { KnowledgeProposalCard } from '@/components/ai/ai-proposal-card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
@@ -88,27 +91,18 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool }
   const setOutcome = useJournalStore((s) => s.setOutcome);
   const removeMock = useJournalStore((s) => s.removeMock);
   const mocks = useJournalStore((s) => s.mocks);
+  const reflection = useJournalStore((s) => s.reflections[app.id]);
+  const proposals = useJournalStore((s) => s.knowledgeProposals[app.id] || []);
+  const reflectApplication = useJournalStore((s) => s.reflectApplication);
   const launch = useLaunchResumeTool(onBeforeLaunchTool);
   const [jdExpanded, setJdExpanded] = useState(false);
-  const [proposals, setProposals] = useState<Array<{ path: string; content: string; reason: string }>>([]);
-
-  useEffect(() => {
-    let stop: (() => void) | undefined;
-    void listen<any>('ai-chat-event', (event) => {
-      if (event.payload?.event?.type === 'knowledgeProposal') {
-        setProposals((items) => [...items, event.payload.event]);
-      }
-    }).then((unlisten) => { stop = unlisten; });
-    return () => stop?.();
-  }, []);
+  const [confirmReflect, setConfirmReflect] = useState(false);
 
   const set = (patch: Partial<Application>) => update(app.id, patch);
   const saveOutcome = (result: OutcomeResult | null) => {
     const next = result ? { ...(app.outcome || {}), result } : null;
     setOutcome(app.id, next);
-    if (next && window.confirm('是否复盘并沉淀这次投递？')) {
-      void api.knowledgeReflect(app.id);
-    }
+    if (next) setConfirmReflect(true);
   };
   const linkedMocks = useMemo(() => mocks.filter((m) => m.applicationId === app.id), [mocks, app.id]);
   const resumeMissing = !!resumes && !!app.resumeId && !resumes.some((r) => r.id === app.resumeId);
@@ -116,6 +110,21 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool }
 
   return (
     <div className="space-y-4">
+      <AlertDialog open={confirmReflect} onOpenChange={setConfirmReflect}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('reflectConfirmTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('reflectConfirmDescription')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void reflectApplication(app.id)}>{t('reflectConfirmAction')}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      {reflection?.status === 'running' && <p className="rounded-md bg-muted p-2 text-xs">{t('reflecting')}</p>}
+      {reflection?.status === 'error' && <p className="rounded-md bg-red-50 p-2 text-xs text-red-700">{reflection.error}</p>}
+      {reflection?.status === 'done' && <ReflectionResult result={reflection.result!} />}
       {proposals.map((proposal, index) => (
         <KnowledgeProposalCard key={`${proposal.path}-${index}`} {...proposal} />
       ))}
@@ -310,6 +319,21 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool }
         </section>
       )}
     </div>
+  );
+}
+
+function ReflectionResult({ result }: { result: api.ReflectOutput }) {
+  const t = useTranslations('journal');
+  return (
+    <section className="space-y-2 rounded-lg border border-[var(--whale-divider)] bg-[var(--whale-cream-soft)] p-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-[13px] font-semibold">{t('reflectionResult')}</h3>
+        <a className="text-xs underline" href={`/knowledge?path=${encodeURIComponent(result.experiencePage.path)}`}>
+          {t('openExperiencePage')}
+        </a>
+      </div>
+      <ul className="list-disc space-y-1 pl-4 text-xs">{result.insights.map((item) => <li key={item}>{item}</li>)}</ul>
+    </section>
   );
 }
 

@@ -206,8 +206,14 @@ export async function knowledgeGraph() {
   return invoke<KnowledgeGraphData>('knowledge_graph');
 }
 
+export interface ReflectOutput {
+  experiencePage: { path: string; content: string };
+  proposals: Array<{ path: string; newContent: string; reason: string }>;
+  insights: string[];
+}
+
 export async function knowledgeReflect(applicationId: string) {
-  return invoke<any>('knowledge_reflect', { applicationId, config: getAIConfig() });
+  return invoke<ReflectOutput>('knowledge_reflect', { applicationId, config: getAIConfig() });
 }
 
 export async function knowledgeStrategyReview() {

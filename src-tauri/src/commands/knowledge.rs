@@ -111,7 +111,7 @@ pub fn knowledge_graph(app: AppHandle) -> Result<knowledge::graph::KnowledgeGrap
     knowledge::graph::build(&root).map_err(error)
 }
 
-fn emit_proposals(app: &AppHandle, proposals: &[knowledge::KnowledgeProposal]) {
+fn emit_proposals(app: &AppHandle, proposals: &[knowledge::KnowledgeProposal], application_id: Option<&str>) {
     for proposal in proposals {
         let _ = app.emit(
             "ai-chat-event",
@@ -122,7 +122,8 @@ fn emit_proposals(app: &AppHandle, proposals: &[knowledge::KnowledgeProposal]) {
                     "path": proposal.path,
                     "content": proposal.new_content,
                     "reason": proposal.reason,
-                    "proposalId": uuid::Uuid::new_v4().to_string()
+                    "proposalId": uuid::Uuid::new_v4().to_string(),
+                    "applicationId": application_id
                 }
             }),
         );
@@ -194,7 +195,7 @@ pub async fn knowledge_reflect(
     let (system, prompt) = prompts::knowledge_reflect_prompt(&context);
     let raw = generate_json(config, system, prompt).await.map_err(error)?;
     let output = knowledge::reflect_from_json(&root, &raw).map_err(error)?;
-    emit_proposals(&app, &output.proposals);
+    emit_proposals(&app, &output.proposals, Some(&application_id));
     Ok(output)
 }
 
@@ -251,7 +252,7 @@ pub async fn knowledge_strategy_review(
             })
         })?;
     knowledge::write_strategy(&root, &output).map_err(error)?;
-    emit_proposals(&app, std::slice::from_ref(&output.purpose_proposal));
+    emit_proposals(&app, std::slice::from_ref(&output.purpose_proposal), None);
     Ok(output)
 }
 

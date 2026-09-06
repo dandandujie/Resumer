@@ -268,6 +268,9 @@
     "toolResult": "执行结果",
     "proposalAccept": "采纳",
     "proposalReject": "撤销",
+    "knowledgeProposal": "知识库提案",
+    "knowledgeProposalReason": "原因：{reason}",
+    "knowledgeProposalAccepted": "已采纳",
     "proposalAccepted": "已采纳",
     "proposalRejected": "已撤销",
     "proposalRejectFailed": "撤销失败，请重试",
@@ -583,7 +586,13 @@
     "fieldTopicsPlaceholder": "如 系统设计、项目深挖、行为题",
     "roundsCount": "{count} 轮面试",
     "mocksHint": "左侧是这份简历的模拟面试存档，点击可展开面试官反馈与完整对话。",
-    "deleteConfirmTitle": "删除这条投递记录？"
+    "deleteConfirmTitle": "删除这条投递记录？",
+    "reflectConfirmTitle": "复盘这次投递？",
+    "reflectConfirmDescription": "将根据投递、面试和简历信息生成经验与洞察。",
+    "reflectConfirmAction": "开始复盘",
+    "reflecting": "复盘中…",
+    "reflectionResult": "复盘结果",
+    "openExperiencePage": "打开经验页"
   },
   "export": {
     "title": "导出简历",

@@ -193,6 +193,7 @@ export function KnowledgeProposalCard({
   reason: string;
 }) {
   const [accepted, setAccepted] = useState(false);
+  const t = useTranslations('ai');
   const [saving, setSaving] = useState(false);
   const accept = async () => {
     setSaving(true);
@@ -205,20 +206,20 @@ export function KnowledgeProposalCard({
   };
   return (
     <div className="my-2 rounded-xl border border-[var(--whale-divider)] bg-[var(--whale-cream-soft)] px-3 py-2">
-      <div className="text-[12px] font-semibold text-[var(--whale-ink)]">知识库提案</div>
+      <div className="text-[12px] font-semibold text-[var(--whale-ink)]">{t('knowledgeProposal')}</div>
       <div className="mt-1 truncate text-[11px] text-[var(--whale-ink-muted)]">{path}</div>
-      <div className="mt-1 text-[11px] text-[var(--whale-ink-soft)]">原因：{reason}</div>
+      <div className="mt-1 text-[11px] text-[var(--whale-ink-soft)]">{t('knowledgeProposalReason', { reason })}</div>
       <div className="mt-2 line-clamp-3 whitespace-pre-wrap text-[11px] text-[var(--whale-ink-muted)]">{content}</div>
       <div className="mt-2 flex justify-end gap-1">
         {accepted ? (
-          <span className="text-[11px] text-[var(--whale-mint-deep)]">已采纳</span>
+          <span className="text-[11px] text-[var(--whale-mint-deep)]">{t('knowledgeProposalAccepted')}</span>
         ) : (
           <>
             <button type="button" className="rounded-md border px-2 py-1 text-[11px]" onClick={() => setAccepted(true)}>
-              <Undo2 className="mr-1 inline h-3 w-3" />撤销
+              <Undo2 className="mr-1 inline h-3 w-3" />{t('proposalReject')}
             </button>
             <button type="button" className="rounded-md bg-[var(--whale-ink)] px-2 py-1 text-[11px] text-white" onClick={() => void accept()} disabled={saving}>
-              <Check className="mr-1 inline h-3 w-3" />采纳
+              <Check className="mr-1 inline h-3 w-3" />{t('proposalAccept')}
             </button>
           </>
         )}
