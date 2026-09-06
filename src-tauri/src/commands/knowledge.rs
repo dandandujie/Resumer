@@ -104,6 +104,12 @@ pub async fn knowledge_ingest_file(
 }
 
 #[tauri::command]
+pub fn knowledge_graph(app: AppHandle) -> Result<knowledge::graph::KnowledgeGraph, CommandError> {
+    let root = knowledge::ensure(&app).map_err(error)?;
+    knowledge::graph::build(&root).map_err(error)
+}
+
+#[tauri::command]
 pub fn knowledge_purpose(app: AppHandle) -> Result<String, CommandError> {
     let root = knowledge::ensure(&app).map_err(error)?;
     std::fs::read_to_string(root.join("purpose.md"))

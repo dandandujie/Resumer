@@ -193,8 +193,17 @@ export async function knowledgeWrite(path: string, content: string) {
   return invoke<void>('knowledge_write', { path, content });
 }
 
+export interface KnowledgeGraphData {
+  nodes: Array<{ id: string; title: string; type: string }>;
+  edges: Array<{ source: string; target: string; type: string }>;
+}
+
 export async function knowledgeSearch(query: string, type?: string, limit = 8) {
   return invoke<any[]>('knowledge_search', { query, kind: type, limit });
+}
+
+export async function knowledgeGraph() {
+  return invoke<KnowledgeGraphData>('knowledge_graph');
 }
 
 export async function knowledgeReindex() {

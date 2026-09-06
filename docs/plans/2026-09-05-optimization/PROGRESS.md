@@ -204,3 +204,23 @@
 - 索引更新改为启动、写入/导入和手动重建时执行，搜索只读现有 FTS 表。
 - `purpose.md` 新增目标岗位、期望城市、目标行业、硬约束和其他字段的表单化编辑与 Markdown 序列化。
 - 新增 Markdown ingest 完整路径测试；LLM 摘要通过生成器函数注入，测试不访问网络。
+
+## WP7 图谱与看板
+
+- 完成项
+  - 新增 `knowledge_graph` Rust 命令，返回知识页节点和 wikilink、source、related 边；增加公司名归一化函数及断言测试。
+  - 仅新增前端依赖 `d3-force`；新增 canvas 图谱，支持按类型着色、邻居高亮、节点拖动、画布平移缩放和点击跳转。
+  - 知识库页面增加列表/图谱切换，图谱合并知识页、投递、面试和简历节点及关联边。
+  - 求职动态页增加列表/看板/图谱切换；看板按 `APPLICATION_STATUSES` 分列，复用 dnd-kit 跨列拖拽并写回投递状态。
+  - 公司与岗位关联使用去空白、去常见后缀后的归一化名称比较。
+- 未完成项与原因
+  - 未进行真实桌面图谱性能、触控拖拽和视觉人工验收；当前环境无可复现桌面入口。
+  - 图谱节点规模没有真实 200 节点样本，保留 canvas + d3-force 的轻量实现。
+- 验收结果
+  - `pnpm type-check`：通过。
+  - `pnpm lint`：通过，0 error、35 warnings（既有告警）。
+  - `(cd src-tauri && cargo test)`：通过，23 个测试全部通过，包含公司名归一化测试。
+  - `pnpm build:vite`：通过；保留既有动态/静态导入及 chunk 大小警告。
+- 决策记录
+  - 不引入 sigma、graphology 或 WebGL 库；canvas 负责绘制，d3-force 只负责布局。
+  - 投递和面试图谱节点在前端由 journal-store 合并，避免新增 Rust 跨域查询接口。

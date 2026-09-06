@@ -89,6 +89,7 @@ pub fn run() {
             commands::knowledge::knowledge_search,
             commands::knowledge::knowledge_reindex,
             commands::knowledge::knowledge_ingest_file,
+            commands::knowledge::knowledge_graph,
             commands::knowledge::knowledge_purpose,
         ])
         .run(tauri::generate_context!())

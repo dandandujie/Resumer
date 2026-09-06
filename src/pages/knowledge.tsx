@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from '@/i18n/routing';
 import ReactMarkdown from 'react-markdown';
 import { BookOpen, FilePlus, RefreshCw, Save, Search } from 'lucide-react';
 import { useKnowledgeStore } from '@/stores/knowledge-store';
+import { KnowledgeGraph } from '@/components/graph/knowledge-graph';
+import { mergeKnowledgeGraph } from '@/lib/knowledge-graph';
+import * as api from '@/lib/tauri-api';
+import { useJournalStore } from '@/stores/journal-store';
+import { useResume } from '@/hooks/use-resume';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,10 +18,25 @@ export default function KnowledgePage() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [purpose, setPurpose] = useState({ role: '', city: '', industry: '', constraints: '', other: '' });
+  const [view, setView] = useState<'list' | 'graph'>('list');
+  const [graph, setGraph] = useState<api.KnowledgeGraphData>({ nodes: [], edges: [] });
+  const router = useRouter();
+  const applications = useJournalStore((state) => state.applications);
+  const mocks = useJournalStore((state) => state.mocks);
+  const hydrateJournal = useJournalStore((state) => state.hydrate);
+  const { resumes, fetchResumes } = useResume();
 
   useEffect(() => {
     void load();
-  }, [load]);
+    void hydrateJournal();
+    void fetchResumes();
+    void api.knowledgeGraph().then(setGraph);
+  }, [fetchResumes, hydrateJournal, load]);
+
+  const mergedGraph = useMemo(
+    () => mergeKnowledgeGraph(graph, applications, mocks, resumes),
+    [applications, graph, mocks, resumes],
+  );
 
   const filtered = useMemo(
     () => pages.filter((page) => `${page.title} ${page.path} ${page.summary}`.toLowerCase().includes(query.toLowerCase())),
@@ -63,6 +84,13 @@ export default function KnowledgePage() {
           <BookOpen className="h-5 w-5" />
           <h1 className="text-lg font-semibold">知识库</h1>
         </div>
+        <div className="flex items-center gap-1 rounded-lg border border-[var(--whale-divider)] p-0.5">
+          {(['list', 'graph'] as const).map((item) => (
+            <button key={item} type="button" onClick={() => setView(item)} className={`rounded-md px-2.5 py-1 text-xs ${view === item ? 'bg-[var(--whale-ink)] text-[var(--whale-cream)]' : 'text-muted-foreground'}`}>
+              {item === 'list' ? '列表' : '图谱'}
+            </button>
+          ))}
+        </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
             <RefreshCw className="mr-1.5 h-3.5 w-3.5" />重新索引
@@ -73,7 +101,18 @@ export default function KnowledgePage() {
           </label>
         </div>
       </div>
-      <div className="grid min-h-0 flex-1 grid-cols-[220px_minmax(0,1fr)_240px]">
+      {view === 'graph' ? (
+        <div className="min-h-0 flex-1 p-4">
+          <KnowledgeGraph
+            nodes={mergedGraph.nodes}
+            edges={mergedGraph.edges}
+            onNodeClick={(node) => {
+              if (node.id.startsWith('application:') || node.id.startsWith('interview:')) router.push('/insights');
+              else if (node.id.startsWith('wiki/')) void select(node.id);
+            }}
+          />
+        </div>
+      ) : <div className="grid min-h-0 flex-1 grid-cols-[220px_minmax(0,1fr)_240px]">
         <aside className="min-h-0 overflow-y-auto border-r border-[var(--whale-divider)] p-3">
           <div className="relative mb-3">
             <Search className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
@@ -155,7 +194,7 @@ export default function KnowledgePage() {
             </dl>
           ) : <p className="text-muted-foreground">暂无页面</p>}
         </aside>
-      </div>
+      </div>}
     </div>
   );
 }

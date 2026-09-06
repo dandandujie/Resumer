@@ -1,0 +1,138 @@
+use std::collections::{HashMap, HashSet};
+use std::path::Path;
+
+use serde::Serialize;
+
+use super::vault;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GraphNode {
+    pub id: String,
+    pub title: String,
+    #[serde(rename = "type")]
+    pub node_type: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GraphEdge {
+    pub source: String,
+    pub target: String,
+    #[serde(rename = "type")]
+    pub edge_type: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct KnowledgeGraph {
+    pub nodes: Vec<GraphNode>,
+    pub edges: Vec<GraphEdge>,
+}
+
+#[allow(dead_code)]
+pub fn normalize_company(value: &str) -> String {
+    let suffixes = [
+        "有限公司",
+        "有限责任公司",
+        "股份有限公司",
+        "股份",
+        "集团",
+        "科技",
+    ];
+    let mut value = value
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect::<String>();
+    for suffix in suffixes {
+        if let Some(trimmed) = value.strip_suffix(suffix) {
+            value = trimmed.to_string();
+        }
+    }
+    value.to_lowercase()
+}
+
+pub fn build(root: &Path) -> Result<KnowledgeGraph, String> {
+    let paths = vault::list(root)?
+        .into_iter()
+        .filter(|path| path.starts_with("wiki/"))
+        .collect::<Vec<_>>();
+    let pages = paths
+        .iter()
+        .map(|path| vault::read(root, path).map(|page| (path.clone(), page)))
+        .collect::<Result<Vec<_>, _>>()?;
+    let known = pages
+        .iter()
+        .map(|(path, _)| path.as_str())
+        .collect::<HashSet<_>>();
+    let source_pages = pages
+        .iter()
+        .flat_map(|(path, page)| {
+            page.frontmatter
+                .sources
+                .iter()
+                .map(move |source| (source, path))
+        })
+        .collect::<HashMap<_, _>>();
+    let nodes = pages
+        .iter()
+        .map(|(path, page)| GraphNode {
+            id: path.clone(),
+            title: page.frontmatter.title.clone(),
+            node_type: page.frontmatter.page_type.clone(),
+        })
+        .collect::<Vec<_>>();
+    let mut edges = Vec::new();
+    for (path, page) in &pages {
+        for target in wikilinks(&page.body) {
+            if known.contains(target.as_str()) {
+                edges.push(GraphEdge {
+                    source: path.clone(),
+                    target,
+                    edge_type: "wikilink".into(),
+                });
+            }
+        }
+        for related in &page.frontmatter.related {
+            if known.contains(related.as_str()) {
+                edges.push(GraphEdge {
+                    source: path.clone(),
+                    target: related.clone(),
+                    edge_type: "related".into(),
+                });
+            }
+        }
+        for source in &page.frontmatter.sources {
+            if let Some(source_page) = source_pages.get(source) {
+                edges.push(GraphEdge {
+                    source: (*source_page).clone(),
+                    target: path.clone(),
+                    edge_type: "source".into(),
+                });
+            }
+        }
+    }
+    Ok(KnowledgeGraph { nodes, edges })
+}
+
+fn wikilinks(body: &str) -> Vec<String> {
+    body.split("[[")
+        .skip(1)
+        .filter_map(|part| part.split("]]").next())
+        .map(str::trim)
+        .filter(|path| path.starts_with("wiki/") && path.ends_with(".md"))
+        .map(str::to_string)
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_company;
+
+    #[test]
+    fn normalizes_company_suffix_and_whitespace() {
+        assert_eq!(
+            normalize_company("北京 字节跳动科技有限公司"),
+            "北京字节跳动"
+        );
+        assert_eq!(normalize_company("星河股份"), "星河");
+        assert_eq!(normalize_company("ACME 集团"), "acme");
+    }
+}

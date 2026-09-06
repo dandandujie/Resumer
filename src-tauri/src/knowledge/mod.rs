@@ -1,4 +1,5 @@
 pub mod fts;
+pub mod graph;
 pub mod index;
 pub mod vault;
 

@@ -50,9 +50,14 @@ import {
 import { ApplicationEditor } from '@/components/journal/application-editor';
 import { FORMAT_KEY, STATUS_KEY, formatDateTime, statusTone } from '@/components/journal/journal-labels';
 import { cn } from '@/lib/utils';
+import * as api from '@/lib/tauri-api';
+import { KnowledgeGraph } from '@/components/graph/knowledge-graph';
+import { ApplicationKanban } from '@/components/journal/application-kanban';
+import { mergeKnowledgeGraph } from '@/lib/knowledge-graph';
 
 type FilterKey = 'all' | 'open' | 'interview' | 'offer' | 'closed' | 'overdue';
 type SortMode = 'updated' | 'applied';
+type InsightsView = 'list' | 'kanban' | 'graph';
 
 const STATUS_OPTIONS: ApplicationStatus[] = ['submitted', 'screening', 'interview', 'offer', 'rejected', 'declined', 'ghosted'];
 const ALL_RESUMES = '__all__';
@@ -101,12 +106,15 @@ export default function InsightsOverviewPage() {
   const [sortMode, setSortMode] = useState<SortMode>('updated');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Application | null>(null);
+  const [view, setView] = useState<InsightsView>('list');
+  const [graph, setGraph] = useState<api.KnowledgeGraphData>({ nodes: [], edges: [] });
 
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
   useEffect(() => {
     void fetchResumes();
+    void api.knowledgeGraph().then(setGraph);
   }, [fetchResumes]);
 
   const resumeMap = useMemo(() => new Map(resumes.map((r) => [r.id, r.title])), [resumes]);
@@ -114,6 +122,11 @@ export default function InsightsOverviewPage() {
   const agg = useMemo(() => aggregateJournal(applications), [applications]);
   const agenda = useMemo(() => buildAgenda(applications), [applications]);
   const selected = applications.find((a) => a.id === selectedId) || null;
+  const mocks = useJournalStore((state) => state.mocks);
+  const mergedGraph = useMemo(
+    () => mergeKnowledgeGraph(graph, applications, mocks, resumes),
+    [applications, graph, mocks, resumes],
+  );
 
   const filtered = useMemo(() => {
     const keyword = query.trim().toLowerCase();
@@ -200,8 +213,29 @@ export default function InsightsOverviewPage() {
         </Select>
       </section>
 
-      {/* 列表 */}
-      <section className="overflow-hidden rounded-2xl bg-[var(--whale-card)] shadow-[0_0_0_1px_var(--whale-divider)]">
+      <div className="flex items-center justify-end gap-1 rounded-lg border border-[var(--whale-divider)] p-0.5">
+        {(['list', 'kanban', 'graph'] as const).map((item) => (
+          <button key={item} type="button" onClick={() => setView(item)} className={`rounded-md px-3 py-1.5 text-xs ${view === item ? 'bg-[var(--whale-ink)] text-[var(--whale-cream)]' : 'text-[var(--whale-ink-muted)]'}`}>
+            {item === 'list' ? '列表' : item === 'kanban' ? '看板' : '图谱'}
+          </button>
+        ))}
+      </div>
+
+      {view === 'graph' ? (
+        <KnowledgeGraph
+          nodes={mergedGraph.nodes}
+          edges={mergedGraph.edges}
+          onNodeClick={(node) => node.id.startsWith('application:') && setSelectedId(node.id.slice('application:'.length))}
+        />
+      ) : view === 'kanban' ? (
+        <div className="overflow-x-auto rounded-2xl bg-[var(--whale-card)] p-3 shadow-[0_0_0_1px_var(--whale-divider)]">
+          <ApplicationKanban
+            applications={applications}
+            onOpen={setSelectedId}
+            onStatusChange={(id, status) => void updateApplication(id, { status })}
+          />
+        </div>
+      ) : <section className="overflow-hidden rounded-2xl bg-[var(--whale-card)] shadow-[0_0_0_1px_var(--whale-divider)]">
         <div className="flex items-center justify-between gap-3 border-b border-[var(--whale-divider)] px-4 py-2.5">
           <label className="relative w-full max-w-[300px]">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--whale-ink-muted)]" />
@@ -259,7 +293,7 @@ export default function InsightsOverviewPage() {
             ))}
           </ul>
         )}
-      </section>
+      </section>}
 
       {/* 详情抽屉 */}
       <Sheet open={!!selected} onOpenChange={(open) => !open && setSelectedId(null)}>
