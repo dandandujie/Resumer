@@ -118,12 +118,16 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool }
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void reflectApplication(app.id)}>{t('reflectConfirmAction')}</AlertDialogAction>
+            <AlertDialogAction onClick={() => void reflectApplication(app.id)}>
+              {t('reflectConfirmAction')}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
       {reflection?.status === 'running' && <p className="rounded-md bg-muted p-2 text-xs">{t('reflecting')}</p>}
-      {reflection?.status === 'error' && <p className="rounded-md bg-red-50 p-2 text-xs text-red-700">{reflection.error}</p>}
+      {reflection?.status === 'error' && (
+        <p className="rounded-md bg-red-50 p-2 text-xs text-red-700">{reflection.error}</p>
+      )}
       {reflection?.status === 'done' && <ReflectionResult result={reflection.result!} />}
       {proposals.map((proposal, index) => (
         <KnowledgeProposalCard key={`${proposal.path}-${index}`} {...proposal} />

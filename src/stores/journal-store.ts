@@ -324,11 +324,12 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
         proposalListenerStarted = true;
         void listen<any>('ai-chat-event', (event) => {
           const item = event.payload?.event;
-          if (item?.type !== 'knowledgeProposal' || !item.applicationId) return;
+          if (item?.type !== 'knowledgeProposal' || (!item.applicationId && item.source !== 'knowledge')) return;
+          const key = item.applicationId || '__global__';
           set((state) => ({
             knowledgeProposals: {
               ...state.knowledgeProposals,
-              [item.applicationId]: [...(state.knowledgeProposals[item.applicationId] || []), {
+              [key]: [...(state.knowledgeProposals[key] || []), {
                 path: item.path,
                 content: item.content,
                 reason: item.reason,

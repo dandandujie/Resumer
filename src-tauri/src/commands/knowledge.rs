@@ -79,6 +79,7 @@ pub async fn knowledge_ingest_file(
     let cfg: AIConfig = serde_json::from_value(config)
         .map_err(|error| error.to_string())
         .map_err(error)?;
+    let _queue = knowledge::ingest_queue().lock().await;
     knowledge::ingest_with_generator(&db, &root, &bytes, &filename, move |text| async move {
         let schema = "{title, tags, summary, entities:[{type, title, content}]}";
         let prompt = format!(
@@ -106,12 +107,27 @@ pub async fn knowledge_ingest_file(
 }
 
 #[tauri::command]
+pub fn knowledge_lint(
+    app: AppHandle,
+    _config: Value,
+) -> Result<knowledge::KnowledgeLintOutput, CommandError> {
+    let root = knowledge::ensure(&app).map_err(error)?;
+    let output = knowledge::lint(&root).map_err(error)?;
+    emit_proposals(&app, &output.proposals, None);
+    Ok(output)
+}
+
+#[tauri::command]
 pub fn knowledge_graph(app: AppHandle) -> Result<knowledge::graph::KnowledgeGraph, CommandError> {
     let root = knowledge::ensure(&app).map_err(error)?;
     knowledge::graph::build(&root).map_err(error)
 }
 
-fn emit_proposals(app: &AppHandle, proposals: &[knowledge::KnowledgeProposal], application_id: Option<&str>) {
+fn emit_proposals(
+    app: &AppHandle,
+    proposals: &[knowledge::KnowledgeProposal],
+    application_id: Option<&str>,
+) {
     for proposal in proposals {
         let _ = app.emit(
             "ai-chat-event",
@@ -123,7 +139,8 @@ fn emit_proposals(app: &AppHandle, proposals: &[knowledge::KnowledgeProposal], a
                     "content": proposal.new_content,
                     "reason": proposal.reason,
                     "proposalId": uuid::Uuid::new_v4().to_string(),
-                    "applicationId": application_id
+                    "applicationId": application_id,
+                    "source": if application_id.is_none() { Some("knowledge") } else { None }
                 }
             }),
         );

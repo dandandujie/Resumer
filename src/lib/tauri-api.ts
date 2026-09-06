@@ -179,6 +179,7 @@ export interface KnowledgePageSummary {
   tags: string[];
   summary: string;
   updated: string;
+  sources: string[];
 }
 
 export async function knowledgeList(type?: string) {
@@ -204,6 +205,13 @@ export async function knowledgeSearch(query: string, type?: string, limit = 8) {
 
 export async function knowledgeGraph() {
   return invoke<KnowledgeGraphData>('knowledge_graph');
+}
+
+export async function knowledgeLint() {
+  return invoke<{
+    issues: string[];
+    proposals: Array<{ path: string; newContent: string; reason: string }>;
+  }>('knowledge_lint', { config: getAIConfig() });
 }
 
 export interface ReflectOutput {

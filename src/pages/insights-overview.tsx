@@ -179,7 +179,7 @@ export default function InsightsOverviewPage() {
             type="button"
             onClick={() => void api.knowledgeStrategyReview()}
             className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[var(--whale-divider)] px-4 py-2 text-[13px] font-semibold text-[var(--whale-ink)]"
-          >策略回顾</button>
+          >{tJournal('strategyReview')}</button>
         )}
         <button
           type="button"
@@ -225,7 +225,9 @@ export default function InsightsOverviewPage() {
       <div className="flex items-center justify-end gap-1 rounded-lg border border-[var(--whale-divider)] p-0.5">
         {(['list', 'kanban', 'graph'] as const).map((item) => (
           <button key={item} type="button" onClick={() => setView(item)} className={`rounded-md px-3 py-1.5 text-xs ${view === item ? 'bg-[var(--whale-ink)] text-[var(--whale-cream)]' : 'text-[var(--whale-ink-muted)]'}`}>
-            {item === 'list' ? '列表' : item === 'kanban' ? '看板' : '图谱'}
+            {item === 'list'
+              ? tJournal('viewList')
+              : item === 'kanban' ? tJournal('viewKanban') : tJournal('viewGraph')}
           </button>
         ))}
       </div>

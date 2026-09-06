@@ -3,8 +3,10 @@ pub mod graph;
 pub mod index;
 pub mod vault;
 
+use sha2::{Digest, Sha256};
 use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
@@ -12,6 +14,7 @@ use tauri::{AppHandle, Manager};
 
 use crate::db::AppDb;
 use crate::import;
+use rusqlite::OptionalExtension;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SourceEntity {
@@ -59,6 +62,12 @@ pub struct ReflectOutput {
     pub insights: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct KnowledgeLintOutput {
+    pub issues: Vec<String>,
+    pub proposals: Vec<KnowledgeProposal>,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct StrategyOutput {
     pub path: String,
@@ -76,6 +85,7 @@ pub struct PageSummary {
     pub tags: Vec<String>,
     pub summary: String,
     pub updated: String,
+    pub sources: Vec<String>,
 }
 
 pub fn prompt_context(app: &AppHandle) -> Result<String, String> {
@@ -121,6 +131,56 @@ pub fn reindex(db: &AppDb, root: &Path) -> Result<usize, String> {
     fts::reindex(&conn, root)
 }
 
+pub fn lint(root: &Path) -> Result<KnowledgeLintOutput, String> {
+    let paths = vault::list(root)?;
+    let pages = paths
+        .iter()
+        .filter(|path| path.starts_with("wiki/"))
+        .map(|path| vault::read(root, path).map(|page| (path.clone(), page)))
+        .collect::<Result<Vec<_>, _>>()?;
+    let known = paths.into_iter().collect::<std::collections::HashSet<_>>();
+    let mut issues = Vec::new();
+    let mut proposals = Vec::new();
+    let mut inbound = std::collections::HashSet::new();
+    let mut titles = std::collections::HashMap::<String, String>::new();
+    for (path, page) in &pages {
+        if let Some(previous) = titles.insert(page.frontmatter.title.clone(), path.clone()) {
+            issues.push(format!("重复页标题：{} 与 {}", previous, path));
+            proposals.push(KnowledgeProposal {
+                path: path.clone(),
+                new_content: page.body.clone(),
+                reason: format!("与 {previous} 标题重复，请合并或改名"),
+            });
+        }
+        for line in page.body.lines() {
+            let mut rest = line;
+            while let Some(start) = rest.find("[[") {
+                let Some(end) = rest[start + 2..].find("]]") else {
+                    break;
+                };
+                let link = &rest[start + 2..start + 2 + end];
+                if known.contains(link) || known.contains(&format!("{link}.md")) {
+                    inbound.insert(link.to_string());
+                } else {
+                    issues.push(format!("死链：{} → {}", path, link));
+                    proposals.push(KnowledgeProposal {
+                        path: path.clone(),
+                        new_content: page.body.replace(&format!("[[{link}]]"), link),
+                        reason: format!("移除不存在的链接 [[{link}]]"),
+                    });
+                }
+                rest = &rest[start + 2 + end + 2..];
+            }
+        }
+    }
+    for (path, _) in &pages {
+        if !inbound.contains(path) && !path.starts_with("wiki/sources/") {
+            issues.push(format!("孤立页：{path}"));
+        }
+    }
+    Ok(KnowledgeLintOutput { issues, proposals })
+}
+
 pub fn summaries(root: &Path, kind: Option<&str>) -> Result<Vec<PageSummary>, String> {
     vault::list(root)?
         .into_iter()
@@ -145,6 +205,7 @@ pub fn summaries(root: &Path, kind: Option<&str>) -> Result<Vec<PageSummary>, St
                 tags: page.frontmatter.tags,
                 summary,
                 updated: page.frontmatter.updated,
+                sources: page.frontmatter.sources,
             }))
         })
         .filter_map(|result| result.transpose())
@@ -202,6 +263,16 @@ pub fn append_log(root: &Path, message: &str) -> Result<(), String> {
         .map_err(|error| error.to_string())
 }
 
+static INGEST_QUEUE: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
+
+pub fn ingest_queue() -> &'static tokio::sync::Mutex<()> {
+    INGEST_QUEUE.get_or_init(|| tokio::sync::Mutex::new(()))
+}
+
+pub fn raw_sha256(bytes: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(bytes))
+}
+
 pub fn extract_text(filename: &str, bytes: &[u8]) -> Result<String, String> {
     import::extract_knowledge_text(filename, bytes)
 }
@@ -217,6 +288,22 @@ where
     F: FnOnce(String) -> Fut,
     Fut: Future<Output = Result<SourceSummary, String>>,
 {
+    let digest = raw_sha256(bytes);
+    {
+        let conn = db.conn.lock().map_err(|error| error.to_string())?;
+        if conn
+            .query_row(
+                "SELECT path FROM knowledge_pages WHERE raw_sha256 = ?1 LIMIT 1",
+                [digest.as_str()],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?
+            .is_some()
+        {
+            return Err("该资料已经导入过了".into());
+        }
+    }
     let text = extract_text(filename, bytes)?;
     let summary = generator(text).await?;
     ingest_with_summary(db, root, bytes, filename, summary)
@@ -272,6 +359,11 @@ pub fn ingest_with_summary(
     let page = vault::write(root, &wiki_path, &source_page)?;
     let conn = db.conn.lock().map_err(|error| error.to_string())?;
     fts::upsert(&conn, &page)?;
+    conn.execute(
+        "UPDATE knowledge_pages SET raw_sha256 = ?1 WHERE path = ?2",
+        rusqlite::params![raw_sha256(bytes), wiki_path],
+    )
+    .map_err(|error| error.to_string())?;
     append_log(root, &format!("ingest {raw_path} → {wiki_path}"))?;
     index::rebuild_from_disk(root)?;
     Ok(IngestResult {
@@ -282,6 +374,7 @@ pub fn ingest_with_summary(
             tags: page.frontmatter.tags,
             summary: body.chars().take(240).collect(),
             updated: page.frontmatter.updated,
+            sources: page.frontmatter.sources,
         },
         entities: source_summary.entities,
     })

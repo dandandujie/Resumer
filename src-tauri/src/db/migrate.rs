@@ -7,6 +7,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/004_session_archive.sql"),
     include_str!("../../migrations/005_applications.sql"),
     include_str!("../../migrations/006_knowledge.sql"),
+    include_str!("../../migrations/007_knowledge_raw_sha256.sql"),
 ];
 
 pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
@@ -29,10 +30,7 @@ pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
         let version = (i + 1) as i64;
         if version > current {
             conn.execute_batch(sql)?;
-            conn.execute(
-                "INSERT INTO _migrations (version) VALUES (?1)",
-                [version],
-            )?;
+            conn.execute("INSERT INTO _migrations (version) VALUES (?1)", [version])?;
             log::info!("Applied migration {}", version);
         }
     }

@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import { BookOpen, FilePlus, RefreshCw, Save, Search } from 'lucide-react';
 import { useKnowledgeStore } from '@/stores/knowledge-store';
 import { KnowledgeGraph } from '@/components/graph/knowledge-graph';
+import { KnowledgeProposalCard } from '@/components/ai/ai-proposal-card';
 import { mergeKnowledgeGraph } from '@/lib/knowledge-graph';
 import * as api from '@/lib/tauri-api';
 import { useJournalStore } from '@/stores/journal-store';
@@ -13,16 +14,20 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 
 export default function KnowledgePage() {
-  const { pages, selectedPath, selectedContent, pendingEntities, loading, load, select, write, ingest, setSelectedContent } = useKnowledgeStore();
+  const {
+    pages, selectedPath, selectedContent, pendingEntities, loading, load, select, write, ingest, setSelectedContent,
+  } = useKnowledgeStore();
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [purpose, setPurpose] = useState({ role: '', city: '', industry: '', constraints: '', other: '' });
   const [view, setView] = useState<'list' | 'graph'>('list');
   const [graph, setGraph] = useState<api.KnowledgeGraphData>({ nodes: [], edges: [] });
+  const [lintIssues, setLintIssues] = useState<string[]>([]);
   const router = useRouter();
   const applications = useJournalStore((state) => state.applications);
   const mocks = useJournalStore((state) => state.mocks);
+  const proposals = useJournalStore((state) => state.knowledgeProposals.__global__ || []);
   const hydrateJournal = useJournalStore((state) => state.hydrate);
   const { resumes, fetchResumes } = useResume();
 
@@ -39,10 +44,19 @@ export default function KnowledgePage() {
   );
 
   const filtered = useMemo(
-    () => pages.filter((page) => `${page.title} ${page.path} ${page.summary}`.toLowerCase().includes(query.toLowerCase())),
+    () => pages.filter((page) => `${page.title} ${page.path} ${page.summary}`
+      .toLowerCase().includes(query.toLowerCase())),
     [pages, query],
   );
   const selected = pages.find((page) => page.path === selectedPath);
+  const relatedPages = useMemo(() => {
+    if (!selectedPath) return [];
+    const ids = new Set(
+      graph.edges.flatMap((edge) => edge.source === selectedPath
+        ? [edge.target] : edge.target === selectedPath ? [edge.source] : []),
+    );
+    return graph.nodes.filter((node) => ids.has(node.id));
+  }, [graph, selectedPath]);
 
   useEffect(() => {
     if (selectedPath !== 'purpose.md') return;
@@ -95,12 +109,31 @@ export default function KnowledgePage() {
           <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
             <RefreshCw className="mr-1.5 h-3.5 w-3.5" />重新索引
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void api.knowledgeLint().then((result) => setLintIssues(result.issues))}
+          >
+            检查知识库
+          </Button>
           <label className="inline-flex cursor-pointer items-center rounded-md bg-brand px-3 py-2 text-sm text-white hover:bg-brand-hover">
             <FilePlus className="mr-1.5 h-3.5 w-3.5" />上传资料
             <input type="file" className="hidden" onChange={(event) => void handleUpload(event)} />
           </label>
         </div>
       </div>
+      {lintIssues.length > 0 && (
+        <div className="mx-4 mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs">
+          {lintIssues.map((issue) => <div key={issue}>{issue}</div>)}
+        </div>
+      )}
+      {proposals.length > 0 && (
+        <div className="mx-4 mt-3 space-y-2">
+          {proposals.map((proposal, index) => (
+            <KnowledgeProposalCard key={`${proposal.path}-${index}`} {...proposal} />
+          ))}
+        </div>
+      )}
       {view === 'graph' ? (
         <div className="min-h-0 flex-1 p-4">
           <KnowledgeGraph
@@ -191,6 +224,25 @@ export default function KnowledgePage() {
               <div><dt className="text-xs text-muted-foreground">标签</dt><dd>{selected.tags.join('、') || '—'}</dd></div>
               <div><dt className="text-xs text-muted-foreground">摘要</dt><dd className="leading-relaxed">{selected.summary || '—'}</dd></div>
               <div><dt className="text-xs text-muted-foreground">更新时间</dt><dd>{selected.updated || '—'}</dd></div>
+              <div>
+                <dt className="text-xs text-muted-foreground">来源</dt>
+                <dd>{selected.sources?.join('、') || '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">相关页（一跳）</dt>
+                <dd className="space-y-1">
+                  {relatedPages.length ? relatedPages.map((page) => (
+                    <button
+                      key={page.id}
+                      type="button"
+                      className="block text-left text-brand underline"
+                      onClick={() => void select(page.id)}
+                    >
+                      {page.title}
+                    </button>
+                  )) : '—'}
+                </dd>
+              </div>
             </dl>
           ) : <p className="text-muted-foreground">暂无页面</p>}
         </aside>
