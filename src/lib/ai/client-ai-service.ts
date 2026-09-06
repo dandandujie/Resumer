@@ -18,6 +18,8 @@ export async function checkGrammar(params: GrammarCheckParams) {
 interface JdAnalysisParams {
   resumeId: string;
   jobDescription: string;
+  company?: string;
+  role?: string;
 }
 
 export async function analyzeJd(params: JdAnalysisParams) {
@@ -31,7 +33,11 @@ interface TranslateParams {
   resumeId: string;
   targetLanguage: 'zh' | 'en';
   mode?: 'overwrite' | 'copy';
-  onProgress?: (completed: number, total: number, section?: { sectionId: string; title: string; content: any }) => void;
+  onProgress?: (
+    completed: number,
+    total: number,
+    section?: { sectionId: string; title: string; content: any },
+  ) => void;
 }
 
 export async function translateResume(params: TranslateParams) {
@@ -45,9 +51,12 @@ export async function translateResume(params: TranslateParams) {
 
     // Subscribe to progress events
     if (params.onProgress) {
-      unlisten = await listen<{ total: number; done: number }>('ai-translate-progress', (evt) => {
-        params.onProgress?.(evt.payload.done, evt.payload.total);
-      });
+      unlisten = await listen<{ total: number; done: number }>(
+        'ai-translate-progress',
+        (evt) => {
+          params.onProgress?.(evt.payload.done, evt.payload.total);
+        },
+      );
     }
 
     const result = await api.aiTranslate({

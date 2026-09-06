@@ -144,6 +144,8 @@ pub async fn ai_cover_letter(
     config: Value,
     resume_id: String,
     job_description: Option<String>,
+    company: Option<String>,
+    role: Option<String>,
     style: String,
     language: Option<String>,
 ) -> Result<String, CommandError> {
@@ -165,7 +167,13 @@ pub async fn ai_cover_letter(
     };
 
     let job_description = job_description.as_deref().unwrap_or("");
-    let external = prefetch_web_context(&cfg, &format!("公司简介 {job_description}")).await;
+    let company = company.as_deref().unwrap_or("").trim();
+    let role = role.as_deref().unwrap_or("").trim();
+    let external = if company.is_empty() && role.is_empty() {
+        String::new()
+    } else {
+        prefetch_web_context(&cfg, &format!("{company} 公司简介 业务 招聘")).await
+    };
     let (system, mut prompt) =
         ai::prompts::cover_letter_prompt(&resume_ctx, job_description, &style, &lang);
     if !external.is_empty() {
@@ -198,6 +206,8 @@ pub async fn ai_jd_analysis(
     config: Value,
     resume_id: String,
     job_description: String,
+    company: Option<String>,
+    role: Option<String>,
 ) -> Result<Value, CommandError> {
     let cfg = cfg_from(config);
 
@@ -215,14 +225,13 @@ pub async fn ai_jd_analysis(
         serde_json::to_string(&resume.sections).unwrap_or_default()
     };
 
-    let external = prefetch_web_context(
-        &cfg,
-        &format!(
-            "{} 岗位要求 面试",
-            job_description.chars().take(160).collect::<String>()
-        ),
-    )
-    .await;
+    let company = company.as_deref().unwrap_or("").trim();
+    let role = role.as_deref().unwrap_or("").trim();
+    let external = if company.is_empty() && role.is_empty() {
+        String::new()
+    } else {
+        prefetch_web_context(&cfg, &format!("{company} {role} 岗位要求 面试")).await
+    };
     let (system, mut prompt) = ai::prompts::jd_analysis_prompt(&resume_ctx, &job_description);
     if !external.is_empty() {
         prompt.push_str("\n\n## 外部参考\n");

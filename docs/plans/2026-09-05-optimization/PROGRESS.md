@@ -164,3 +164,10 @@
 - 决策记录
   - 搜索默认关闭，确保关闭搜索时与 WP4 前行为一致；`native` 只走 provider 原生注入，不伪造本地预检索结果。
   - 非流式预检索只在首轮执行；搜索失败不影响 JD 分析、文案生成和面试主任务。
+
+### WP5 修正记录
+
+- 修正 JD 分析和求职文案预检索：新增可选 `company`/`role` 参数；只有至少一个非空时才搜索。
+- JD 分析查询改为 `公司 岗位 岗位要求 面试`，求职文案查询改为 `公司 公司简介 业务 招聘`；不再把 JD 正文作为搜索词。
+- JD 分析和求职文案对话框新增公司/岗位两列小号输入，默认读取 `toolPrefill.company/role`，并在有 `sourceApplicationId` 时从投递记录补全。
+- `tauri-api.ts`、客户端 AI service、Rust Tauri 命令及中英文 i18n 已同步；`interview_chat` 保持不变。

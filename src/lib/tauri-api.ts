@@ -200,6 +200,8 @@ export type CoverLetterStyle = 'boss_greeting' | 'email' | 'self_intro';
 export async function aiCoverLetter(data: {
   resumeId: string;
   jobDescription?: string;
+  company?: string;
+  role?: string;
   style: CoverLetterStyle;
   language?: string;
 }) {
@@ -207,6 +209,8 @@ export async function aiCoverLetter(data: {
     config: getAIConfig(),
     resumeId: data.resumeId,
     jobDescription: data.jobDescription,
+    company: data.company,
+    role: data.role,
     style: data.style,
     language: data.language,
   });
@@ -215,11 +219,15 @@ export async function aiCoverLetter(data: {
 export async function aiJdAnalysis(data: {
   resumeId: string;
   jobDescription: string;
+  company?: string;
+  role?: string;
 }) {
   return invoke<any>('ai_jd_analysis', {
     config: getAIConfig(),
     resumeId: data.resumeId,
     jobDescription: data.jobDescription,
+    company: data.company,
+    role: data.role,
   });
 }
 
