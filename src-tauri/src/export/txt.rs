@@ -1,5 +1,6 @@
 use serde_json::Value;
 use super::date::{format_range, DateStyle};
+use super::inline::strip;
 
 fn safe(v: Option<&str>) -> String {
     v.unwrap_or("").to_string()
@@ -163,5 +164,5 @@ pub fn generate_plain_text(sections: &[Value], style: DateStyle, lang: &str) -> 
         }
     }
 
-    lines.join("\n")
+    strip(&lines.join("\n"))
 }

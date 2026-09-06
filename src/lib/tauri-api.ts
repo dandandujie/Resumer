@@ -390,6 +390,6 @@ export async function exportJson(resumeId: string, filename?: string) {
   return invoke<string | null>('export_json', { resumeId, filename });
 }
 
-export async function exportDocx(resumeId: string, filename?: string) {
-  return invoke<string | null>('export_docx', { resumeId, filename });
+export async function exportDocx(resumeId: string, theme: unknown, filename?: string) {
+  return invoke<string | null>('export_docx', { resumeId, theme, filename });
 }

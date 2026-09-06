@@ -16,6 +16,7 @@ import { useResumeStore } from '@/stores/resume-store';
 import { generateHtml } from '@/lib/export/builders';
 import * as api from '@/lib/tauri-api';
 import type { Resume } from '@/types/resume';
+import { resolveTheme } from '@/lib/theme-config';
 import {
   FileDown,
   FileText,
@@ -101,7 +102,9 @@ export function ExportDialog({ open, onOpenChange, resumeId }: ExportDialogProps
         const html = await generateHtml(resume, false);
         savedPath = await api.exportHtml(resumeId, html, filename);
       } else if (selectedFormat === 'docx') {
-        savedPath = await api.exportDocx(resumeId, filename);
+        const resume = (await api.getResume(resumeId)) as Resume | null;
+        if (!resume) throw new Error('Resume not found');
+        savedPath = await api.exportDocx(resumeId, resolveTheme(resume.themeConfig), filename);
       } else if (selectedFormat === 'md') {
         savedPath = await api.exportMarkdown(resumeId, filename);
       } else if (selectedFormat === 'txt') {

@@ -181,6 +181,7 @@ pub async fn export_docx(
     db: State<'_, AppDb>,
     resume_id: String,
     filename: Option<String>,
+    theme: docx::ResolvedTheme,
 ) -> Result<Option<String>, CommandError> {
     let resume = {
         let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
@@ -198,8 +199,14 @@ pub async fn export_docx(
         None => return Ok(None),
     };
 
-    docx::generate_docx(&resume.resume.title, &sections_values, &resume.resume.language, &path)
-        .map_err(|e| CommandError { message: e })?;
+    docx::generate_docx(
+        &resume.resume.title,
+        &sections_values,
+        &resume.resume.language,
+        &theme,
+        &path,
+    )
+    .map_err(|e| CommandError { message: e })?;
 
     Ok(Some(path.to_string_lossy().to_string()))
 }
