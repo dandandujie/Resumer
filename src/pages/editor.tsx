@@ -6,7 +6,6 @@ import { useIsMobile } from '@/hooks/use-media-query';
 import { EditorToolbar } from '@/components/editor/editor-toolbar';
 import { EditorSidebar } from '@/components/editor/editor-sidebar';
 import { EditorRightPane } from '@/components/editor/editor-right-pane';
-import { ThemeEditor } from '@/components/editor/theme-editor';
 import { EditorPreviewPanel } from '@/components/editor/editor-preview-panel';
 import { EditorMobileTabBar } from '@/components/editor/editor-mobile-tab-bar';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -32,7 +31,7 @@ export default function EditorPage() {
   const { resume, sections, updateSection, addSection, removeSection, reorderSections } = useEditor(id!);
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { showThemeEditor, mobileActiveTab } = useEditorStore();
+  const { mobileActiveTab } = useEditorStore();
   const { activeModal, openModal, closeModal } = useUIStore();
   const { hydrate, _hydrated } = useSettingsStore();
   const hydrateJournal = useJournalStore((s) => s.hydrate);
@@ -113,7 +112,7 @@ export default function EditorPage() {
   }
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-screen min-w-0 flex-col">
       <EditorToolbar />
       <EditorMobileTabBar />
 
@@ -125,8 +124,6 @@ export default function EditorPage() {
         <div className={cn("min-w-0 flex-1 overflow-hidden md:flex-[6]", isMobile && mobileActiveTab !== "preview" && "hidden")}>
           <EditorPreviewPanel />
         </div>
-
-        {showThemeEditor && <ThemeEditor />}
 
         <div className={cn("min-w-0 flex-1 overflow-hidden md:flex-[4]", isMobile && mobileActiveTab !== "edit" && "hidden")}>
           <EditorRightPane resumeId={id!} sections={sections} onUpdateSection={updateSection} onRemoveSection={removeSection} />

@@ -148,7 +148,7 @@
       "export": "Export",
       "template": "Switch Template",
       "settings": "Settings",
-      "theme": "Style",
+      "theme": "Layout",
       "autoSaved": "Auto-saved",
       "saving": "Saving...",
       "unsaved": "Unsaved",
@@ -167,7 +167,8 @@
       "smartFitFailed": "Content too long to fit one page. Consider trimming.",
       "coverLetter": "Outreach",
       "aiTools": "AI tools",
-      "more": "More"
+      "more": "More",
+      "file": "File"
     },
     "aiPolish": "AI Polish",
     "invalidSectionContent": "This section has invalid data. Please use AI to regenerate the content.",
@@ -384,6 +385,11 @@
     "spacing": "Spacing",
     "sectionSpacing": "Section Spacing",
     "pageMargin": "Page Margin",
+    "headingStyle": "Heading style",
+    "headingUnderline": "Underline",
+    "headingPlain": "Plain",
+    "headingFilled": "Filled",
+    "dateStyle": "Date format",
     "margin": {
       "top": "Top",
       "right": "Right",

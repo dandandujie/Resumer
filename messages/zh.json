@@ -148,7 +148,7 @@
       "export": "导出",
       "template": "切换模板",
       "settings": "设置",
-      "theme": "样式",
+      "theme": "排版",
       "autoSaved": "已自动保存",
       "saving": "保存中...",
       "unsaved": "未保存",
@@ -167,7 +167,8 @@
       "smartFitFailed": "内容过多，建议删减工作经历或项目细节",
       "coverLetter": "求职文案",
       "aiTools": "AI 工具",
-      "more": "更多"
+      "more": "更多",
+      "file": "文件"
     },
     "aiPolish": "AI 润色",
     "invalidSectionContent": "该模块数据异常，请使用 AI 重新生成内容",
@@ -384,6 +385,11 @@
     "spacing": "间距",
     "sectionSpacing": "区块间距",
     "pageMargin": "页边距",
+    "headingStyle": "标题样式",
+    "headingUnderline": "下划线",
+    "headingPlain": "简洁",
+    "headingFilled": "底色条",
+    "dateStyle": "日期格式",
     "margin": {
       "top": "上",
       "right": "右",

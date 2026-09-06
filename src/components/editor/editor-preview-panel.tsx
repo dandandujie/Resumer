@@ -10,6 +10,7 @@ import { useEditorStore } from '@/stores/editor-store';
 import { useClassicPageEstimate } from '@/hooks/use-classic-page-estimate';
 import { useIsMobile } from "@/hooks/use-media-query";
 import { SmartFitButton } from '@/components/editor/smart-fit-button';
+import { FormatRibbon } from '@/components/editor/format-ribbon';
 import type { Resume, ResumeSection } from '@/types/resume';
 
 // A4 width in px (at 96 dpi)
@@ -19,6 +20,7 @@ export function EditorPreviewPanel() {
   const t = useTranslations('editor.toolbar');
   const { currentResume, sections, reorderSections } = useResumeStore();
   const pushSnapshot = useEditorStore((s) => s.pushSnapshot);
+  const showThemeEditor = useEditorStore((s) => s.showThemeEditor);
   const [zoom, setZoom] = useState(80);
   const locale = useLocale();
   const isMobile = useIsMobile();
@@ -47,6 +49,7 @@ export function EditorPreviewPanel() {
 
   return (
     <div className="flex h-full min-w-0 flex-col bg-[var(--whale-cream-soft)]">
+      {showThemeEditor && <FormatRibbon />}
       {/* Header */}
       <div className="hidden shrink-0 items-center justify-between border-b border-[var(--whale-divider)] bg-[var(--whale-card)] px-4 py-2 md:flex">
         <div className="min-w-0">

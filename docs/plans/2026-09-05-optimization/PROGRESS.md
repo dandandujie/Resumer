@@ -105,3 +105,30 @@
   - 仪表盘保留空白模板创建入口，文件导入统一由 shell 层的 `ImportResumeDialog` 承担；编辑器通过路由识别当前 resume id，避免同一 modal 重复挂载。
 - 下一步建议
   - 按用户要求停止于 WP3，不开始 WP4；真实样本和桌面人工核对应在具备样本/入口后另行执行。
+
+## WP4 编辑交互与工具栏
+
+- 前置结构整理
+  - 已将导入解析、头像候选、图片裁剪、主题推断和导入事务从 `commands/ai.rs` 移至 `src-tauri/src/import/mod.rs`，命令文件仅保留 AI/Tauri 调用。
+  - 整理单独提交：`d09c645 refactor: 拆分导入解析模块`；整理后 `cargo test` 仍为 20 个测试通过。
+- 完成项
+  - `SortableList`/`SortableItem` 复用 dnd-kit，拖动监听只绑定拖柄；工作经历、教育、项目、证书、语言、自定义模块和技能分类支持拖拽排序。
+  - 条目统一提供上移、下移、上方插入和删除按钮；`EditableList` 行也支持拖拽排序。
+  - 新增 `InlineFormatButtons`，富文本和列表行提供 B/I/U；标记严格使用 `**`、`*`、`__`，继续复用 `src/lib/resume-text.ts`，未新增第二份 `md()`。
+  - 删除第四列 `ThemeEditor`，新增预览面板顶部 `FormatRibbon`，覆盖预设、字体、字号、行距、段距、页边距、标题样式、日期格式和颜色。
+  - 工具栏新增「文件」菜单入口，导入/导出/设置归入文件菜单；LocaleSwitcher 和自动保存开关/间隔移入设置对话框。
+  - 编辑器根布局、工具栏和预览区域保持 `min-w-0`/横向可滚动控件，避免 1200px 窗口被工具栏撑出页面横向滚动。
+- 未完成项与原因
+  - 未执行真实桌面 1200px 截图和触控设备人工验收；当前环境没有可复现的桌面验收入口，避免伪造视觉结论。
+  - 未开始 WP5。
+- 验收输出摘要
+  - `pnpm type-check`：通过。
+  - `pnpm lint`：通过，0 error、31 warning。
+  - `(cd src-tauri && cargo test)`：通过，20 个测试全部通过。
+  - `pnpm build:vite`：通过；保留既有动态/静态导入与大 chunk 警告。
+- 决策记录
+  - 使用一个轻量 `SortableList` 包装所有条目而不是为每个 section 复制 DndContext；拖柄由 `SortableItem` 统一渲染，按钮操作仍走各 section 的现有更新回调。
+  - 排版工具条沿用现有 ThemeConfig 与保存机制，以 Popover 承载控件；保留 `showThemeEditor` store 字段作为兼容性的显示开关，避免引入第二套状态。
+  - 文件菜单复用现有 `activeModal`，不新增路由或菜单状态；设置对话框复用已有 settings store。
+- 下一步建议
+  - 停止执行，不开始 WP5；如需真实 1200px/触控验收，待具备桌面入口后另行执行。

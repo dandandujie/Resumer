@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
-import { ArrowLeft, Undo2, Redo2, Download, Upload, Settings, Palette, Save, Languages, SpellCheck, BookOpenCheck, MoreHorizontal, PenLine, SlidersHorizontal, MessagesSquare, FileSearch, Sparkles, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Undo2, Redo2, Download, Upload, Settings, Palette, Save, Languages, SpellCheck, BookOpenCheck, MoreHorizontal, PenLine, MessagesSquare, FileSearch, Sparkles, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -11,28 +11,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Switch } from '@/components/ui/switch';
-import { Slider } from '@/components/ui/slider';
-import { Label } from '@/components/ui/label';
 import { useEditorStore } from '@/stores/editor-store';
 import { useResumeStore } from '@/stores/resume-store';
 import { useUIStore } from '@/stores/ui-store';
-import { useSettingsStore } from '@/stores/settings-store';
-import { LocaleSwitcher } from '@/components/layout/locale-switcher';
 import { cn } from '@/lib/utils';
 
 export function EditorToolbar() {
   const t = useTranslations('editor.toolbar');
-  const tp = useTranslations('settings.editorTab');
   const router = useRouter();
   const { toggleThemeEditor, showThemeEditor, undo, redo, undoStack, redoStack } = useEditorStore();
   const { isSaving, isDirty, currentResume, reorderSections, updateThemeConfig, flushPendingSave, setTitle } = useResumeStore();
   const { openModal } = useUIStore();
-  const autoSave = useSettingsStore((s) => s.autoSave);
-  const autoSaveInterval = useSettingsStore((s) => s.autoSaveInterval);
-  const setAutoSave = useSettingsStore((s) => s.setAutoSave);
-  const setAutoSaveInterval = useSettingsStore((s) => s.setAutoSaveInterval);
 
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
@@ -71,7 +60,7 @@ export function EditorToolbar() {
   return (
     <div
       data-tauri-drag-region
-      className="flex h-12 items-center justify-between gap-2 border-b border-[var(--whale-divider)] bg-[var(--whale-sidebar)] pl-20 pr-2 sm:pr-3"
+      className="flex h-12 min-w-0 items-center justify-between gap-2 overflow-x-auto border-b border-[var(--whale-divider)] bg-[var(--whale-sidebar)] pl-20 pr-2 sm:pr-3"
     >
       <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
         <Button
@@ -109,44 +98,8 @@ export function EditorToolbar() {
           </button>
         )}
         <span className="hidden text-xs text-[var(--whale-ink-muted)] sm:inline">
-          {isSaving ? t('saving') : isDirty ? t('unsaved') : autoSave ? t('autoSaved') : ''}
+          {isSaving ? t('saving') : isDirty ? t('unsaved') : ''}
         </span>
-        {/* Editor preferences (auto-save) */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 shrink-0 cursor-pointer text-[var(--whale-ink-muted)] hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]"
-              title={t('editorPrefs')}
-            >
-              <SlidersHorizontal className="h-3.5 w-3.5" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-64 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-[13px]">{tp('autoSave')}</Label>
-                <p className="text-xs text-muted-foreground">{tp('autoSaveDescription')}</p>
-              </div>
-              <Switch checked={autoSave} onCheckedChange={setAutoSave} />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-[13px]">{tp('autoSaveInterval')}</Label>
-                <span className="text-xs text-muted-foreground">{(autoSaveInterval / 1000).toFixed(1)}s</span>
-              </div>
-              <Slider
-                value={[autoSaveInterval]}
-                onValueChange={([v]) => setAutoSaveInterval(v)}
-                min={300}
-                max={5000}
-                step={100}
-                disabled={!autoSave}
-              />
-            </div>
-          </PopoverContent>
-        </Popover>
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
@@ -232,14 +185,19 @@ export function EditorToolbar() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 cursor-pointer text-[var(--whale-ink-soft)] hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]" title={t('more')}>
+              <Button variant="ghost" size="sm" className="h-8 cursor-pointer gap-1 text-[var(--whale-ink-soft)] hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]" title={t('file')}>
                 <MoreHorizontal className="h-4 w-4" />
+                <span className="hidden text-xs sm:inline">{t('file')}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem className="cursor-pointer" onClick={() => openModal('import')}>
                 <Upload className="mr-2 h-4 w-4" />
                 {t('import')}
+              </DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer" onClick={() => openModal('export')}>
+                <Download className="mr-2 h-4 w-4" />
+                {t('exportPdf')}
               </DropdownMenuItem>
               <DropdownMenuItem className="cursor-pointer" onClick={() => openModal('settings')}>
                 <Settings className="mr-2 h-4 w-4" />
@@ -314,7 +272,6 @@ export function EditorToolbar() {
           <Palette className="h-4 w-4" />
           <span className="ml-1 hidden text-xs sm:inline">{t('theme')}</span>
         </Button>
-        <LocaleSwitcher />
       </div>
     </div>
   );

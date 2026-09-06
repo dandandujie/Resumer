@@ -40,6 +40,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useUIStore } from '@/stores/ui-store';
 import { useSettingsStore, type AIProvider } from '@/stores/settings-store';
 import { cn } from '@/lib/utils';
+import { Switch } from '@/components/ui/switch';
+import { Slider } from '@/components/ui/slider';
+import { LocaleSwitcher } from '@/components/layout/locale-switcher';
 
 const AI_PROVIDERS: { value: AIProvider; label: string }[] = [
   { value: 'openai', label: 'OpenAI' },
@@ -79,6 +82,10 @@ export function SettingsDialog() {
     deleteChannel,
     toggleChannelModel,
     setChannelModels,
+    autoSave,
+    autoSaveInterval,
+    setAutoSave,
+    setAutoSaveInterval,
   } = useSettingsStore();
 
   const activeChannel = channels.find((c) => c.id === activeChannelId) || null;
@@ -268,6 +275,11 @@ export function SettingsDialog() {
             {t('ai.title')}
           </DialogTitle>
           <DialogDescription>{t('ai.description')}</DialogDescription>
+          <div className="flex flex-wrap items-center gap-4 px-6 pb-4 text-sm">
+            <LocaleSwitcher />
+            <label className="flex items-center gap-2"><span>{t('editorTab.autoSave')}</span><Switch checked={autoSave} onCheckedChange={setAutoSave} /></label>
+            <label className="flex items-center gap-2"><span>{t('editorTab.autoSaveInterval')}</span><Slider className="w-24" value={[autoSaveInterval]} onValueChange={([value]) => setAutoSaveInterval(value)} min={300} max={5000} step={100} disabled={!autoSave} /></label>
+          </div>
         </DialogHeader>
 
         {/* 左：渠道列表；右：选中渠道的配置 */}
