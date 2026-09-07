@@ -183,14 +183,6 @@ fn paragraph(text: &str, style_id: &str, theme: &ResolvedTheme, bullet: bool) ->
     result
 }
 
-fn date_style(theme: &ResolvedTheme) -> DateStyle {
-    match theme.date_style.as_str() {
-        "dash" => DateStyle::Dash,
-        "cn" => DateStyle::Cn,
-        _ => DateStyle::Dot,
-    }
-}
-
 fn current(item: &Value) -> bool {
     item.get("current")
         .and_then(Value::as_bool)
@@ -335,7 +327,7 @@ pub fn generate_docx(
     }
 
     add_paragraph(&mut docx, paragraph(resume_title, "Title", theme, false));
-    let style = date_style(theme);
+    let style = DateStyle::parse(Some(&theme.date_style));
     for section in sections {
         if section.get("visible").and_then(Value::as_bool) == Some(false) {
             continue;

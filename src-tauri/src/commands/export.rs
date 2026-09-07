@@ -105,7 +105,7 @@ pub async fn export_txt(
     };
 
     let sections_values: Vec<Value> = resume.sections.iter().map(|s| serde_json::to_value(s).unwrap_or_default()).collect();
-    let style = match resume.resume.theme_config.get("dateStyle").and_then(|v| v.as_str()) { Some("dash") => DateStyle::Dash, Some("cn") => DateStyle::Cn, _ => DateStyle::Dot };
+    let style = DateStyle::parse(resume.resume.theme_config.get("dateStyle").and_then(|v| v.as_str()));
     let text = txt::generate_plain_text(&sections_values, style, &resume.resume.language);
 
     let default_name = filename.unwrap_or_else(|| format!("{}.txt", resume.resume.title));
@@ -134,7 +134,7 @@ pub async fn export_markdown(
     };
 
     let sections_values: Vec<Value> = resume.sections.iter().map(|s| serde_json::to_value(s).unwrap_or_default()).collect();
-    let style = match resume.resume.theme_config.get("dateStyle").and_then(|v| v.as_str()) { Some("dash") => DateStyle::Dash, Some("cn") => DateStyle::Cn, _ => DateStyle::Dot };
+    let style = DateStyle::parse(resume.resume.theme_config.get("dateStyle").and_then(|v| v.as_str()));
     let text = md::generate_markdown(&sections_values, style, &resume.resume.language);
 
     let default_name = filename.unwrap_or_else(|| format!("{}.md", resume.resume.title));

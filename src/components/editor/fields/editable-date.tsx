@@ -51,7 +51,8 @@ export function EditableDate({
   const [browseYear, setBrowseYear] = useState(
     () => Number(year) || new Date().getFullYear(),
   );
-  const commit = (next: string) => onChange(normalizeMonth(next));
+  // 识别不了的写法（如 `2023`、`Summer 2022`）原样保留，绝不清空用户输入。
+  const commit = (next: string) => onChange(normalizeMonth(next) || next.trim());
 
   return (
     <div className="space-y-1">
