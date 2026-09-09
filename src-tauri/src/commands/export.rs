@@ -200,7 +200,6 @@ pub async fn export_docx(
     };
 
     docx::generate_docx(
-        &resume.resume.title,
         &sections_values,
         &resume.resume.language,
         &theme,

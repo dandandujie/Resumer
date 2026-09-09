@@ -16,7 +16,7 @@ import { useResumeStore } from '@/stores/resume-store';
 import { generateHtml } from '@/lib/export/builders';
 import * as api from '@/lib/tauri-api';
 import type { Resume } from '@/types/resume';
-import { resolveTheme } from '@/lib/theme-config';
+import { resolveOfficeFonts, resolveTheme } from '@/lib/theme-config';
 import {
   FileDown,
   FileText,
@@ -104,7 +104,13 @@ export function ExportDialog({ open, onOpenChange, resumeId }: ExportDialogProps
       } else if (selectedFormat === 'docx') {
         const resume = (await api.getResume(resumeId)) as Resume | null;
         if (!resume) throw new Error('Resume not found');
-        savedPath = await api.exportDocx(resumeId, resolveTheme(resume.themeConfig), filename);
+        // Office 字体名由前端字体方案表给出，Rust 侧不再维护第二份映射。
+        const theme = resolveTheme(resume.themeConfig);
+        savedPath = await api.exportDocx(
+          resumeId,
+          { ...theme, officeFonts: resolveOfficeFonts(theme.fontScheme) },
+          filename,
+        );
       } else if (selectedFormat === 'md') {
         savedPath = await api.exportMarkdown(resumeId, filename);
       } else if (selectedFormat === 'txt') {
