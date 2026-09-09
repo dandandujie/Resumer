@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -23,7 +23,10 @@ pub struct ChatMessage {
     pub created_at: i64,
 }
 
-pub fn find_sessions_by_resume_id(conn: &Connection, resume_id: &str) -> Result<Vec<ChatSession>, rusqlite::Error> {
+pub fn find_sessions_by_resume_id(
+    conn: &Connection,
+    resume_id: &str,
+) -> Result<Vec<ChatSession>, rusqlite::Error> {
     let mut stmt = conn.prepare(
         "SELECT id, resume_id, title, created_at, updated_at FROM chat_sessions WHERE resume_id = ?1 ORDER BY updated_at DESC",
     )?;
@@ -39,7 +42,10 @@ pub fn find_sessions_by_resume_id(conn: &Connection, resume_id: &str) -> Result<
     rows.collect()
 }
 
-pub fn find_session(conn: &Connection, session_id: &str) -> Result<Option<ChatSession>, rusqlite::Error> {
+pub fn find_session(
+    conn: &Connection,
+    session_id: &str,
+) -> Result<Option<ChatSession>, rusqlite::Error> {
     let mut stmt = conn.prepare(
         "SELECT id, resume_id, title, created_at, updated_at FROM chat_sessions WHERE id = ?1",
     )?;
@@ -57,7 +63,12 @@ pub fn find_session(conn: &Connection, session_id: &str) -> Result<Option<ChatSe
     }
 }
 
-pub fn find_messages(conn: &Connection, session_id: &str, limit: i64, offset: i64) -> Result<Vec<ChatMessage>, rusqlite::Error> {
+pub fn find_messages(
+    conn: &Connection,
+    session_id: &str,
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<ChatMessage>, rusqlite::Error> {
     let mut stmt = conn.prepare(
         "SELECT id, session_id, role, content, metadata, created_at FROM chat_messages WHERE session_id = ?1 ORDER BY created_at ASC LIMIT ?2 OFFSET ?3",
     )?;
@@ -67,7 +78,8 @@ pub fn find_messages(conn: &Connection, session_id: &str, limit: i64, offset: i6
             session_id: row.get(1)?,
             role: row.get(2)?,
             content: row.get(3)?,
-            metadata: serde_json::from_str(&row.get::<_, String>(4).unwrap_or_default()).unwrap_or_default(),
+            metadata: serde_json::from_str(&row.get::<_, String>(4).unwrap_or_default())
+                .unwrap_or_default(),
             created_at: row.get(5)?,
         })
     })?;
@@ -82,7 +94,11 @@ pub fn count_messages(conn: &Connection, session_id: &str) -> Result<i64, rusqli
     )
 }
 
-pub fn create_session(conn: &Connection, resume_id: &str, title: &str) -> Result<String, rusqlite::Error> {
+pub fn create_session(
+    conn: &Connection,
+    resume_id: &str,
+    title: &str,
+) -> Result<String, rusqlite::Error> {
     let id = uuid::Uuid::new_v4().to_string();
     conn.execute(
         "INSERT INTO chat_sessions (id, resume_id, title) VALUES (?1, ?2, ?3)",
@@ -91,7 +107,13 @@ pub fn create_session(conn: &Connection, resume_id: &str, title: &str) -> Result
     Ok(id)
 }
 
-pub fn add_message(conn: &Connection, session_id: &str, role: &str, content: &str, metadata: &Value) -> Result<String, rusqlite::Error> {
+pub fn add_message(
+    conn: &Connection,
+    session_id: &str,
+    role: &str,
+    content: &str,
+    metadata: &Value,
+) -> Result<String, rusqlite::Error> {
     let id = uuid::Uuid::new_v4().to_string();
     conn.execute(
         "INSERT INTO chat_messages (id, session_id, role, content, metadata) VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -104,7 +126,11 @@ pub fn add_message(conn: &Connection, session_id: &str, role: &str, content: &st
     Ok(id)
 }
 
-pub fn update_session_title(conn: &Connection, session_id: &str, title: &str) -> Result<(), rusqlite::Error> {
+pub fn update_session_title(
+    conn: &Connection,
+    session_id: &str,
+    title: &str,
+) -> Result<(), rusqlite::Error> {
     conn.execute(
         "UPDATE chat_sessions SET title = ?1, updated_at = unixepoch() WHERE id = ?2",
         params![title, session_id],
@@ -113,20 +139,33 @@ pub fn update_session_title(conn: &Connection, session_id: &str, title: &str) ->
 }
 
 pub fn delete_session(conn: &Connection, session_id: &str) -> Result<(), rusqlite::Error> {
-    conn.execute("DELETE FROM chat_sessions WHERE id = ?1", params![session_id])?;
+    conn.execute(
+        "DELETE FROM chat_sessions WHERE id = ?1",
+        params![session_id],
+    )?;
     Ok(())
 }
 
 /// Since migration 003 chat_sessions no longer FK-cascades from resumes;
 /// call this when deleting a resume.
-pub fn delete_sessions_for_resume(conn: &Connection, resume_id: &str) -> Result<(), rusqlite::Error> {
-    conn.execute("DELETE FROM chat_sessions WHERE resume_id = ?1", params![resume_id])?;
+pub fn delete_sessions_for_resume(
+    conn: &Connection,
+    resume_id: &str,
+) -> Result<(), rusqlite::Error> {
+    conn.execute(
+        "DELETE FROM chat_sessions WHERE resume_id = ?1",
+        params![resume_id],
+    )?;
     Ok(())
 }
 
 /// Delete a message and everything after it (rowid order = insertion order).
 /// Powers conversation rollback / edit-and-resend.
-pub fn truncate_from_message(conn: &Connection, session_id: &str, message_id: &str) -> Result<(), rusqlite::Error> {
+pub fn truncate_from_message(
+    conn: &Connection,
+    session_id: &str,
+    message_id: &str,
+) -> Result<(), rusqlite::Error> {
     conn.execute(
         "DELETE FROM chat_messages
          WHERE session_id = ?1

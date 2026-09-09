@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use thiserror::Error;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -146,9 +146,11 @@ async fn generate_openai(req: GenerateRequest<'_>) -> Result<GenerateResponse, P
         body["response_format"] = json!({ "type": "json_object" });
     }
 
-    if let Some(tools) = req.tools {
-        if !tools.is_empty() {
-            body["tools"] = json!(tools
+    if let Some(tools) = req.tools
+        && !tools.is_empty()
+    {
+        body["tools"] = json!(
+            tools
                 .iter()
                 .map(|t| json!({
                     "type": "function",
@@ -158,8 +160,8 @@ async fn generate_openai(req: GenerateRequest<'_>) -> Result<GenerateResponse, P
                         "parameters": t.parameters,
                     }
                 }))
-                .collect::<Vec<_>>());
-        }
+                .collect::<Vec<_>>()
+        );
     }
 
     let res = client
@@ -238,17 +240,19 @@ async fn generate_anthropic(req: GenerateRequest<'_>) -> Result<GenerateResponse
         body["system"] = json!(sys);
     }
 
-    if let Some(tools) = req.tools {
-        if !tools.is_empty() {
-            body["tools"] = json!(tools
+    if let Some(tools) = req.tools
+        && !tools.is_empty()
+    {
+        body["tools"] = json!(
+            tools
                 .iter()
                 .map(|t| json!({
                     "name": t.name,
                     "description": t.description,
                     "input_schema": t.parameters,
                 }))
-                .collect::<Vec<_>>());
-        }
+                .collect::<Vec<_>>()
+        );
     }
 
     let res = client
@@ -343,16 +347,16 @@ async fn generate_gemini(req: GenerateRequest<'_>) -> Result<GenerateResponse, P
         body["generationConfig"] = gc;
     }
 
-    if let Some(tools) = req.tools {
-        if !tools.is_empty() {
-            body["tools"] = json!([{
-                "functionDeclarations": tools.iter().map(|t| json!({
-                    "name": t.name,
-                    "description": t.description,
-                    "parameters": t.parameters,
-                })).collect::<Vec<_>>()
-            }]);
-        }
+    if let Some(tools) = req.tools
+        && !tools.is_empty()
+    {
+        body["tools"] = json!([{
+            "functionDeclarations": tools.iter().map(|t| json!({
+                "name": t.name,
+                "description": t.description,
+                "parameters": t.parameters,
+            })).collect::<Vec<_>>()
+        }]);
     }
 
     let res = client.post(&url).json(&body).send().await?;
@@ -367,30 +371,29 @@ async fn generate_gemini(req: GenerateRequest<'_>) -> Result<GenerateResponse, P
     let mut text = String::new();
     let mut tool_calls = Vec::new();
 
-    if let Some(candidates) = data.get("candidates").and_then(|v| v.as_array()) {
-        if let Some(first) = candidates.get(0) {
-            if let Some(parts) = first.pointer("/content/parts").and_then(|v| v.as_array()) {
-                for part in parts {
-                    if let Some(t) = part.get("text").and_then(|v| v.as_str()) {
-                        text.push_str(t);
-                    }
-                    if let Some(fc) = part.get("functionCall") {
-                        let name = fc
-                            .get("name")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                            .to_string();
-                        let arguments = fc
-                            .get("args")
-                            .cloned()
-                            .unwrap_or(Value::Object(Default::default()));
-                        tool_calls.push(ToolCall {
-                            id: uuid::Uuid::new_v4().to_string(),
-                            name,
-                            arguments,
-                        });
-                    }
-                }
+    if let Some(candidates) = data.get("candidates").and_then(|v| v.as_array())
+        && let Some(first) = candidates.first()
+        && let Some(parts) = first.pointer("/content/parts").and_then(|v| v.as_array())
+    {
+        for part in parts {
+            if let Some(t) = part.get("text").and_then(|v| v.as_str()) {
+                text.push_str(t);
+            }
+            if let Some(fc) = part.get("functionCall") {
+                let name = fc
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let arguments = fc
+                    .get("args")
+                    .cloned()
+                    .unwrap_or(Value::Object(Default::default()));
+                tool_calls.push(ToolCall {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    name,
+                    arguments,
+                });
             }
         }
     }

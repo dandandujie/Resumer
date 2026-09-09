@@ -28,7 +28,7 @@ pub(crate) fn pick_avatar_candidate(images: Vec<(u32, u32, Vec<u8>)>) -> Option<
         .filter(|(width, height, _)| {
             let short = (*width).min(*height);
             let ratio = (*width as f32 / *height as f32).min(*height as f32 / *width as f32);
-            short >= 120 && ratio >= 0.6 && ratio <= 1.0
+            short >= 120 && (0.6..=1.0).contains(&ratio)
         })
         .max_by_key(|(width, height, _)| width.saturating_mul(*height))
         .map(|(_, _, bytes)| bytes)
@@ -48,7 +48,7 @@ fn image_data_url(bytes: Vec<u8>) -> Result<String, String> {
 fn xml_attr<'a>(xml: &'a str, key: &str) -> Option<&'a str> {
     let marker = format!("{}=\"", key);
     let start = xml.find(&marker)? + marker.len();
-    Some(&xml[start..].split('"').next()?)
+    xml[start..].split('"').next()
 }
 
 fn xml_text(xml: &str) -> String {
@@ -108,14 +108,13 @@ fn docx_reader_text(value: &Value, output: &mut String) {
         }
         return;
     };
-    if object.get("type").and_then(Value::as_str) == Some("text") {
-        if let Some(text) = object
+    if object.get("type").and_then(Value::as_str) == Some("text")
+        && let Some(text) = object
             .get("data")
             .and_then(|data| data.get("text"))
             .and_then(Value::as_str)
-        {
-            output.push_str(text);
-        }
+    {
+        output.push_str(text);
     }
     if let Some(children) = object.get("children") {
         docx_reader_text(children, output);
@@ -178,15 +177,15 @@ fn infer_font_scheme(name: &str) -> Option<&'static str> {
 
 fn docx_theme(styles: &str, document: &str) -> Value {
     let mut inferred = serde_json::Map::new();
-    if let Some(name) = xml_attr(styles, "w:eastAsia") {
-        if let Some(scheme) = infer_font_scheme(name) {
-            inferred.insert("fontScheme".into(), json!(scheme));
-        }
+    if let Some(name) = xml_attr(styles, "w:eastAsia")
+        && let Some(scheme) = infer_font_scheme(name)
+    {
+        inferred.insert("fontScheme".into(), json!(scheme));
     }
-    if let Some(size) = xml_attr(styles, "w:sz") {
-        if let Ok(half_points) = size.parse::<f64>() {
-            inferred.insert("fontSize".into(), json!((half_points / 2.0 / 0.75).round()));
-        }
+    if let Some(size) = xml_attr(styles, "w:sz")
+        && let Ok(half_points) = size.parse::<f64>()
+    {
+        inferred.insert("fontSize".into(), json!((half_points / 2.0 / 0.75).round()));
     }
     if let Some(margin_start) = document.find("<w:pgMar") {
         let margin_end = document[margin_start..]
@@ -244,10 +243,10 @@ pub(crate) fn parse_docx_assets(bytes: &[u8]) -> Result<ImportAssets, String> {
         let mut file = archive.by_name(&name).map_err(|e| e.to_string())?;
         let mut bytes = Vec::new();
         file.read_to_end(&mut bytes).map_err(|e| e.to_string())?;
-        if let Ok(reader) = image::ImageReader::new(Cursor::new(&bytes)).with_guessed_format() {
-            if let Ok((width, height)) = reader.into_dimensions() {
-                images.push((width, height, bytes));
-            }
+        if let Ok(reader) = image::ImageReader::new(Cursor::new(&bytes)).with_guessed_format()
+            && let Ok((width, height)) = reader.into_dimensions()
+        {
+            images.push((width, height, bytes));
         }
     }
     let avatar = pick_avatar_candidate(images)
@@ -443,7 +442,11 @@ pub(crate) fn persist_import(
         .get("title")
         .and_then(Value::as_str)
         .filter(|value| !value.trim().is_empty())
-        .unwrap_or(if language == "zh" { "未命名简历" } else { "Untitled Resume" });
+        .unwrap_or(if language == "zh" {
+            "未命名简历"
+        } else {
+            "Untitled Resume"
+        });
     let sections = parsed
         .get("sections")
         .and_then(Value::as_array)
@@ -536,7 +539,11 @@ mod import_tests {
         assert!(assets.text.contains("Jane Doe"));
         assert!(assets.avatar.is_some());
         // 段落之间是真实换行，不是字面量 \n；引号还原为 "
-        assert!(assets.text.contains("Jane Doe\nSaid \"hi\""), "{:?}", assets.text);
+        assert!(
+            assets.text.contains("Jane Doe\nSaid \"hi\""),
+            "{:?}",
+            assets.text
+        );
     }
 
     #[test]
@@ -584,7 +591,10 @@ mod import_tests {
 
     #[test]
     fn merges_inferred_theme_over_base_and_strips_avatar_box() {
-        let merged = merge_theme(json!({"fontScheme":"yahei","fontSize":14}), &json!({"fontScheme":"songti"}));
+        let merged = merge_theme(
+            json!({"fontScheme":"yahei","fontSize":14}),
+            &json!({"fontScheme":"songti"}),
+        );
         assert_eq!(merged, json!({"fontScheme":"songti","fontSize":14}));
         let mut parsed = json!({"sections":[{"type":"personal_info","content":{"avatarBox":[0,0,1,1],"fullName":"x"}}]});
         strip_avatar_box(&mut parsed);

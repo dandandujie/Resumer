@@ -53,17 +53,15 @@ pub fn with_response_format(mut system_prompt: String) -> String {
 /// 简历 AI 助手的系统提示词：专家知识 + 工具 + 当前简历 + 这份简历的投递情况。
 pub fn get_system_prompt(resume_context: &str, applications_context: &str) -> String {
     let mut section_list = String::new();
-    if !resume_context.is_empty() {
-        if let Ok(sections) = serde_json::from_str::<Value>(resume_context) {
-            if let Some(arr) = sections.as_array() {
-                for s in arr {
-                    let t = s.get("type").and_then(|v| v.as_str()).unwrap_or("");
-                    let title = s.get("title").and_then(|v| v.as_str()).unwrap_or("");
-                    let id = s.get("id").and_then(|v| v.as_str()).unwrap_or("");
-                    section_list
-                        .push_str(&format!("  - [{}] \"{}\" (sectionId: {})\n", t, title, id));
-                }
-            }
+    if !resume_context.is_empty()
+        && let Ok(sections) = serde_json::from_str::<Value>(resume_context)
+        && let Some(arr) = sections.as_array()
+    {
+        for s in arr {
+            let t = s.get("type").and_then(|v| v.as_str()).unwrap_or("");
+            let title = s.get("title").and_then(|v| v.as_str()).unwrap_or("");
+            let id = s.get("id").and_then(|v| v.as_str()).unwrap_or("");
+            section_list.push_str(&format!("  - [{}] \"{}\" (sectionId: {})\n", t, title, id));
         }
     }
 

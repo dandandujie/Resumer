@@ -111,22 +111,23 @@ pub async fn ai_chat(
     let cfg = cfg_from(config)?;
 
     // Persist the user message; the first message names the session.
-    if let (Some(sid), Some(last)) = (&session_id, messages.last()) {
-        if last.role == "user" && !last.content.is_empty() {
-            let conn = db.conn.lock().map_err(|e| CommandError {
-                message: e.to_string(),
-            })?;
-            let existing = chat_repo::find_messages(&conn, sid, 1, 0).unwrap_or_default();
-            if existing.is_empty() {
-                let title: String = last.content.chars().take(50).collect();
-                if let Err(error) = chat_repo::update_session_title(&conn, sid, &title) {
-                    log::warn!("chat session title not saved: {error}");
-                }
+    if let (Some(sid), Some(last)) = (&session_id, messages.last())
+        && last.role == "user"
+        && !last.content.is_empty()
+    {
+        let conn = db.conn.lock().map_err(|e| CommandError {
+            message: e.to_string(),
+        })?;
+        let existing = chat_repo::find_messages(&conn, sid, 1, 0).unwrap_or_default();
+        if existing.is_empty() {
+            let title: String = last.content.chars().take(50).collect();
+            if let Err(error) = chat_repo::update_session_title(&conn, sid, &title) {
+                log::warn!("chat session title not saved: {error}");
             }
-            // 落库失败不阻断对话，但必须留下痕迹，否则"消息刷新后消失"无从排查。
-            if let Err(error) = chat_repo::add_message(&conn, sid, "user", &last.content, &json!({})) {
-                log::warn!("user message not persisted: {error}");
-            }
+        }
+        // 落库失败不阻断对话，但必须留下痕迹，否则"消息刷新后消失"无从排查。
+        if let Err(error) = chat_repo::add_message(&conn, sid, "user", &last.content, &json!({})) {
+            log::warn!("user message not persisted: {error}");
         }
     }
 
@@ -186,17 +187,15 @@ pub async fn ai_chat(
             Ok(r) => r,
             Err(e) => {
                 // Persist whatever already streamed so it survives reloads.
-                if let Some(sid) = &session_id {
-                    if !final_text.is_empty() || !ordered_parts.is_empty() {
-                        if let Ok(conn) = db.conn.lock() {
-                            let metadata =
-                                json!({ "orderedParts": ordered_parts, "partial": true });
-                            if let Err(error) =
-                                chat_repo::add_message(&conn, sid, "assistant", &final_text, &metadata)
-                            {
-                                log::warn!("partial assistant message not persisted: {error}");
-                            }
-                        }
+                if let Some(sid) = &session_id
+                    && (!final_text.is_empty() || !ordered_parts.is_empty())
+                    && let Ok(conn) = db.conn.lock()
+                {
+                    let metadata = json!({ "orderedParts": ordered_parts, "partial": true });
+                    if let Err(error) =
+                        chat_repo::add_message(&conn, sid, "assistant", &final_text, &metadata)
+                    {
+                        log::warn!("partial assistant message not persisted: {error}");
                     }
                 }
                 let msg = e.to_string();
@@ -394,19 +393,19 @@ pub async fn ai_chat(
     }
 
     // Persist assistant message
-    if let Some(sid) = &session_id {
-        if !final_text.is_empty()
+    if let Some(sid) = &session_id
+        && (!final_text.is_empty()
             || ordered_parts
                 .iter()
-                .any(|p| p.get("type").and_then(|v| v.as_str()) == Some("tool"))
+                .any(|p| p.get("type").and_then(|v| v.as_str()) == Some("tool")))
+    {
+        let conn = db.conn.lock().map_err(|e| CommandError {
+            message: e.to_string(),
+        })?;
+        let metadata = json!({ "orderedParts": ordered_parts });
+        if let Err(error) = chat_repo::add_message(&conn, sid, "assistant", &final_text, &metadata)
         {
-            let conn = db.conn.lock().map_err(|e| CommandError {
-                message: e.to_string(),
-            })?;
-            let metadata = json!({ "orderedParts": ordered_parts });
-            if let Err(error) = chat_repo::add_message(&conn, sid, "assistant", &final_text, &metadata) {
-                log::warn!("assistant message not persisted: {error}");
-            }
+            log::warn!("assistant message not persisted: {error}");
         }
     }
 

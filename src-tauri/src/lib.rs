@@ -1,3 +1,6 @@
+// Tauri 命令天然是平铺参数，参数数量由前端契约决定，不为此拆结构体。
+#![allow(clippy::too_many_arguments)]
+
 mod ai;
 mod commands;
 mod db;
@@ -29,7 +32,7 @@ pub fn run() {
             let db_path = app_data_dir.join("reseumer.db");
             let db = AppDb::new(&db_path).expect("failed to initialize database");
             let root =
-                knowledge::ensure(&app.handle()).expect("failed to initialize knowledge vault");
+                knowledge::ensure(app.handle()).expect("failed to initialize knowledge vault");
             knowledge::reindex(&db, &root).expect("failed to index knowledge vault");
             knowledge::index::rebuild_from_disk(&root).expect("failed to write knowledge index");
             app.manage(db);

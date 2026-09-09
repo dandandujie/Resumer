@@ -3,7 +3,7 @@ use std::sync::{Mutex, OnceLock};
 
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter};
 
 use super::provider::{AIConfig, ChatMessage, ProviderError, ToolSpec};
@@ -103,15 +103,14 @@ pub async fn stream_chat(
     tools: Option<&[ToolSpec]>,
 ) -> Result<ChatStreamResult, ProviderError> {
     let result = stream_dispatch(app, stream_id, config, system, messages, tools).await;
-    if config.web_search_mode == "native" {
-        if let Err(error) = &result {
-            if is_native_search_error(&error.to_string()) {
-                log::warn!("native search rejected ({error}); retrying without built-in search");
-                let mut fallback = config.clone();
-                fallback.web_search_mode = "off".into();
-                return stream_dispatch(app, stream_id, &fallback, system, messages, tools).await;
-            }
-        }
+    if config.web_search_mode == "native"
+        && let Err(error) = &result
+        && is_native_search_error(&error.to_string())
+    {
+        log::warn!("native search rejected ({error}); retrying without built-in search");
+        let mut fallback = config.clone();
+        fallback.web_search_mode = "off".into();
+        return stream_dispatch(app, stream_id, &fallback, system, messages, tools).await;
     }
     result
 }
@@ -192,10 +191,11 @@ async fn stream_openai(
         body["max_tokens"] = json!(8192);
     }
 
-    if let Some(ts) = tools {
-        if !ts.is_empty() {
-            body["tools"] = json!(ts
-                .iter()
+    if let Some(ts) = tools
+        && !ts.is_empty()
+    {
+        body["tools"] = json!(
+            ts.iter()
                 .map(|t| json!({
                     "type": "function",
                     "function": {
@@ -204,8 +204,8 @@ async fn stream_openai(
                         "parameters": t.parameters,
                     }
                 }))
-                .collect::<Vec<_>>());
-        }
+                .collect::<Vec<_>>()
+        );
     }
 
     if config.web_search_mode == "native" {
@@ -329,17 +329,17 @@ async fn stream_openai(
                         }
                         let delta = choice.get("delta").cloned().unwrap_or(Value::Null);
 
-                        if let Some(content) = delta.get("content").and_then(|c| c.as_str()) {
-                            if !content.is_empty() {
-                                text_out.push_str(content);
-                                emit(
-                                    app,
-                                    stream_id,
-                                    StreamEvent::TextDelta {
-                                        text: content.to_string(),
-                                    },
-                                );
-                            }
+                        if let Some(content) = delta.get("content").and_then(|c| c.as_str())
+                            && !content.is_empty()
+                        {
+                            text_out.push_str(content);
+                            emit(
+                                app,
+                                stream_id,
+                                StreamEvent::TextDelta {
+                                    text: content.to_string(),
+                                },
+                            );
                         }
 
                         // Reasoning models (DeepSeek-R1 / QwQ / etc.) stream the
@@ -349,16 +349,15 @@ async fn stream_openai(
                             .get("reasoning_content")
                             .and_then(|c| c.as_str())
                             .or_else(|| delta.get("reasoning").and_then(|c| c.as_str()))
+                            && !reasoning.is_empty()
                         {
-                            if !reasoning.is_empty() {
-                                emit(
-                                    app,
-                                    stream_id,
-                                    StreamEvent::ReasoningDelta {
-                                        text: reasoning.to_string(),
-                                    },
-                                );
-                            }
+                            emit(
+                                app,
+                                stream_id,
+                                StreamEvent::ReasoningDelta {
+                                    text: reasoning.to_string(),
+                                },
+                            );
                         }
 
                         if let Some(tcs) = delta.get("tool_calls").and_then(|a| a.as_array()) {
@@ -368,24 +367,24 @@ async fn stream_openai(
                                 let entry = pending_tc.entry(idx).or_insert_with(|| {
                                     (String::new(), String::new(), String::new())
                                 });
-                                if let Some(id) = tc.get("id").and_then(|v| v.as_str()) {
-                                    if entry.0.is_empty() {
-                                        entry.0 = id.to_string();
-                                    }
+                                if let Some(id) = tc.get("id").and_then(|v| v.as_str())
+                                    && entry.0.is_empty()
+                                {
+                                    entry.0 = id.to_string();
                                 }
                                 if let Some(f) = tc.get("function") {
-                                    if let Some(name) = f.get("name").and_then(|v| v.as_str()) {
-                                        if entry.1.is_empty() {
-                                            entry.1 = name.to_string();
-                                            emit(
-                                                app,
-                                                stream_id,
-                                                StreamEvent::ToolCallStart {
-                                                    id: entry.0.clone(),
-                                                    name: name.to_string(),
-                                                },
-                                            );
-                                        }
+                                    if let Some(name) = f.get("name").and_then(|v| v.as_str())
+                                        && entry.1.is_empty()
+                                    {
+                                        entry.1 = name.to_string();
+                                        emit(
+                                            app,
+                                            stream_id,
+                                            StreamEvent::ToolCallStart {
+                                                id: entry.0.clone(),
+                                                name: name.to_string(),
+                                            },
+                                        );
                                     }
                                     if let Some(args) = f.get("arguments").and_then(|v| v.as_str())
                                     {
@@ -425,12 +424,15 @@ async fn stream_openai(
         );
     }
     // Content-filter style stops are otherwise invisible.
-    if let Some(fr) = &last_finish_reason {
-        if fr != "stop" && fr != "length" && fr != "tool_calls" && fr != "function_call" {
-            let notice = format!("\n\n> ⚠️ 生成被上游终止（finish_reason: {fr}）。");
-            text_out.push_str(&notice);
-            emit(app, stream_id, StreamEvent::TextDelta { text: notice });
-        }
+    if let Some(fr) = &last_finish_reason
+        && fr != "stop"
+        && fr != "length"
+        && fr != "tool_calls"
+        && fr != "function_call"
+    {
+        let notice = format!("\n\n> ⚠️ 生成被上游终止（finish_reason: {fr}）。");
+        text_out.push_str(&notice);
+        emit(app, stream_id, StreamEvent::TextDelta { text: notice });
     }
 
     if !citations.is_empty() && pending_tc.is_empty() {
@@ -502,18 +504,19 @@ async fn stream_openai_responses(
     if !system.is_empty() {
         body["instructions"] = json!(system);
     }
-    if let Some(ts) = tools {
-        if !ts.is_empty() {
-            body["tools"] = json!(ts
-                .iter()
+    if let Some(ts) = tools
+        && !ts.is_empty()
+    {
+        body["tools"] = json!(
+            ts.iter()
                 .map(|t| json!({
                     "type": "function",
                     "name": t.name,
                     "description": t.description,
                     "parameters": t.parameters,
                 }))
-                .collect::<Vec<_>>());
-        }
+                .collect::<Vec<_>>()
+        );
     }
 
     let res = client
@@ -604,88 +607,88 @@ async fn stream_openai_responses(
                         }
                     }
                     "response.output_item.added" => {
-                        if let Some(item) = v.get("item") {
-                            if item.get("type").and_then(|t| t.as_str()) == Some("function_call") {
-                                let item_id = item
-                                    .get("id")
-                                    .and_then(|x| x.as_str())
-                                    .unwrap_or("")
-                                    .to_string();
-                                let call_id = item
-                                    .get("call_id")
-                                    .and_then(|x| x.as_str())
-                                    .unwrap_or(&item_id)
-                                    .to_string();
-                                let name = item
-                                    .get("name")
-                                    .and_then(|x| x.as_str())
-                                    .unwrap_or("")
-                                    .to_string();
-                                emit(
-                                    app,
-                                    stream_id,
-                                    StreamEvent::ToolCallStart {
-                                        id: call_id.clone(),
-                                        name: name.clone(),
-                                    },
-                                );
-                                fn_calls.insert(item_id, (call_id, name, String::new()));
-                            }
+                        if let Some(item) = v.get("item")
+                            && item.get("type").and_then(|t| t.as_str()) == Some("function_call")
+                        {
+                            let item_id = item
+                                .get("id")
+                                .and_then(|x| x.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            let call_id = item
+                                .get("call_id")
+                                .and_then(|x| x.as_str())
+                                .unwrap_or(&item_id)
+                                .to_string();
+                            let name = item
+                                .get("name")
+                                .and_then(|x| x.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            emit(
+                                app,
+                                stream_id,
+                                StreamEvent::ToolCallStart {
+                                    id: call_id.clone(),
+                                    name: name.clone(),
+                                },
+                            );
+                            fn_calls.insert(item_id, (call_id, name, String::new()));
                         }
                     }
                     "response.function_call_arguments.delta" => {
                         let item_id = v.get("item_id").and_then(|x| x.as_str()).unwrap_or("");
-                        if let Some((_, _, acc)) = fn_calls.get_mut(item_id) {
-                            if let Some(part) = v.get("delta").and_then(|x| x.as_str()) {
-                                acc.push_str(part);
-                            }
+                        if let Some((_, _, acc)) = fn_calls.get_mut(item_id)
+                            && let Some(part) = v.get("delta").and_then(|x| x.as_str())
+                        {
+                            acc.push_str(part);
                         }
                     }
                     "response.output_item.done" => {
-                        if let Some(item) = v.get("item") {
-                            if item.get("type").and_then(|t| t.as_str()) == Some("function_call") {
-                                let item_id = item
-                                    .get("id")
-                                    .and_then(|x| x.as_str())
-                                    .unwrap_or("")
-                                    .to_string();
-                                let (call_id, name, acc) =
-                                    fn_calls.remove(&item_id).unwrap_or_else(|| {
-                                        let call_id = item
-                                            .get("call_id")
-                                            .and_then(|x| x.as_str())
-                                            .unwrap_or("")
-                                            .to_string();
-                                        let name = item
-                                            .get("name")
-                                            .and_then(|x| x.as_str())
-                                            .unwrap_or("")
-                                            .to_string();
-                                        (call_id, name, String::new())
-                                    });
-                                // Prefer the complete arguments on the done item.
-                                let args_str = item
-                                    .get("arguments")
-                                    .and_then(|x| x.as_str())
-                                    .filter(|s| !s.is_empty())
-                                    .map(|s| s.to_string())
-                                    .unwrap_or(acc);
-                                let args: Value = serde_json::from_str(&args_str)
-                                    .unwrap_or(Value::Object(Default::default()));
-                                emit(
-                                    app,
-                                    stream_id,
-                                    StreamEvent::ToolCallArgs {
-                                        id: call_id.clone(),
-                                        args: args.clone(),
-                                    },
-                                );
-                                tool_calls.push(super::provider::ToolCall {
-                                    id: call_id,
-                                    name,
-                                    arguments: args,
+                        if let Some(item) = v.get("item")
+                            && item.get("type").and_then(|t| t.as_str()) == Some("function_call")
+                        {
+                            let item_id = item
+                                .get("id")
+                                .and_then(|x| x.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            let (call_id, name, acc) =
+                                fn_calls.remove(&item_id).unwrap_or_else(|| {
+                                    let call_id = item
+                                        .get("call_id")
+                                        .and_then(|x| x.as_str())
+                                        .unwrap_or("")
+                                        .to_string();
+                                    let name = item
+                                        .get("name")
+                                        .and_then(|x| x.as_str())
+                                        .unwrap_or("")
+                                        .to_string();
+                                    (call_id, name, String::new())
                                 });
-                            }
+                            // Prefer the complete arguments on the done item.
+                            let args_str = item
+                                .get("arguments")
+                                .and_then(|x| x.as_str())
+                                .filter(|s| !s.is_empty())
+                                .map(|s| s.to_string())
+                                .unwrap_or(acc);
+                            let args: Value = serde_json::from_str(&args_str)
+                                .unwrap_or(Value::Object(Default::default()));
+                            emit(
+                                app,
+                                stream_id,
+                                StreamEvent::ToolCallArgs {
+                                    id: call_id.clone(),
+                                    args: args.clone(),
+                                },
+                            );
+                            tool_calls.push(super::provider::ToolCall {
+                                id: call_id,
+                                name,
+                                arguments: args,
+                            });
                         }
                     }
                     "response.completed" | "response.incomplete" => {
@@ -818,109 +821,101 @@ async fn stream_anthropic(
             buffer.drain(..idx + 2);
 
             for l in event_block.lines() {
-                if let Some(data) = l.strip_prefix("data: ") {
-                    if let Ok(v) = serde_json::from_str::<Value>(data) {
-                        let ev_type = v.get("type").and_then(|s| s.as_str()).unwrap_or("");
-                        // Anthropic reports input tokens on message_start and
-                        // output tokens (cumulative) on message_delta.
-                        if let Some(iu) = v
-                            .pointer("/message/usage/input_tokens")
-                            .and_then(|x| x.as_u64())
-                        {
-                            usage.prompt_tokens = iu;
+                if let Some(data) = l.strip_prefix("data: ")
+                    && let Ok(v) = serde_json::from_str::<Value>(data)
+                {
+                    let ev_type = v.get("type").and_then(|s| s.as_str()).unwrap_or("");
+                    // Anthropic reports input tokens on message_start and
+                    // output tokens (cumulative) on message_delta.
+                    if let Some(iu) = v
+                        .pointer("/message/usage/input_tokens")
+                        .and_then(|x| x.as_u64())
+                    {
+                        usage.prompt_tokens = iu;
+                    }
+                    if let Some(ou) = v.pointer("/usage/output_tokens").and_then(|x| x.as_u64()) {
+                        usage.completion_tokens = ou;
+                    }
+                    match ev_type {
+                        "content_block_start" => {
+                            if let Some(block) = v.get("content_block")
+                                && block.get("type").and_then(|v| v.as_str()) == Some("tool_use")
+                            {
+                                let id = block
+                                    .get("id")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_string();
+                                let name = block
+                                    .get("name")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_string();
+                                emit(
+                                    app,
+                                    stream_id,
+                                    StreamEvent::ToolCallStart {
+                                        id: id.clone(),
+                                        name: name.clone(),
+                                    },
+                                );
+                                current_tool = Some((id, name, String::new()));
+                            }
                         }
-                        if let Some(ou) = v.pointer("/usage/output_tokens").and_then(|x| x.as_u64())
-                        {
-                            usage.completion_tokens = ou;
-                        }
-                        match ev_type {
-                            "content_block_start" => {
-                                if let Some(block) = v.get("content_block") {
-                                    if block.get("type").and_then(|v| v.as_str())
-                                        == Some("tool_use")
-                                    {
-                                        let id = block
-                                            .get("id")
-                                            .and_then(|v| v.as_str())
-                                            .unwrap_or("")
-                                            .to_string();
-                                        let name = block
-                                            .get("name")
-                                            .and_then(|v| v.as_str())
-                                            .unwrap_or("")
-                                            .to_string();
+                        "content_block_delta" => {
+                            if let Some(delta) = v.get("delta") {
+                                let dt = delta.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                                if dt == "text_delta" {
+                                    if let Some(t) = delta.get("text").and_then(|v| v.as_str()) {
+                                        text_out.push_str(t);
                                         emit(
                                             app,
                                             stream_id,
-                                            StreamEvent::ToolCallStart {
-                                                id: id.clone(),
-                                                name: name.clone(),
+                                            StreamEvent::TextDelta {
+                                                text: t.to_string(),
                                             },
                                         );
-                                        current_tool = Some((id, name, String::new()));
                                     }
-                                }
-                            }
-                            "content_block_delta" => {
-                                if let Some(delta) = v.get("delta") {
-                                    let dt =
-                                        delta.get("type").and_then(|v| v.as_str()).unwrap_or("");
-                                    if dt == "text_delta" {
-                                        if let Some(t) = delta.get("text").and_then(|v| v.as_str())
-                                        {
-                                            text_out.push_str(t);
-                                            emit(
-                                                app,
-                                                stream_id,
-                                                StreamEvent::TextDelta {
-                                                    text: t.to_string(),
-                                                },
-                                            );
-                                        }
-                                    } else if dt == "thinking_delta" {
-                                        if let Some(t) =
-                                            delta.get("thinking").and_then(|v| v.as_str())
-                                        {
-                                            emit(
-                                                app,
-                                                stream_id,
-                                                StreamEvent::ReasoningDelta {
-                                                    text: t.to_string(),
-                                                },
-                                            );
-                                        }
-                                    } else if dt == "input_json_delta" {
-                                        if let Some(part) =
-                                            delta.get("partial_json").and_then(|v| v.as_str())
-                                        {
-                                            if let Some((_, _, ref mut acc)) = current_tool {
-                                                acc.push_str(part);
-                                            }
-                                        }
+                                } else if dt == "thinking_delta" {
+                                    if let Some(t) = delta.get("thinking").and_then(|v| v.as_str())
+                                    {
+                                        emit(
+                                            app,
+                                            stream_id,
+                                            StreamEvent::ReasoningDelta {
+                                                text: t.to_string(),
+                                            },
+                                        );
                                     }
+                                } else if dt == "input_json_delta"
+                                    && let Some(part) =
+                                        delta.get("partial_json").and_then(|v| v.as_str())
+                                    && let Some((_, _, ref mut acc)) = current_tool
+                                {
+                                    acc.push_str(part);
                                 }
                             }
-                            "content_block_stop" => {
-                                if let Some((id, name, args_str)) = current_tool.take() {
-                                    let args: Value = serde_json::from_str(&args_str)
-                                        .unwrap_or(Value::Object(Default::default()));
-                                    emit(
-                                        app,
-                                        stream_id,
-                                        StreamEvent::ToolCallArgs {
-                                            id: id.clone(),
-                                            args: args.clone(),
-                                        },
-                                    );
-                                    tool_calls.push(super::provider::ToolCall {
-                                        id,
-                                        name,
-                                        arguments: args,
-                                    });
-                                }
-                            }
-                            _ => {}
                         }
+                        "content_block_stop" => {
+                            if let Some((id, name, args_str)) = current_tool.take() {
+                                let args: Value = serde_json::from_str(&args_str)
+                                    .unwrap_or(Value::Object(Default::default()));
+                                emit(
+                                    app,
+                                    stream_id,
+                                    StreamEvent::ToolCallArgs {
+                                        id: id.clone(),
+                                        args: args.clone(),
+                                    },
+                                );
+                                tool_calls.push(super::provider::ToolCall {
+                                    id,
+                                    name,
+                                    arguments: args,
+                                });
+                            }
+                        }
+                        _ => {}
                     }
                 }
             }
@@ -983,17 +978,17 @@ async fn stream_gemini(
     {
         let mut tool_list: Vec<Value> = Vec::new();
         let mut has_functions = false;
-        if let Some(ts) = tools {
-            if !ts.is_empty() {
-                has_functions = true;
-                tool_list.push(json!({
-                    "functionDeclarations": ts.iter().map(|t| json!({
-                        "name": t.name,
-                        "description": t.description,
-                        "parameters": t.parameters,
-                    })).collect::<Vec<_>>()
-                }));
-            }
+        if let Some(ts) = tools
+            && !ts.is_empty()
+        {
+            has_functions = true;
+            tool_list.push(json!({
+                "functionDeclarations": ts.iter().map(|t| json!({
+                    "name": t.name,
+                    "description": t.description,
+                    "parameters": t.parameters,
+                })).collect::<Vec<_>>()
+            }));
         }
         if config.web_search_mode == "native" {
             tool_list.push(json!({ "google_search": {} }));
@@ -1086,31 +1081,31 @@ async fn stream_gemini(
             .and_then(|p| p.as_array())
         {
             for part in parts {
-                if let Some(t) = part.get("text").and_then(|v| v.as_str()) {
-                    if !t.is_empty() {
-                        // Gemini marks chain-of-thought parts with thought=true.
-                        if part
-                            .get("thought")
-                            .and_then(|v| v.as_bool())
-                            .unwrap_or(false)
-                        {
-                            emit(
-                                app,
-                                stream_id,
-                                StreamEvent::ReasoningDelta {
-                                    text: t.to_string(),
-                                },
-                            );
-                        } else {
-                            text_out.push_str(t);
-                            emit(
-                                app,
-                                stream_id,
-                                StreamEvent::TextDelta {
-                                    text: t.to_string(),
-                                },
-                            );
-                        }
+                if let Some(t) = part.get("text").and_then(|v| v.as_str())
+                    && !t.is_empty()
+                {
+                    // Gemini marks chain-of-thought parts with thought=true.
+                    if part
+                        .get("thought")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false)
+                    {
+                        emit(
+                            app,
+                            stream_id,
+                            StreamEvent::ReasoningDelta {
+                                text: t.to_string(),
+                            },
+                        );
+                    } else {
+                        text_out.push_str(t);
+                        emit(
+                            app,
+                            stream_id,
+                            StreamEvent::TextDelta {
+                                text: t.to_string(),
+                            },
+                        );
                     }
                 }
                 if let Some(fc) = part.get("functionCall") {
@@ -1189,8 +1184,7 @@ async fn stream_gemini(
         }
 
         // Process every complete line in the buffer.
-        loop {
-            let Some(nl) = buffer.find('\n') else { break };
+        while let Some(nl) = buffer.find('\n') {
             let line = buffer[..nl].trim_end_matches('\r').to_string();
             buffer.drain(..nl + 1);
             if let Some(data) = line

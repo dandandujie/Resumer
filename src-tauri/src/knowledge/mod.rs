@@ -216,7 +216,13 @@ pub fn reflect_from_json(db: &AppDb, root: &Path, raw: &str) -> Result<ReflectOu
 
 /// 所有自动写盘的页面都走这里：写文件 + FTS + 日志 + index.md 一次到位，
 /// 否则新页面要等下次启动重建索引后 searchKnowledge 才搜得到。
-fn write_generated_page(db: &AppDb, root: &Path, path: &str, content: &str, log: &str) -> Result<(), String> {
+fn write_generated_page(
+    db: &AppDb,
+    root: &Path,
+    path: &str,
+    content: &str,
+    log: &str,
+) -> Result<(), String> {
     let page = vault::write(root, path, content)?;
     let conn = db.conn.lock().map_err(|error| error.to_string())?;
     fts::upsert(&conn, &page)?;

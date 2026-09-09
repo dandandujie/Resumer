@@ -10,7 +10,10 @@ pub fn find_chrome() -> Option<PathBuf> {
         let roots: Vec<PathBuf> = ["LOCALAPPDATA", "PROGRAMFILES", "PROGRAMFILES(X86)"]
             .iter()
             .filter_map(|key| std::env::var_os(key).map(PathBuf::from))
-            .chain([PathBuf::from(r"C:\Program Files"), PathBuf::from(r"C:\Program Files (x86)")])
+            .chain([
+                PathBuf::from(r"C:\Program Files"),
+                PathBuf::from(r"C:\Program Files (x86)"),
+            ])
             .collect();
         let relative = [
             r"Google\Chrome\Application\chrome.exe",
@@ -93,8 +96,16 @@ pub fn find_chrome() -> Option<PathBuf> {
 fn build_local_font_css(font_dir: &std::path::Path, temp_dir: &std::path::Path) -> Option<String> {
     // (css family name, regular file, optional bold file)
     let families: [(&str, &str, Option<&str>); 3] = [
-        ("Reseumer Hei", "NotoSansSC-Regular.woff2", Some("NotoSansSC-Bold.woff2")),
-        ("Reseumer Song", "NotoSerifSC-Regular.woff2", Some("NotoSerifSC-Bold.woff2")),
+        (
+            "Reseumer Hei",
+            "NotoSansSC-Regular.woff2",
+            Some("NotoSansSC-Bold.woff2"),
+        ),
+        (
+            "Reseumer Song",
+            "NotoSerifSC-Regular.woff2",
+            Some("NotoSerifSC-Bold.woff2"),
+        ),
         ("Reseumer Kai", "LXGWWenKai-Regular.woff2", None),
     ];
     // Require at least the sans regular; otherwise skip injection entirely.
@@ -108,11 +119,16 @@ fn build_local_font_css(font_dir: &std::path::Path, temp_dir: &std::path::Path) 
         }
         let dst = temp_dir.join(format!("reseumer-{}", file));
         std::fs::copy(&src, &dst).ok()?;
-        Some(format!("file://{}", dst.to_string_lossy().replace('\\', "/")))
+        Some(format!(
+            "file://{}",
+            dst.to_string_lossy().replace('\\', "/")
+        ))
     };
     let mut css = String::from("<style>\n");
     for (family, regular, bold) in families {
-        let Some(reg_url) = copy_font(regular) else { continue };
+        let Some(reg_url) = copy_font(regular) else {
+            continue;
+        };
         css.push_str(&format!(
             "@font-face{{font-family:'{family}';font-weight:100 500;font-style:normal;src:url('{reg_url}') format('woff2');}}\n"
         ));

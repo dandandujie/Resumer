@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -25,7 +25,10 @@ pub struct JdAnalysis {
     pub created_at: i64,
 }
 
-pub fn list_grammar_checks(conn: &Connection, resume_id: &str) -> Result<Vec<GrammarCheck>, rusqlite::Error> {
+pub fn list_grammar_checks(
+    conn: &Connection,
+    resume_id: &str,
+) -> Result<Vec<GrammarCheck>, rusqlite::Error> {
     let mut stmt = conn.prepare(
         "SELECT id, resume_id, result, score, issue_count, created_at FROM grammar_checks WHERE resume_id = ?1 ORDER BY created_at DESC",
     )?;
@@ -42,7 +45,13 @@ pub fn list_grammar_checks(conn: &Connection, resume_id: &str) -> Result<Vec<Gra
     rows.collect()
 }
 
-pub fn save_grammar_check(conn: &Connection, resume_id: &str, result: &Value, score: i32, issue_count: i32) -> Result<String, rusqlite::Error> {
+pub fn save_grammar_check(
+    conn: &Connection,
+    resume_id: &str,
+    result: &Value,
+    score: i32,
+    issue_count: i32,
+) -> Result<String, rusqlite::Error> {
     let id = uuid::Uuid::new_v4().to_string();
     conn.execute(
         "INSERT INTO grammar_checks (id, resume_id, result, score, issue_count) VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -51,7 +60,10 @@ pub fn save_grammar_check(conn: &Connection, resume_id: &str, result: &Value, sc
     Ok(id)
 }
 
-pub fn get_grammar_check(conn: &Connection, id: &str) -> Result<Option<GrammarCheck>, rusqlite::Error> {
+pub fn get_grammar_check(
+    conn: &Connection,
+    id: &str,
+) -> Result<Option<GrammarCheck>, rusqlite::Error> {
     let mut stmt = conn.prepare(
         "SELECT id, resume_id, result, score, issue_count, created_at FROM grammar_checks WHERE id = ?1",
     )?;
@@ -75,7 +87,10 @@ pub fn delete_grammar_check(conn: &Connection, id: &str) -> Result<(), rusqlite:
     Ok(())
 }
 
-pub fn list_jd_analyses(conn: &Connection, resume_id: &str) -> Result<Vec<JdAnalysis>, rusqlite::Error> {
+pub fn list_jd_analyses(
+    conn: &Connection,
+    resume_id: &str,
+) -> Result<Vec<JdAnalysis>, rusqlite::Error> {
     let mut stmt = conn.prepare(
         "SELECT id, resume_id, job_description, result, overall_score, ats_score, created_at FROM jd_analyses WHERE resume_id = ?1 ORDER BY created_at DESC",
     )?;
@@ -93,7 +108,14 @@ pub fn list_jd_analyses(conn: &Connection, resume_id: &str) -> Result<Vec<JdAnal
     rows.collect()
 }
 
-pub fn save_jd_analysis(conn: &Connection, resume_id: &str, job_description: &str, result: &Value, overall_score: i32, ats_score: i32) -> Result<String, rusqlite::Error> {
+pub fn save_jd_analysis(
+    conn: &Connection,
+    resume_id: &str,
+    job_description: &str,
+    result: &Value,
+    overall_score: i32,
+    ats_score: i32,
+) -> Result<String, rusqlite::Error> {
     let id = uuid::Uuid::new_v4().to_string();
     conn.execute(
         "INSERT INTO jd_analyses (id, resume_id, job_description, result, overall_score, ats_score) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",

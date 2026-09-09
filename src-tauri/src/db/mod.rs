@@ -1,9 +1,9 @@
-pub mod repo;
 pub(crate) mod migrate;
+pub mod repo;
 
+use rusqlite::Connection;
 use std::path::Path;
 use std::sync::Mutex;
-use rusqlite::Connection;
 
 pub struct AppDb {
     pub conn: Mutex<Connection>,

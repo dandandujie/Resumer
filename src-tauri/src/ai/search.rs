@@ -1,13 +1,15 @@
 //! Web search backends for the agent's webSearch tool.
+//!
 //! - free  : DuckDuckGo HTML (no key, best-effort scrape)
 //! - tavily: Tavily API (user-provided key)
 //! - grok  : Grok (xAI) Live Search — the model searches AND summarizes in one
-//!           background call; we return its answer + citations to the main model.
+//!   background call; we return its answer + citations to the main model.
+//!
 //! "native" mode is handled in stream.rs by injecting the provider's own
 //! search tool (Gemini googleSearch / Anthropic web_search; for a Grok main
 //! model, xAI search_parameters) instead.
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::provider::AIConfig;
 
@@ -194,11 +196,7 @@ async fn grok_search(cfg: &AIConfig, query: &str) -> Result<Value, String> {
     };
     let model = {
         let m = cfg.grok_model.trim();
-        if m.is_empty() {
-            "grok-4-fast"
-        } else {
-            m
-        }
+        if m.is_empty() { "grok-4-fast" } else { m }
     };
     let url = format!("{base}/chat/completions");
     let client = super::provider::http_client();

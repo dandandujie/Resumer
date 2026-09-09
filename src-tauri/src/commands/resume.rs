@@ -1,11 +1,13 @@
 use serde_json::Value;
 use tauri::State;
 
+use super::CommandError;
 use crate::db::AppDb;
 use crate::db::repo::resume as repo;
-use super::CommandError;
 
-fn parse_sections_payload(sections: Option<Value>) -> Result<Option<Vec<SectionInput>>, CommandError> {
+fn parse_sections_payload(
+    sections: Option<Value>,
+) -> Result<Option<Vec<SectionInput>>, CommandError> {
     let Some(value) = sections else {
         return Ok(None);
     };
@@ -80,7 +82,14 @@ fn parse_update_resume_payload(payload: Value) -> Result<UpdateResumePayload, Co
 
     let sections = parse_sections_payload(obj.get("sections").cloned())?;
 
-    Ok(UpdateResumePayload { id, user_id, title, template, theme_config, sections })
+    Ok(UpdateResumePayload {
+        id,
+        user_id,
+        title,
+        template,
+        theme_config,
+        sections,
+    })
 }
 
 fn parse_section_input(value: &Value) -> Result<SectionInput, CommandError> {
@@ -137,7 +146,8 @@ fn sync_sections(
     incoming: &[SectionInput],
 ) -> Result<(), rusqlite::Error> {
     let existing = repo::find_sections_by_resume_id(conn, resume_id)?;
-    let existing_ids: std::collections::HashSet<&str> = existing.iter().map(|s| s.id.as_str()).collect();
+    let existing_ids: std::collections::HashSet<&str> =
+        existing.iter().map(|s| s.id.as_str()).collect();
     let incoming_ids: std::collections::HashSet<&str> = incoming
         .iter()
         .filter_map(|s| s.id.as_deref())
@@ -154,7 +164,10 @@ fn sync_sections(
     for (i, sec) in incoming.iter().enumerate() {
         let sort_order = sec.sort_order.unwrap_or(i as i32);
         let visible = sec.visible.unwrap_or(true);
-        let content = sec.content.clone().unwrap_or(Value::Object(Default::default()));
+        let content = sec
+            .content
+            .clone()
+            .unwrap_or(Value::Object(Default::default()));
 
         match sec.id.as_deref().filter(|id| !id.trim().is_empty()) {
             Some(sec_id) if existing_ids.contains(sec_id) => {
@@ -191,7 +204,9 @@ fn sync_sections(
 
 #[tauri::command]
 pub fn list_resumes(db: State<AppDb>, user_id: String) -> Result<Vec<Value>, CommandError> {
-    let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+    let conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
     let resumes = repo::find_all_by_user_id(&conn, &user_id)?;
 
     // Attach a lightweight content summary per resume so the dashboard cards
@@ -232,15 +247,43 @@ fn build_card_summary(conn: &rusqlite::Connection, resume_id: &str) -> Value {
         let content: Value = serde_json::from_str(content_str).unwrap_or_default();
         let has_content = match sec_type.as_str() {
             "personal_info" => {
-                full_name = content.get("fullName").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
-                job_title = content.get("jobTitle").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+                full_name = content
+                    .get("fullName")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                job_title = content
+                    .get("jobTitle")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
                 !full_name.is_empty() || !job_title.is_empty()
             }
-            "summary" => content.get("text").and_then(|v| v.as_str()).map(|t| !t.trim().is_empty()).unwrap_or(false),
+            "summary" => content
+                .get("text")
+                .and_then(|v| v.as_str())
+                .map(|t| !t.trim().is_empty())
+                .unwrap_or(false),
             "work_experience" => {
-                if let Some(item) = content.get("items").and_then(|v| v.as_array()).and_then(|a| a.first()) {
-                    latest_company = item.get("company").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
-                    latest_position = item.get("position").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+                if let Some(item) = content
+                    .get("items")
+                    .and_then(|v| v.as_array())
+                    .and_then(|a| a.first())
+                {
+                    latest_company = item
+                        .get("company")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .trim()
+                        .to_string();
+                    latest_position = item
+                        .get("position")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .trim()
+                        .to_string();
                 }
                 !latest_company.is_empty() || !latest_position.is_empty()
             }
@@ -284,8 +327,14 @@ fn build_card_summary(conn: &rusqlite::Connection, resume_id: &str) -> Value {
 }
 
 #[tauri::command]
-pub fn get_resume(db: State<AppDb>, id: String, user_id: String) -> Result<Option<repo::ResumeWithSections>, CommandError> {
-    let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+pub fn get_resume(
+    db: State<AppDb>,
+    id: String,
+    user_id: String,
+) -> Result<Option<repo::ResumeWithSections>, CommandError> {
+    let conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
     repo::find_by_id(&conn, &id, &user_id).map_err(Into::into)
 }
 
@@ -299,7 +348,9 @@ pub fn create_resume(
     theme_config: Option<Value>,
     sections: Option<Value>,
 ) -> Result<String, CommandError> {
-    let mut conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+    let mut conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
     let tmpl = template.as_deref().unwrap_or("classic");
     let lang = language.as_deref().unwrap_or("zh");
     let config = theme_config.unwrap_or(Value::Object(Default::default()));
@@ -315,7 +366,9 @@ pub fn create_resume(
                 &sec.title,
                 sec.sort_order.unwrap_or(i as i32),
                 sec.visible.unwrap_or(true),
-                &sec.content.clone().unwrap_or(Value::Object(Default::default())),
+                &sec.content
+                    .clone()
+                    .unwrap_or(Value::Object(Default::default())),
             )?;
         }
     }
@@ -325,11 +378,10 @@ pub fn create_resume(
 }
 
 #[tauri::command]
-pub fn update_resume(
-    db: State<AppDb>,
-    payload: Value,
-) -> Result<(), CommandError> {
-    let mut conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+pub fn update_resume(db: State<AppDb>, payload: Value) -> Result<(), CommandError> {
+    let mut conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
     let input = parse_update_resume_payload(payload)?;
     let tx = conn.transaction()?;
     repo::update(
@@ -351,13 +403,21 @@ pub fn update_resume(
 
 #[tauri::command]
 pub fn delete_resume(db: State<AppDb>, id: String, user_id: String) -> Result<(), CommandError> {
-    let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+    let conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
     repo::delete(&conn, &id, &user_id).map_err(Into::into)
 }
 
 #[tauri::command]
-pub fn duplicate_resume(db: State<AppDb>, id: String, user_id: String) -> Result<String, CommandError> {
-    let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+pub fn duplicate_resume(
+    db: State<AppDb>,
+    id: String,
+    user_id: String,
+) -> Result<String, CommandError> {
+    let conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
     repo::duplicate(&conn, &id, &user_id).map_err(Into::into)
 }
 
@@ -382,18 +442,21 @@ mod tests {
     fn setup_conn() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
         conn.execute_batch("PRAGMA foreign_keys=ON;").unwrap();
-        conn.execute_batch(include_str!("../../migrations/001_initial.sql")).unwrap();
+        conn.execute_batch(include_str!("../../migrations/001_initial.sql"))
+            .unwrap();
         conn.execute(
             "INSERT INTO users (id, fingerprint, settings) VALUES (?1, ?2, ?3)",
             params!["user-1", "fingerprint-1", "{}"],
-        ).unwrap();
+        )
+        .unwrap();
         conn
     }
 
     #[test]
     fn sync_sections_creates_new_section_when_client_supplies_id() {
         let conn = setup_conn();
-        let resume_id = repo::create(&conn, "user-1", "测试简历", "classic", "zh", &json!({})).unwrap();
+        let resume_id =
+            repo::create(&conn, "user-1", "测试简历", "classic", "zh", &json!({})).unwrap();
 
         let incoming = vec![SectionInput {
             id: Some("section-from-client".into()),
@@ -436,10 +499,13 @@ mod tests {
         assert_eq!(parsed[0].section_type, "personal_info");
         assert_eq!(parsed[0].sort_order, Some(0));
         assert_eq!(parsed[0].visible, Some(true));
-        assert_eq!(parsed[0].content, Some(json!({
-            "fullName": "张三",
-            "jobTitle": "工程师"
-        })));
+        assert_eq!(
+            parsed[0].content,
+            Some(json!({
+                "fullName": "张三",
+                "jobTitle": "工程师"
+            }))
+        );
     }
 
     #[test]
@@ -467,14 +533,25 @@ mod tests {
         assert_eq!(input.user_id, "user-1");
         assert_eq!(input.title, "测试简历");
         assert_eq!(input.template.as_deref(), Some("modern"));
-        assert_eq!(input.theme_config, Some(json!({ "primaryColor": "#111111" })));
+        assert_eq!(
+            input.theme_config,
+            Some(json!({ "primaryColor": "#111111" }))
+        );
         assert_eq!(input.sections.unwrap()[0].section_type, "summary");
     }
 
     #[test]
     fn rename_only_payload_keeps_template_and_theme() {
         let mut conn = setup_conn();
-        let resume_id = repo::create(&conn, "user-1", "测试简历", "modern", "zh", &json!({ "primaryColor": "#123456" })).unwrap();
+        let resume_id = repo::create(
+            &conn,
+            "user-1",
+            "测试简历",
+            "modern",
+            "zh",
+            &json!({ "primaryColor": "#123456" }),
+        )
+        .unwrap();
         let input = parse_update_resume_payload(json!({
             "id": resume_id,
             "userId": "user-1",
@@ -485,19 +562,33 @@ mod tests {
         assert!(input.theme_config.is_none());
 
         let tx = conn.transaction().unwrap();
-        repo::update(&tx, &input.id, &input.user_id, &input.title, input.template.as_deref(), input.theme_config.as_ref()).unwrap();
+        repo::update(
+            &tx,
+            &input.id,
+            &input.user_id,
+            &input.title,
+            input.template.as_deref(),
+            input.theme_config.as_ref(),
+        )
+        .unwrap();
         tx.commit().unwrap();
 
-        let stored = repo::find_by_id(&conn, &resume_id, "user-1").unwrap().unwrap();
+        let stored = repo::find_by_id(&conn, &resume_id, "user-1")
+            .unwrap()
+            .unwrap();
         assert_eq!(stored.resume.title, "改名后");
         assert_eq!(stored.resume.template, "modern");
-        assert_eq!(stored.resume.theme_config, json!({ "primaryColor": "#123456" }));
+        assert_eq!(
+            stored.resume.theme_config,
+            json!({ "primaryColor": "#123456" })
+        );
     }
 
     #[test]
     fn full_save_syncs_sections_and_theme() {
         let mut conn = setup_conn();
-        let resume_id = repo::create(&conn, "user-1", "测试简历", "classic", "zh", &json!({})).unwrap();
+        let resume_id =
+            repo::create(&conn, "user-1", "测试简历", "classic", "zh", &json!({})).unwrap();
         let input = parse_update_resume_payload(json!({
             "id": resume_id,
             "userId": "user-1",
@@ -517,13 +608,26 @@ mod tests {
         }))
         .unwrap();
         let tx = conn.transaction().unwrap();
-        repo::update(&tx, &input.id, &input.user_id, &input.title, input.template.as_deref(), input.theme_config.as_ref()).unwrap();
+        repo::update(
+            &tx,
+            &input.id,
+            &input.user_id,
+            &input.title,
+            input.template.as_deref(),
+            input.theme_config.as_ref(),
+        )
+        .unwrap();
         sync_sections(&tx, &input.id, &input.sections.unwrap()).unwrap();
         tx.commit().unwrap();
 
-        let stored = repo::find_by_id(&conn, &resume_id, "user-1").unwrap().unwrap();
+        let stored = repo::find_by_id(&conn, &resume_id, "user-1")
+            .unwrap()
+            .unwrap();
         assert_eq!(stored.resume.template, "modern");
-        assert_eq!(stored.resume.theme_config, json!({ "accentColor": "#abcdef" }));
+        assert_eq!(
+            stored.resume.theme_config,
+            json!({ "accentColor": "#abcdef" })
+        );
         assert_eq!(stored.sections.len(), 1);
         assert_eq!(stored.sections[0].content, json!({ "text": "第二版" }));
     }

@@ -282,7 +282,11 @@ fn join_present(parts: Vec<String>, separator: &str) -> String {
 }
 
 fn tech_label(language: &str) -> &'static str {
-    if language == "zh" { "技术栈" } else { "Tech" }
+    if language == "zh" {
+        "技术栈"
+    } else {
+        "Tech"
+    }
 }
 
 fn avatar_bytes(value: &str) -> Result<Option<Vec<u8>>, String> {
@@ -386,12 +390,14 @@ fn personal_info_table(content: &Value, theme: &ResolvedTheme) -> Result<Table, 
                 .add_run(Run::new().add_image(pic)),
         );
     let content_width = content_width_twips(theme);
-    Ok(Table::without_borders(vec![TableRow::new(vec![left, right])])
-        .set_grid(vec![
-            content_width - AVATAR_COLUMN_TWIPS,
-            AVATAR_COLUMN_TWIPS,
-        ])
-        .width(content_width, WidthType::Dxa))
+    Ok(
+        Table::without_borders(vec![TableRow::new(vec![left, right])])
+            .set_grid(vec![
+                content_width - AVATAR_COLUMN_TWIPS,
+                AVATAR_COLUMN_TWIPS,
+            ])
+            .width(content_width, WidthType::Dxa),
+    )
 }
 
 fn item_paragraphs(
@@ -529,7 +535,8 @@ fn item_paragraphs(
         "qr_codes" => {}
         _ => {
             for item in items {
-                let heading = join_present(vec![text(item, "title"), text(item, "subtitle")], " · ");
+                let heading =
+                    join_present(vec![text(item, "title"), text(item, "subtitle")], " · ");
                 body.push(item_heading(&heading, &text(item, "date"), theme));
                 push_description(&mut body, item);
             }
@@ -613,10 +620,8 @@ mod tests {
     }
 
     fn build(sections: Vec<Value>, theme: &ResolvedTheme, name: &str) -> (Vec<u8>, String) {
-        let out = std::env::temp_dir().join(format!(
-            "reseumer-docx-{name}-{}.docx",
-            std::process::id()
-        ));
+        let out =
+            std::env::temp_dir().join(format!("reseumer-docx-{name}-{}.docx", std::process::id()));
         generate_docx(&sections, "zh", theme, &out).unwrap();
         let mut bytes = Vec::new();
         std::fs::File::open(&out)
@@ -673,7 +678,8 @@ mod tests {
 
     #[test]
     fn runs_do_not_carry_color_so_styles_stay_editable() {
-        let sections = vec![json!({"type":"summary","visible":true,"title":"简介","content":{"text":"正文"}})];
+        let sections =
+            vec![json!({"type":"summary","visible":true,"title":"简介","content":{"text":"正文"}})];
         let (_, json) = build(sections, &theme(json!({"bodyColor":"#123456"})), "color");
         let value: Value = serde_json::from_str(&json).unwrap();
         let runs = value["document"]["children"]

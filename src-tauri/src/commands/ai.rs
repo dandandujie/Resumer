@@ -20,15 +20,14 @@ pub(crate) async fn prefetch_context(
 ) -> String {
     let mut sections = Vec::new();
     if let Ok(root) = crate::knowledge::ensure(app) {
-        if let Ok(conn) = db.conn.lock() {
-            if let Ok(hits) = crate::knowledge::fts::search(&conn, query, None, 5) {
-                if !hits.is_empty() {
-                    sections.push(format!(
-                        "本地知识库：{}",
-                        serde_json::to_string(&hits).unwrap_or_default()
-                    ));
-                }
-            }
+        if let Ok(conn) = db.conn.lock()
+            && let Ok(hits) = crate::knowledge::fts::search(&conn, query, None, 5)
+            && !hits.is_empty()
+        {
+            sections.push(format!(
+                "本地知识库：{}",
+                serde_json::to_string(&hits).unwrap_or_default()
+            ));
         }
         let _ = root;
     }

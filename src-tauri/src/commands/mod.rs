@@ -1,11 +1,11 @@
-pub mod resume;
-pub mod user;
 pub mod ai;
 pub mod chat;
 pub mod export;
 pub mod interview;
 pub mod journal;
 pub mod knowledge;
+pub mod resume;
+pub mod user;
 
 use serde::Serialize;
 use serde_json::Value;

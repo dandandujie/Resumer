@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -31,18 +31,31 @@ pub fn find_by_id(conn: &Connection, id: &str) -> Result<Option<User>, rusqlite:
 /// 用户为准，并把历史上误建用户名下的资料一并归并过来。
 pub fn ensure_local_user(conn: &Connection) -> Result<User, rusqlite::Error> {
     let existing: Option<String> = conn
-        .query_row("SELECT id FROM users ORDER BY created_at ASC, rowid ASC LIMIT 1", [], |row| row.get(0))
+        .query_row(
+            "SELECT id FROM users ORDER BY created_at ASC, rowid ASC LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
         .optional()?;
     let id = match existing {
         Some(id) => id,
         None => {
             let id = uuid::Uuid::new_v4().to_string();
-            conn.execute("INSERT INTO users (id, name) VALUES (?1, 'User')", params![id])?;
+            conn.execute(
+                "INSERT INTO users (id, name) VALUES (?1, 'User')",
+                params![id],
+            )?;
             id
         }
     };
-    conn.execute("UPDATE resumes SET user_id = ?1 WHERE user_id <> ?1", params![id])?;
-    conn.execute("UPDATE resume_versions SET user_id = ?1 WHERE user_id <> ?1", params![id])?;
+    conn.execute(
+        "UPDATE resumes SET user_id = ?1 WHERE user_id <> ?1",
+        params![id],
+    )?;
+    conn.execute(
+        "UPDATE resume_versions SET user_id = ?1 WHERE user_id <> ?1",
+        params![id],
+    )?;
     conn.execute("DELETE FROM users WHERE id <> ?1", params![id])?;
     find_by_id(conn, &id)?.ok_or(rusqlite::Error::QueryReturnedNoRows)
 }
@@ -56,7 +69,11 @@ pub fn get_settings(conn: &Connection, id: &str) -> Result<Value, rusqlite::Erro
     Ok(serde_json::from_str(&settings_str).unwrap_or_default())
 }
 
-pub fn update_settings(conn: &Connection, id: &str, settings: &Value) -> Result<(), rusqlite::Error> {
+pub fn update_settings(
+    conn: &Connection,
+    id: &str,
+    settings: &Value,
+) -> Result<(), rusqlite::Error> {
     let existing = get_settings(conn, id)?;
     let merged = merge_json(existing, settings.clone());
     conn.execute(
@@ -105,22 +122,42 @@ mod tests {
         let first = ensure_local_user(&conn).unwrap();
         let second = ensure_local_user(&conn).unwrap();
         assert_eq!(first.id, second.id);
-        let count: i64 = conn.query_row("SELECT COUNT(*) FROM users", [], |r| r.get(0)).unwrap();
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM users", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(count, 1);
     }
 
     #[test]
     fn ensure_local_user_merges_resumes_from_stray_users() {
         let conn = setup();
-        conn.execute("INSERT INTO users (id, fingerprint, created_at) VALUES ('old', 'fp-old', 100)", []).unwrap();
-        conn.execute("INSERT INTO users (id, fingerprint, created_at) VALUES ('stray', 'fp-new', 200)", []).unwrap();
-        crate::db::repo::resume::create(&conn, "stray", "误入名下的简历", "classic", "zh", &json!({})).unwrap();
+        conn.execute(
+            "INSERT INTO users (id, fingerprint, created_at) VALUES ('old', 'fp-old', 100)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO users (id, fingerprint, created_at) VALUES ('stray', 'fp-new', 200)",
+            [],
+        )
+        .unwrap();
+        crate::db::repo::resume::create(
+            &conn,
+            "stray",
+            "误入名下的简历",
+            "classic",
+            "zh",
+            &json!({}),
+        )
+        .unwrap();
 
         let user = ensure_local_user(&conn).unwrap();
         assert_eq!(user.id, "old");
         let resumes = crate::db::repo::resume::find_all_by_user_id(&conn, "old").unwrap();
         assert_eq!(resumes.len(), 1);
-        let users: i64 = conn.query_row("SELECT COUNT(*) FROM users", [], |r| r.get(0)).unwrap();
+        let users: i64 = conn
+            .query_row("SELECT COUNT(*) FROM users", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(users, 1);
     }
 }

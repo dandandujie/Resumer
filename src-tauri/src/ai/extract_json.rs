@@ -18,7 +18,9 @@ fn strip_think_blocks(text: &str) -> String {
 fn strip_fences(text: &str) -> String {
     let re = regex::Regex::new(r"(?s)```(?:json)?\s*\n?(.*?)\n?\s*```").unwrap();
     if let Some(cap) = re.captures(text) {
-        cap.get(1).map(|m| m.as_str().trim().to_string()).unwrap_or_else(|| text.to_string())
+        cap.get(1)
+            .map(|m| m.as_str().trim().to_string())
+            .unwrap_or_else(|| text.to_string())
     } else {
         text.to_string()
     }
@@ -51,7 +53,9 @@ fn repair_unescaped_quotes(text: &str) -> String {
             } else {
                 // Look ahead
                 let mut j = i + 1;
-                while j < chars.len() && (chars[j] == ' ' || chars[j] == '\t' || chars[j] == '\n' || chars[j] == '\r') {
+                while j < chars.len()
+                    && (chars[j] == ' ' || chars[j] == '\t' || chars[j] == '\n' || chars[j] == '\r')
+                {
                     j += 1;
                 }
                 let next = if j < chars.len() { chars[j] } else { '\0' };
@@ -138,31 +142,34 @@ pub fn extract_json(text: &str) -> Result<Value, String> {
     }
 
     // Brute-force first { to last }
-    if let (Some(start), Some(end)) = (cleaned.find('{'), cleaned.rfind('}')) {
-        if end > start {
-            let slice = &cleaned[start..=end];
-            let repaired_slice = repair_unescaped_quotes(slice);
-            if let Ok(v) = serde_json::from_str::<Value>(&repaired_slice) {
-                return Ok(normalize_keys(v));
-            }
-            let s2 = simple_repair(&repaired_slice);
-            if let Ok(v) = serde_json::from_str::<Value>(&s2) {
-                return Ok(normalize_keys(v));
-            }
+    if let (Some(start), Some(end)) = (cleaned.find('{'), cleaned.rfind('}'))
+        && end > start
+    {
+        let slice = &cleaned[start..=end];
+        let repaired_slice = repair_unescaped_quotes(slice);
+        if let Ok(v) = serde_json::from_str::<Value>(&repaired_slice) {
+            return Ok(normalize_keys(v));
+        }
+        let s2 = simple_repair(&repaired_slice);
+        if let Ok(v) = serde_json::from_str::<Value>(&s2) {
+            return Ok(normalize_keys(v));
         }
     }
 
     // Try array unwrap
-    if let (Some(start), Some(end)) = (cleaned.find('['), cleaned.rfind(']')) {
-        if end > start {
-            let slice = &cleaned[start..=end];
-            if let Ok(Value::Array(arr)) = serde_json::from_str::<Value>(slice) {
-                if arr.len() == 1 {
-                    return Ok(normalize_keys(arr.into_iter().next().unwrap()));
-                }
-            }
+    if let (Some(start), Some(end)) = (cleaned.find('['), cleaned.rfind(']'))
+        && end > start
+    {
+        let slice = &cleaned[start..=end];
+        if let Ok(Value::Array(arr)) = serde_json::from_str::<Value>(slice)
+            && arr.len() == 1
+        {
+            return Ok(normalize_keys(arr.into_iter().next().unwrap()));
         }
     }
 
-    Err(format!("Failed to extract JSON from AI response (length={})", text.len()))
+    Err(format!(
+        "Failed to extract JSON from AI response (length={})",
+        text.len()
+    ))
 }

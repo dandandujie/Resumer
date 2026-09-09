@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -39,7 +39,10 @@ pub struct ResumeWithSections {
     pub sections: Vec<ResumeSection>,
 }
 
-pub fn find_all_by_user_id(conn: &Connection, user_id: &str) -> Result<Vec<Resume>, rusqlite::Error> {
+pub fn find_all_by_user_id(
+    conn: &Connection,
+    user_id: &str,
+) -> Result<Vec<Resume>, rusqlite::Error> {
     let mut stmt = conn.prepare(
         "SELECT id, user_id, title, template, theme_config, is_default, language, created_at, updated_at
          FROM resumes WHERE user_id = ?1 ORDER BY updated_at DESC",
@@ -50,7 +53,8 @@ pub fn find_all_by_user_id(conn: &Connection, user_id: &str) -> Result<Vec<Resum
             user_id: row.get(1)?,
             title: row.get(2)?,
             template: row.get(3)?,
-            theme_config: serde_json::from_str::<Value>(&row.get::<_, String>(4)?).unwrap_or_default(),
+            theme_config: serde_json::from_str::<Value>(&row.get::<_, String>(4)?)
+                .unwrap_or_default(),
             is_default: row.get(5)?,
             language: row.get(6)?,
             created_at: row.get(7)?,
@@ -60,7 +64,11 @@ pub fn find_all_by_user_id(conn: &Connection, user_id: &str) -> Result<Vec<Resum
     rows.collect()
 }
 
-pub fn find_by_id(conn: &Connection, id: &str, user_id: &str) -> Result<Option<ResumeWithSections>, rusqlite::Error> {
+pub fn find_by_id(
+    conn: &Connection,
+    id: &str,
+    user_id: &str,
+) -> Result<Option<ResumeWithSections>, rusqlite::Error> {
     let mut stmt = conn.prepare(
         "SELECT id, user_id, title, template, theme_config, is_default, language, created_at, updated_at
          FROM resumes WHERE id = ?1 AND user_id = ?2",
@@ -72,7 +80,8 @@ pub fn find_by_id(conn: &Connection, id: &str, user_id: &str) -> Result<Option<R
                 user_id: row.get(1)?,
                 title: row.get(2)?,
                 template: row.get(3)?,
-                theme_config: serde_json::from_str::<Value>(&row.get::<_, String>(4)?).unwrap_or_default(),
+                theme_config: serde_json::from_str::<Value>(&row.get::<_, String>(4)?)
+                    .unwrap_or_default(),
                 is_default: row.get(5)?,
                 language: row.get(6)?,
                 created_at: row.get(7)?,
@@ -93,7 +102,10 @@ pub fn find_by_id(conn: &Connection, id: &str, user_id: &str) -> Result<Option<R
     }
 }
 
-pub fn find_sections_by_resume_id(conn: &Connection, resume_id: &str) -> Result<Vec<ResumeSection>, rusqlite::Error> {
+pub fn find_sections_by_resume_id(
+    conn: &Connection,
+    resume_id: &str,
+) -> Result<Vec<ResumeSection>, rusqlite::Error> {
     let mut stmt = conn.prepare(
         "SELECT id, resume_id, type, title, sort_order, visible, content, created_at, updated_at
          FROM resume_sections WHERE resume_id = ?1 ORDER BY sort_order ASC",
@@ -114,7 +126,10 @@ pub fn find_sections_by_resume_id(conn: &Connection, resume_id: &str) -> Result<
     rows.collect()
 }
 
-pub fn find_by_id_any(conn: &Connection, id: &str) -> Result<Option<ResumeWithSections>, rusqlite::Error> {
+pub fn find_by_id_any(
+    conn: &Connection,
+    id: &str,
+) -> Result<Option<ResumeWithSections>, rusqlite::Error> {
     let mut stmt = conn.prepare(
         "SELECT id, user_id, title, template, theme_config, is_default, language, created_at, updated_at
          FROM resumes WHERE id = ?1",
@@ -126,7 +141,8 @@ pub fn find_by_id_any(conn: &Connection, id: &str) -> Result<Option<ResumeWithSe
                 user_id: row.get(1)?,
                 title: row.get(2)?,
                 template: row.get(3)?,
-                theme_config: serde_json::from_str::<Value>(&row.get::<_, String>(4)?).unwrap_or_default(),
+                theme_config: serde_json::from_str::<Value>(&row.get::<_, String>(4)?)
+                    .unwrap_or_default(),
                 is_default: row.get(5)?,
                 language: row.get(6)?,
                 created_at: row.get(7)?,
@@ -137,7 +153,10 @@ pub fn find_by_id_any(conn: &Connection, id: &str) -> Result<Option<ResumeWithSe
     match resume {
         Some(r) => {
             let sections = find_sections_by_resume_id(conn, &r.id)?;
-            Ok(Some(ResumeWithSections { resume: r, sections }))
+            Ok(Some(ResumeWithSections {
+                resume: r,
+                sections,
+            }))
         }
         None => Ok(None),
     }
@@ -151,7 +170,14 @@ pub fn update_language(conn: &Connection, id: &str, language: &str) -> Result<()
     Ok(())
 }
 
-pub fn create(conn: &Connection, user_id: &str, title: &str, template: &str, language: &str, theme_config: &Value) -> Result<String, rusqlite::Error> {
+pub fn create(
+    conn: &Connection,
+    user_id: &str,
+    title: &str,
+    template: &str,
+    language: &str,
+    theme_config: &Value,
+) -> Result<String, rusqlite::Error> {
     let id = uuid::Uuid::new_v4().to_string();
     conn.execute(
         "INSERT INTO resumes (id, user_id, title, template, language, theme_config) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -228,7 +254,16 @@ pub fn create_section(
     content: &Value,
 ) -> Result<String, rusqlite::Error> {
     let id = uuid::Uuid::new_v4().to_string();
-    insert_section(conn, &id, resume_id, section_type, title, sort_order, visible, content)
+    insert_section(
+        conn,
+        &id,
+        resume_id,
+        section_type,
+        title,
+        sort_order,
+        visible,
+        content,
+    )
 }
 
 pub fn create_section_with_id(
@@ -241,7 +276,16 @@ pub fn create_section_with_id(
     visible: bool,
     content: &Value,
 ) -> Result<String, rusqlite::Error> {
-    insert_section(conn, section_id, resume_id, section_type, title, sort_order, visible, content)
+    insert_section(
+        conn,
+        section_id,
+        resume_id,
+        section_type,
+        title,
+        sort_order,
+        visible,
+        content,
+    )
 }
 
 fn insert_section(
@@ -266,7 +310,14 @@ fn insert_section(
     Ok(section_id.to_string())
 }
 
-pub fn update_section(conn: &Connection, section_id: &str, title: &str, sort_order: i32, visible: bool, content: &Value) -> Result<(), rusqlite::Error> {
+pub fn update_section(
+    conn: &Connection,
+    section_id: &str,
+    title: &str,
+    sort_order: i32,
+    visible: bool,
+    content: &Value,
+) -> Result<(), rusqlite::Error> {
     conn.execute(
         "UPDATE resume_sections SET title = ?1, sort_order = ?2, visible = ?3, content = ?4, updated_at = unixepoch() WHERE id = ?5",
         params![title, sort_order, visible, serde_json::to_string(content).unwrap_or_default(), section_id],
@@ -280,7 +331,10 @@ pub fn update_section(conn: &Connection, section_id: &str, title: &str, sort_ord
 }
 
 pub fn delete_section(conn: &Connection, section_id: &str) -> Result<(), rusqlite::Error> {
-    conn.execute("DELETE FROM resume_sections WHERE id = ?1", params![section_id])?;
+    conn.execute(
+        "DELETE FROM resume_sections WHERE id = ?1",
+        params![section_id],
+    )?;
     Ok(())
 }
 

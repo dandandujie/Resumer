@@ -62,11 +62,7 @@ pub fn wikilinks(body: &str) -> Vec<String> {
         let Some(raw) = part.split("]]").next() else {
             continue;
         };
-        let target = raw
-            .split(['|', '#'])
-            .next()
-            .unwrap_or("")
-            .trim();
+        let target = raw.split(['|', '#']).next().unwrap_or("").trim();
         if target.is_empty() || target.contains("..") {
             continue;
         }
@@ -207,22 +203,61 @@ fn write_if_missing(root: &Path, relative: &str, content: &str) -> Result<(), St
 fn heading_title(source: &str, filename: &str) -> String {
     source
         .lines()
-        .find_map(|line| line.strip_prefix("# ").map(|title| title.trim().to_string()))
+        .find_map(|line| {
+            line.strip_prefix("# ")
+                .map(|title| title.trim().to_string())
+        })
         .filter(|title| !title.is_empty())
         .unwrap_or_else(|| filename.trim_end_matches(".md").replace('-', " "))
 }
 
 fn seed_pages(root: &Path) -> Result<(), String> {
     let seeds: [(&str, &str, &str); 9] = [
-        ("profile-finance.md", "skill", include_str!("../../skills/profile-finance.md")),
-        ("profile-foreign.md", "skill", include_str!("../../skills/profile-foreign.md")),
-        ("profile-internet-tech.md", "skill", include_str!("../../skills/profile-internet-tech.md")),
-        ("profile-manufacturing.md", "skill", include_str!("../../skills/profile-manufacturing.md")),
-        ("profile-product-ops.md", "skill", include_str!("../../skills/profile-product-ops.md")),
-        ("profile-soe.md", "skill", include_str!("../../skills/profile-soe.md")),
-        ("sop-application-form.md", "sop", include_str!("../../skills/sop-application-form.md")),
-        ("sop-jd-tailoring.md", "sop", include_str!("../../skills/sop-jd-tailoring.md")),
-        ("sop-resume-diagnosis.md", "sop", include_str!("../../skills/sop-resume-diagnosis.md")),
+        (
+            "profile-finance.md",
+            "skill",
+            include_str!("../../skills/profile-finance.md"),
+        ),
+        (
+            "profile-foreign.md",
+            "skill",
+            include_str!("../../skills/profile-foreign.md"),
+        ),
+        (
+            "profile-internet-tech.md",
+            "skill",
+            include_str!("../../skills/profile-internet-tech.md"),
+        ),
+        (
+            "profile-manufacturing.md",
+            "skill",
+            include_str!("../../skills/profile-manufacturing.md"),
+        ),
+        (
+            "profile-product-ops.md",
+            "skill",
+            include_str!("../../skills/profile-product-ops.md"),
+        ),
+        (
+            "profile-soe.md",
+            "skill",
+            include_str!("../../skills/profile-soe.md"),
+        ),
+        (
+            "sop-application-form.md",
+            "sop",
+            include_str!("../../skills/sop-application-form.md"),
+        ),
+        (
+            "sop-jd-tailoring.md",
+            "sop",
+            include_str!("../../skills/sop-jd-tailoring.md"),
+        ),
+        (
+            "sop-resume-diagnosis.md",
+            "sop",
+            include_str!("../../skills/sop-resume-diagnosis.md"),
+        ),
     ];
     let now = now_stamp();
     for (filename, page_type, source) in seeds {
@@ -393,7 +428,13 @@ mod tests {
 
     #[test]
     fn seed_title_uses_first_heading() {
-        assert_eq!(heading_title("# 岗位画像：互联网技术岗\n\n正文", "profile-internet-tech.md"), "岗位画像：互联网技术岗");
+        assert_eq!(
+            heading_title(
+                "# 岗位画像：互联网技术岗\n\n正文",
+                "profile-internet-tech.md"
+            ),
+            "岗位画像：互联网技术岗"
+        );
         assert_eq!(heading_title("没有标题", "sop-x.md"), "sop x");
     }
 }

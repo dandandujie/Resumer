@@ -84,7 +84,9 @@ pub fn reindex(conn: &Connection, root: &std::path::Path) -> Result<usize, Strin
 /// 「字节跳动 后端 岗位要求 面试」这种预检索查询只要命中公司或岗位就应返回。
 pub fn query_terms(query: &str) -> Vec<String> {
     let mut terms: Vec<String> = Vec::new();
-    for raw in query.split(|c: char| c.is_whitespace() || "，。、,.;:()（）[]【】\"'“”|/\\".contains(c)) {
+    for raw in
+        query.split(|c: char| c.is_whitespace() || "，。、,.;:()（）[]【】\"'“”|/\\".contains(c))
+    {
         let term = raw.trim().trim_matches(['-', '*', '^', '+']);
         if term.is_empty() || terms.iter().any(|existing| existing == term) {
             continue;
@@ -109,7 +111,11 @@ fn row_hit(row: &rusqlite::Row<'_>) -> rusqlite::Result<SearchHit> {
         title: row.get(1)?,
         page_type: row.get(2)?,
         summary: row.get(3)?,
-        excerpt: row.get::<_, String>(4)?.chars().take(EXCERPT_CHARS).collect(),
+        excerpt: row
+            .get::<_, String>(4)?
+            .chars()
+            .take(EXCERPT_CHARS)
+            .collect(),
     })
 }
 
@@ -148,7 +154,11 @@ pub fn search(
             .query_map(params![expression, limit as i64], row_hit)
             .map_err(|error| error.to_string())?;
         for row in rows {
-            push_unique(&mut hits, row.map_err(|error| error.to_string())?, page_type);
+            push_unique(
+                &mut hits,
+                row.map_err(|error| error.to_string())?,
+                page_type,
+            );
         }
     }
 
@@ -171,7 +181,11 @@ pub fn search(
                 .query_map(params![pattern, limit as i64], row_hit)
                 .map_err(|error| error.to_string())?;
             for row in rows {
-                push_unique(&mut hits, row.map_err(|error| error.to_string())?, page_type);
+                push_unique(
+                    &mut hits,
+                    row.map_err(|error| error.to_string())?,
+                    page_type,
+                );
             }
         }
     }
@@ -247,17 +261,43 @@ mod tests {
 
     #[test]
     fn splits_query_into_terms_and_strips_fts_operators() {
-        assert_eq!(query_terms("字节跳动 后端开发 岗位要求 面试"), vec!["字节跳动", "后端开发", "岗位要求", "面试"]);
-        assert_eq!(query_terms("Java/后端（北京）-上海 C++"), vec!["Java", "后端", "北京", "上海", "C"]);
+        assert_eq!(
+            query_terms("字节跳动 后端开发 岗位要求 面试"),
+            vec!["字节跳动", "后端开发", "岗位要求", "面试"]
+        );
+        assert_eq!(
+            query_terms("Java/后端（北京）-上海 C++"),
+            vec!["Java", "后端", "北京", "上海", "C"]
+        );
         assert!(query_terms("   ").is_empty());
     }
 
     #[test]
     fn matches_any_term_and_short_company_names() {
         let conn = connection();
-        upsert(&conn, &page("wiki/companies/bytedance.md", "字节跳动", "互联网大厂，后端岗位看重高并发经验。见 [[wiki/roles/backend.md]]")).unwrap();
-        upsert(&conn, &page("wiki/companies/tencent.md", "腾讯", "社交与游戏。")).unwrap();
-        upsert(&conn, &page("wiki/roles/backend.md", "后端工程师", "岗位要求：Go、Java。")).unwrap();
+        upsert(
+            &conn,
+            &page(
+                "wiki/companies/bytedance.md",
+                "字节跳动",
+                "互联网大厂，后端岗位看重高并发经验。见 [[wiki/roles/backend.md]]",
+            ),
+        )
+        .unwrap();
+        upsert(
+            &conn,
+            &page("wiki/companies/tencent.md", "腾讯", "社交与游戏。"),
+        )
+        .unwrap();
+        upsert(
+            &conn,
+            &page(
+                "wiki/roles/backend.md",
+                "后端工程师",
+                "岗位要求：Go、Java。",
+            ),
+        )
+        .unwrap();
 
         let hits = search(&conn, "字节跳动 后端开发 岗位要求 面试", None, 8).unwrap();
         let paths: Vec<&str> = hits.iter().map(|hit| hit.path.as_str()).collect();
@@ -269,6 +309,10 @@ mod tests {
         assert_eq!(hits[0].path, "wiki/companies/tencent.md");
 
         assert!(search(&conn, "Java/后端(北京)", None, 8).is_ok());
-        assert!(search(&conn, "不存在的内容xyz", Some("company"), 8).unwrap().is_empty());
+        assert!(
+            search(&conn, "不存在的内容xyz", Some("company"), 8)
+                .unwrap()
+                .is_empty()
+        );
     }
 }

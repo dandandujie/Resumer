@@ -85,8 +85,8 @@ pub fn normalize_month(input: &str) -> String {
                 .trim_start_matches(['.', '-', '/', ' '])
                 .trim_end_matches('日')
                 .trim();
-            let tail_is_day = tail.is_empty()
-                || (tail.len() <= 2 && tail.chars().all(|c| c.is_ascii_digit()));
+            let tail_is_day =
+                tail.is_empty() || (tail.len() <= 2 && tail.chars().all(|c| c.is_ascii_digit()));
             if tail_is_day {
                 return parse_month_number(month_digits)
                     .map(|month| year_month(&value[..4], month))
@@ -96,12 +96,12 @@ pub fn normalize_month(input: &str) -> String {
         return String::new();
     }
     // MM/YYYY 或 MM.YYYY
-    if let Some((month, year)) = value.split_once(['/', '.']) {
-        if is_year(year) {
-            return parse_month_number(month)
-                .map(|month| year_month(year, month))
-                .unwrap_or_default();
-        }
+    if let Some((month, year)) = value.split_once(['/', '.'])
+        && is_year(year)
+    {
+        return parse_month_number(month)
+            .map(|month| year_month(year, month))
+            .unwrap_or_default();
     }
     // Jul 2022 / July 2022 / Sept. 2022 / Jul, 2022
     if let Some((name, year)) = value.rsplit_once(' ') {
@@ -112,7 +112,9 @@ pub fn normalize_month(input: &str) -> String {
                 .iter()
                 .find(|(prefix, _)| name.starts_with(prefix))
                 .map(|(_, month)| *month);
-            return month.map(|month| year_month(year, month)).unwrap_or_default();
+            return month
+                .map(|month| year_month(year, month))
+                .unwrap_or_default();
         }
     }
     String::new()
@@ -158,7 +160,11 @@ pub fn normalize_value_fields(value: &mut serde_json::Value) {
                 if matches!(key.as_str(), "startDate" | "endDate" | "date") {
                     if let Some(raw) = child.as_str() {
                         let normalized = normalize_month(raw);
-                        let kept = if normalized.is_empty() { raw.trim().to_string() } else { normalized };
+                        let kept = if normalized.is_empty() {
+                            raw.trim().to_string()
+                        } else {
+                            normalized
+                        };
                         *child = serde_json::Value::String(kept);
                     }
                 } else {
@@ -210,12 +216,27 @@ mod tests {
         assert_eq!(format_month("2022-07", DateStyle::Cn, "zh"), "2022年7月");
         assert_eq!(format_month("2022-07", DateStyle::Cn, "en"), "2022.07");
         assert_eq!(format_month("2023", DateStyle::Dot, "zh"), "2023");
-        assert_eq!(format_month(" Summer 2022 ", DateStyle::Dot, "zh"), "Summer 2022");
-        assert_eq!(format_range("2022.07", "2024.06", false, DateStyle::Dot, "zh"), "2022.07 - 2024.06");
-        assert_eq!(format_range("2022-07", "", true, DateStyle::Dot, "zh"), "2022.07 - 至今");
-        assert_eq!(format_range("2022-07", "", false, DateStyle::Dot, "en"), "2022.07 - Present");
+        assert_eq!(
+            format_month(" Summer 2022 ", DateStyle::Dot, "zh"),
+            "Summer 2022"
+        );
+        assert_eq!(
+            format_range("2022.07", "2024.06", false, DateStyle::Dot, "zh"),
+            "2022.07 - 2024.06"
+        );
+        assert_eq!(
+            format_range("2022-07", "", true, DateStyle::Dot, "zh"),
+            "2022.07 - 至今"
+        );
+        assert_eq!(
+            format_range("2022-07", "", false, DateStyle::Dot, "en"),
+            "2022.07 - Present"
+        );
         assert_eq!(format_range("", "", false, DateStyle::Dot, "zh"), "");
-        assert_eq!(format_range("2023", "", true, DateStyle::Dot, "zh"), "2023 - 至今");
+        assert_eq!(
+            format_range("2023", "", true, DateStyle::Dot, "zh"),
+            "2023 - 至今"
+        );
         assert_eq!(
             format_range("2022-07", "2024-06", false, DateStyle::Cn, "zh"),
             "2022年7月 - 2024年6月"
@@ -224,7 +245,8 @@ mod tests {
 
     #[test]
     fn normalize_value_fields_keeps_unparseable_dates() {
-        let mut value = json!({"items":[{"startDate":"2022.7","endDate":null,"date":"2023","title":"x"}]});
+        let mut value =
+            json!({"items":[{"startDate":"2022.7","endDate":null,"date":"2023","title":"x"}]});
         normalize_value_fields(&mut value);
         assert_eq!(
             value,

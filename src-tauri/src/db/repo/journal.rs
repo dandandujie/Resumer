@@ -1,7 +1,7 @@
 //! 求职动态仓储：投递记录（含面试轮次与结果）与模拟面试存档。
 //! 面试轮次/结果以 JSON 整体存取，读写单位始终是"一条投递"。
 
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -100,7 +100,10 @@ pub fn list_applications(conn: &Connection) -> Result<Vec<Application>, rusqlite
     rows.collect()
 }
 
-pub fn list_applications_by_resume(conn: &Connection, resume_id: &str) -> Result<Vec<Application>, rusqlite::Error> {
+pub fn list_applications_by_resume(
+    conn: &Connection,
+    resume_id: &str,
+) -> Result<Vec<Application>, rusqlite::Error> {
     let mut stmt = conn.prepare(&format!(
         "SELECT {APPLICATION_COLUMNS} FROM applications WHERE resume_id = ?1 ORDER BY updated_at DESC"
     ))?;
@@ -108,7 +111,10 @@ pub fn list_applications_by_resume(conn: &Connection, resume_id: &str) -> Result
     rows.collect()
 }
 
-pub fn find_application(conn: &Connection, id: &str) -> Result<Option<Application>, rusqlite::Error> {
+pub fn find_application(
+    conn: &Connection,
+    id: &str,
+) -> Result<Option<Application>, rusqlite::Error> {
     conn.query_row(
         &format!("SELECT {APPLICATION_COLUMNS} FROM applications WHERE id = ?1"),
         params![id],
@@ -118,9 +124,15 @@ pub fn find_application(conn: &Connection, id: &str) -> Result<Option<Applicatio
 }
 
 /// 整条覆盖式保存：新记录插入，已有记录更新全部字段并刷新 updated_at。
-pub fn save_application(conn: &Connection, app: &Application) -> Result<Application, rusqlite::Error> {
+pub fn save_application(
+    conn: &Connection,
+    app: &Application,
+) -> Result<Application, rusqlite::Error> {
     let interviews = serde_json::to_string(&app.interviews).unwrap_or_else(|_| "[]".into());
-    let outcome = app.outcome.as_ref().map(|o| serde_json::to_string(o).unwrap_or_default());
+    let outcome = app
+        .outcome
+        .as_ref()
+        .map(|o| serde_json::to_string(o).unwrap_or_default());
     let exists: bool = conn.query_row(
         "SELECT COUNT(*) FROM applications WHERE id = ?1",
         params![app.id],
@@ -159,14 +171,28 @@ pub fn delete_application(conn: &Connection, id: &str) -> Result<(), rusqlite::E
 
 /// 旧版 localStorage 数据一次性导入：保留原始时间戳，已存在的 id 跳过。
 /// 引用了已不存在简历的记录把 resume_id 置空，而不是丢弃。
-pub fn import_applications(conn: &Connection, apps: &[Application]) -> Result<usize, rusqlite::Error> {
+pub fn import_applications(
+    conn: &Connection,
+    apps: &[Application],
+) -> Result<usize, rusqlite::Error> {
     let mut imported = 0usize;
     for app in apps {
         let resume_id = existing_resume_id(conn, app.resume_id.as_deref())?;
         let interviews = serde_json::to_string(&app.interviews).unwrap_or_else(|_| "[]".into());
-        let outcome = app.outcome.as_ref().map(|o| serde_json::to_string(o).unwrap_or_default());
-        let created_at = if app.created_at > 0 { app.created_at } else { now_secs() };
-        let updated_at = if app.updated_at > 0 { app.updated_at } else { created_at };
+        let outcome = app
+            .outcome
+            .as_ref()
+            .map(|o| serde_json::to_string(o).unwrap_or_default());
+        let created_at = if app.created_at > 0 {
+            app.created_at
+        } else {
+            now_secs()
+        };
+        let updated_at = if app.updated_at > 0 {
+            app.updated_at
+        } else {
+            created_at
+        };
         imported += conn.execute(
             "INSERT OR IGNORE INTO applications (id, resume_id, company, role, channel, applied_date, status, hr_name,
                 hr_contact, jd, notes, next_follow_up, interviews, outcome, created_at, updated_at)
@@ -202,10 +228,21 @@ fn map_mock(row: &rusqlite::Row) -> Result<MockInterview, rusqlite::Error> {
     })
 }
 
-pub fn create_mock_interview(conn: &Connection, mock: &MockInterview) -> Result<MockInterview, rusqlite::Error> {
-    let id = if mock.id.is_empty() { uuid::Uuid::new_v4().to_string() } else { mock.id.clone() };
+pub fn create_mock_interview(
+    conn: &Connection,
+    mock: &MockInterview,
+) -> Result<MockInterview, rusqlite::Error> {
+    let id = if mock.id.is_empty() {
+        uuid::Uuid::new_v4().to_string()
+    } else {
+        mock.id.clone()
+    };
     let resume_id = existing_resume_id(conn, mock.resume_id.as_deref())?;
-    let created_at = if mock.created_at > 0 { mock.created_at } else { now_secs() };
+    let created_at = if mock.created_at > 0 {
+        mock.created_at
+    } else {
+        now_secs()
+    };
     conn.execute(
         "INSERT OR IGNORE INTO mock_interviews (id, resume_id, application_id, company, role, feedback, transcript, created_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
@@ -224,12 +261,23 @@ pub fn delete_mock_interview(conn: &Connection, id: &str) -> Result<(), rusqlite
 }
 
 /// 外键约束下，指向不存在简历的 id 会让插入失败；导入旧数据时统一置空。
-fn existing_resume_id(conn: &Connection, resume_id: Option<&str>) -> Result<Option<String>, rusqlite::Error> {
+fn existing_resume_id(
+    conn: &Connection,
+    resume_id: Option<&str>,
+) -> Result<Option<String>, rusqlite::Error> {
     let Some(rid) = resume_id.filter(|r| !r.trim().is_empty()) else {
         return Ok(None);
     };
-    let count: i64 = conn.query_row("SELECT COUNT(*) FROM resumes WHERE id = ?1", params![rid], |row| row.get(0))?;
-    Ok(if count > 0 { Some(rid.to_string()) } else { None })
+    let count: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM resumes WHERE id = ?1",
+        params![rid],
+        |row| row.get(0),
+    )?;
+    Ok(if count > 0 {
+        Some(rid.to_string())
+    } else {
+        None
+    })
 }
 
 fn now_secs() -> i64 {
@@ -258,7 +306,11 @@ pub fn context_for_resume(conn: &Connection, resume_id: &str) -> Result<String, 
             .and_then(|v| v.as_str())
             .map(|r| format!("，结果：{r}"))
             .unwrap_or_default();
-        let rounds_text = if rounds > 0 { format!("，已面 {rounds} 轮") } else { String::new() };
+        let rounds_text = if rounds > 0 {
+            format!("，已面 {rounds} 轮")
+        } else {
+            String::new()
+        };
         lines.push(format!(
             "- {} · {}（{}，状态：{}{}{}）",
             non_empty(&app.company, "未填公司"),
@@ -269,10 +321,10 @@ pub fn context_for_resume(conn: &Connection, resume_id: &str) -> Result<String, 
             outcome
         ));
     }
-    if let Some(active) = apps
-        .iter()
-        .find(|a| matches!(a.status.as_str(), "submitted" | "screening" | "interview") && !a.jd.trim().is_empty())
-    {
+    if let Some(active) = apps.iter().find(|a| {
+        matches!(a.status.as_str(), "submitted" | "screening" | "interview")
+            && !a.jd.trim().is_empty()
+    }) {
         let jd: String = active.jd.trim().chars().take(MAX_JD_CHARS).collect();
         lines.push(format!(
             "\n最近进行中的目标岗位 JD（{} · {}），定向优化时优先对齐它的原词：\n{}",
@@ -285,7 +337,11 @@ pub fn context_for_resume(conn: &Connection, resume_id: &str) -> Result<String, 
 }
 
 fn non_empty<'a>(value: &'a str, fallback: &'a str) -> &'a str {
-    if value.trim().is_empty() { fallback } else { value.trim() }
+    if value.trim().is_empty() {
+        fallback
+    } else {
+        value.trim()
+    }
 }
 
 #[cfg(test)]
@@ -329,7 +385,8 @@ mod tests {
     #[test]
     fn save_then_update_keeps_created_at_and_round_trips_json() {
         let conn = setup();
-        let rid = crate::db::repo::resume::create(&conn, "u1", "简历", "classic", "zh", &json!({})).unwrap();
+        let rid = crate::db::repo::resume::create(&conn, "u1", "简历", "classic", "zh", &json!({}))
+            .unwrap();
         let saved = save_application(&conn, &sample("a1", Some(&rid))).unwrap();
         assert_eq!(saved.interviews[0]["location"], "线上");
         assert!(saved.created_at > 0);
@@ -347,7 +404,8 @@ mod tests {
     #[test]
     fn deleting_resume_keeps_application_with_null_resume() {
         let conn = setup();
-        let rid = crate::db::repo::resume::create(&conn, "u1", "简历", "classic", "zh", &json!({})).unwrap();
+        let rid = crate::db::repo::resume::create(&conn, "u1", "简历", "classic", "zh", &json!({}))
+            .unwrap();
         save_application(&conn, &sample("a1", Some(&rid))).unwrap();
         crate::db::repo::resume::delete(&conn, &rid, "u1").unwrap();
         let apps = list_applications(&conn).unwrap();
@@ -370,7 +428,8 @@ mod tests {
     #[test]
     fn context_lists_applications_and_active_jd() {
         let conn = setup();
-        let rid = crate::db::repo::resume::create(&conn, "u1", "简历", "classic", "zh", &json!({})).unwrap();
+        let rid = crate::db::repo::resume::create(&conn, "u1", "简历", "classic", "zh", &json!({}))
+            .unwrap();
         save_application(&conn, &sample("a1", Some(&rid))).unwrap();
         let ctx = context_for_resume(&conn, &rid).unwrap();
         assert!(ctx.contains("字节跳动 · 后端工程师"));

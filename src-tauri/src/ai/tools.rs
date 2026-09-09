@@ -124,10 +124,10 @@ pub fn tool_specs(web_search_enabled: bool) -> Vec<ToolSpec> {
 }
 
 fn ensure_id(mut v: Value) -> Value {
-    if let Value::Object(ref mut obj) = v {
-        if !obj.contains_key("id") {
-            obj.insert("id".into(), Value::String(uuid::Uuid::new_v4().to_string()));
-        }
+    if let Value::Object(ref mut obj) = v
+        && !obj.contains_key("id")
+    {
+        obj.insert("id".into(), Value::String(uuid::Uuid::new_v4().to_string()));
     }
     v
 }
@@ -191,10 +191,10 @@ pub fn exec_update_section(
         if let Value::String(s) = &parsed_value {
             parsed_value =
                 json!([{ "id": uuid::Uuid::new_v4().to_string(), "title": "", "description": s }]);
-        } else if !parsed_value.is_array() {
-            if let Some(items) = parsed_value.get("items").cloned() {
-                parsed_value = items;
-            }
+        } else if !parsed_value.is_array()
+            && let Some(items) = parsed_value.get("items").cloned()
+        {
+            parsed_value = items;
         }
         actual_field = if section.section_type == "skills" {
             "categories".into()
@@ -320,12 +320,12 @@ pub fn exec_rewrite_text(
         .ok_or("Section not found")?;
 
     // rewriteText 只适用于纯文本字段；列表类字段走 updateSection，否则会把数组整个覆盖成字符串。
-    if let Some(existing) = section.content.get(field) {
-        if existing.is_array() || existing.is_object() {
-            return Err(format!(
-                "field \"{field}\" is structured (array/object) — use updateSection with a JSON value instead"
-            ));
-        }
+    if let Some(existing) = section.content.get(field)
+        && (existing.is_array() || existing.is_object())
+    {
+        return Err(format!(
+            "field \"{field}\" is structured (array/object) — use updateSection with a JSON value instead"
+        ));
     }
 
     let mut updated = section.content.clone();

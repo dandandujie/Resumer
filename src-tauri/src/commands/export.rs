@@ -3,10 +3,10 @@ use std::path::PathBuf;
 use tauri::State;
 use tauri_plugin_dialog::DialogExt;
 
+use super::CommandError;
 use crate::db::AppDb;
 use crate::db::repo::resume as resume_repo;
-use crate::export::{pdf, txt, md, docx, date::{DateStyle}};
-use super::CommandError;
+use crate::export::{date::DateStyle, docx, md, pdf, txt};
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -16,7 +16,11 @@ pub struct PdfExportOptions {
     pub filename: Option<String>,
 }
 
-async fn pick_save_path(app: &tauri::AppHandle, default_name: &str, extension: &str) -> Option<PathBuf> {
+async fn pick_save_path(
+    app: &tauri::AppHandle,
+    default_name: &str,
+    extension: &str,
+) -> Option<PathBuf> {
     use std::sync::mpsc;
     let (tx, rx) = mpsc::channel();
     app.dialog()
@@ -34,7 +38,10 @@ pub async fn export_pdf(
     app: tauri::AppHandle,
     options: PdfExportOptions,
 ) -> Result<Option<String>, CommandError> {
-    let default_name = options.filename.clone().unwrap_or_else(|| format!("{}.pdf", options.resume_id));
+    let default_name = options
+        .filename
+        .clone()
+        .unwrap_or_else(|| format!("{}.pdf", options.resume_id));
     let path = pick_save_path(&app, &default_name, "pdf").await;
     let path = match path {
         Some(p) => p,
@@ -79,14 +86,19 @@ pub async fn export_html(
     app: tauri::AppHandle,
     options: HtmlExportOptions,
 ) -> Result<Option<String>, CommandError> {
-    let default_name = options.filename.clone().unwrap_or_else(|| format!("{}.html", options.resume_id));
+    let default_name = options
+        .filename
+        .clone()
+        .unwrap_or_else(|| format!("{}.html", options.resume_id));
     let path = pick_save_path(&app, &default_name, "html").await;
     let path = match path {
         Some(p) => p,
         None => return Ok(None),
     };
 
-    std::fs::write(&path, options.html).map_err(|e| CommandError { message: format!("Failed to write: {}", e) })?;
+    std::fs::write(&path, options.html).map_err(|e| CommandError {
+        message: format!("Failed to write: {}", e),
+    })?;
     Ok(Some(path.to_string_lossy().to_string()))
 }
 
@@ -98,14 +110,30 @@ pub async fn export_txt(
     filename: Option<String>,
 ) -> Result<Option<String>, CommandError> {
     let resume = {
-        let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+        let conn = db.conn.lock().map_err(|e| CommandError {
+            message: e.to_string(),
+        })?;
         resume_repo::find_by_id_any(&conn, &resume_id)
-            .map_err(|e| CommandError { message: e.to_string() })?
-            .ok_or(CommandError { message: "Resume not found".into() })?
+            .map_err(|e| CommandError {
+                message: e.to_string(),
+            })?
+            .ok_or(CommandError {
+                message: "Resume not found".into(),
+            })?
     };
 
-    let sections_values: Vec<Value> = resume.sections.iter().map(|s| serde_json::to_value(s).unwrap_or_default()).collect();
-    let style = DateStyle::parse(resume.resume.theme_config.get("dateStyle").and_then(|v| v.as_str()));
+    let sections_values: Vec<Value> = resume
+        .sections
+        .iter()
+        .map(|s| serde_json::to_value(s).unwrap_or_default())
+        .collect();
+    let style = DateStyle::parse(
+        resume
+            .resume
+            .theme_config
+            .get("dateStyle")
+            .and_then(|v| v.as_str()),
+    );
     let text = txt::generate_plain_text(&sections_values, style, &resume.resume.language);
 
     let default_name = filename.unwrap_or_else(|| format!("{}.txt", resume.resume.title));
@@ -115,7 +143,9 @@ pub async fn export_txt(
         None => return Ok(None),
     };
 
-    std::fs::write(&path, text).map_err(|e| CommandError { message: format!("Failed to write: {}", e) })?;
+    std::fs::write(&path, text).map_err(|e| CommandError {
+        message: format!("Failed to write: {}", e),
+    })?;
     Ok(Some(path.to_string_lossy().to_string()))
 }
 
@@ -127,14 +157,30 @@ pub async fn export_markdown(
     filename: Option<String>,
 ) -> Result<Option<String>, CommandError> {
     let resume = {
-        let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+        let conn = db.conn.lock().map_err(|e| CommandError {
+            message: e.to_string(),
+        })?;
         resume_repo::find_by_id_any(&conn, &resume_id)
-            .map_err(|e| CommandError { message: e.to_string() })?
-            .ok_or(CommandError { message: "Resume not found".into() })?
+            .map_err(|e| CommandError {
+                message: e.to_string(),
+            })?
+            .ok_or(CommandError {
+                message: "Resume not found".into(),
+            })?
     };
 
-    let sections_values: Vec<Value> = resume.sections.iter().map(|s| serde_json::to_value(s).unwrap_or_default()).collect();
-    let style = DateStyle::parse(resume.resume.theme_config.get("dateStyle").and_then(|v| v.as_str()));
+    let sections_values: Vec<Value> = resume
+        .sections
+        .iter()
+        .map(|s| serde_json::to_value(s).unwrap_or_default())
+        .collect();
+    let style = DateStyle::parse(
+        resume
+            .resume
+            .theme_config
+            .get("dateStyle")
+            .and_then(|v| v.as_str()),
+    );
     let text = md::generate_markdown(&sections_values, style, &resume.resume.language);
 
     let default_name = filename.unwrap_or_else(|| format!("{}.md", resume.resume.title));
@@ -144,7 +190,9 @@ pub async fn export_markdown(
         None => return Ok(None),
     };
 
-    std::fs::write(&path, text).map_err(|e| CommandError { message: format!("Failed to write: {}", e) })?;
+    std::fs::write(&path, text).map_err(|e| CommandError {
+        message: format!("Failed to write: {}", e),
+    })?;
     Ok(Some(path.to_string_lossy().to_string()))
 }
 
@@ -156,13 +204,21 @@ pub async fn export_json(
     filename: Option<String>,
 ) -> Result<Option<String>, CommandError> {
     let resume = {
-        let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+        let conn = db.conn.lock().map_err(|e| CommandError {
+            message: e.to_string(),
+        })?;
         resume_repo::find_by_id_any(&conn, &resume_id)
-            .map_err(|e| CommandError { message: e.to_string() })?
-            .ok_or(CommandError { message: "Resume not found".into() })?
+            .map_err(|e| CommandError {
+                message: e.to_string(),
+            })?
+            .ok_or(CommandError {
+                message: "Resume not found".into(),
+            })?
     };
 
-    let json = serde_json::to_string_pretty(&resume).map_err(|e| CommandError { message: e.to_string() })?;
+    let json = serde_json::to_string_pretty(&resume).map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
 
     let default_name = filename.unwrap_or_else(|| format!("{}.json", resume.resume.title));
     let path = pick_save_path(&app, &default_name, "json").await;
@@ -171,7 +227,9 @@ pub async fn export_json(
         None => return Ok(None),
     };
 
-    std::fs::write(&path, json).map_err(|e| CommandError { message: format!("Failed to write: {}", e) })?;
+    std::fs::write(&path, json).map_err(|e| CommandError {
+        message: format!("Failed to write: {}", e),
+    })?;
     Ok(Some(path.to_string_lossy().to_string()))
 }
 
@@ -184,13 +242,23 @@ pub async fn export_docx(
     theme: docx::ResolvedTheme,
 ) -> Result<Option<String>, CommandError> {
     let resume = {
-        let conn = db.conn.lock().map_err(|e| CommandError { message: e.to_string() })?;
+        let conn = db.conn.lock().map_err(|e| CommandError {
+            message: e.to_string(),
+        })?;
         resume_repo::find_by_id_any(&conn, &resume_id)
-            .map_err(|e| CommandError { message: e.to_string() })?
-            .ok_or(CommandError { message: "Resume not found".into() })?
+            .map_err(|e| CommandError {
+                message: e.to_string(),
+            })?
+            .ok_or(CommandError {
+                message: "Resume not found".into(),
+            })?
     };
 
-    let sections_values: Vec<Value> = resume.sections.iter().map(|s| serde_json::to_value(s).unwrap_or_default()).collect();
+    let sections_values: Vec<Value> = resume
+        .sections
+        .iter()
+        .map(|s| serde_json::to_value(s).unwrap_or_default())
+        .collect();
 
     let default_name = filename.unwrap_or_else(|| format!("{}.docx", resume.resume.title));
     let path = pick_save_path(&app, &default_name, "docx").await;
@@ -199,13 +267,8 @@ pub async fn export_docx(
         None => return Ok(None),
     };
 
-    docx::generate_docx(
-        &sections_values,
-        &resume.resume.language,
-        &theme,
-        &path,
-    )
-    .map_err(|e| CommandError { message: e })?;
+    docx::generate_docx(&sections_values, &resume.resume.language, &theme, &path)
+        .map_err(|e| CommandError { message: e })?;
 
     Ok(Some(path.to_string_lossy().to_string()))
 }

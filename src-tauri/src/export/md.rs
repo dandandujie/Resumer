@@ -1,18 +1,26 @@
+use super::date::{DateStyle, format_range};
 use serde_json::Value;
-use super::date::{format_range, DateStyle};
 
 fn gstr<'a>(v: &'a Value, key: &str) -> &'a str {
     v.get(key).and_then(|x| x.as_str()).unwrap_or("")
 }
 
 fn garr<'a>(v: &'a Value, key: &str) -> Vec<&'a Value> {
-    v.get(key).and_then(|x| x.as_array()).map(|a| a.iter().collect()).unwrap_or_default()
+    v.get(key)
+        .and_then(|x| x.as_array())
+        .map(|a| a.iter().collect())
+        .unwrap_or_default()
 }
 
 fn garr_str(v: &Value, key: &str) -> Vec<String> {
-    v.get(key).and_then(|x| x.as_array()).map(|a| {
-        a.iter().filter_map(|x| x.as_str().map(String::from)).collect()
-    }).unwrap_or_default()
+    v.get(key)
+        .and_then(|x| x.as_array())
+        .map(|a| {
+            a.iter()
+                .filter_map(|x| x.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn date_range(item: &Value, style: DateStyle, lang: &str) -> String {
@@ -22,7 +30,15 @@ fn date_range(item: &Value, style: DateStyle, lang: &str) -> String {
     } else {
         gstr(item, "endDate").to_string()
     };
-    format_range(start, &end, item.get("current").and_then(|v| v.as_bool()).unwrap_or(false), style, lang)
+    format_range(
+        start,
+        &end,
+        item.get("current")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
+        style,
+        lang,
+    )
 }
 
 /// Generate GitHub-flavored Markdown from a resume's sections array.
@@ -40,27 +56,62 @@ pub fn generate_markdown(sections: &[Value], style: DateStyle, lang: &str) -> St
         match section_type {
             "personal_info" => {
                 let name = gstr(&content, "fullName");
-                if !name.is_empty() { out.push(format!("# {}", name)); }
+                if !name.is_empty() {
+                    out.push(format!("# {}", name));
+                }
                 let job = gstr(&content, "jobTitle");
-                if !job.is_empty() { out.push(format!("**{}**", job)); }
+                if !job.is_empty() {
+                    out.push(format!("**{}**", job));
+                }
 
-                let info_keys = ["age", "gender", "politicalStatus", "ethnicity", "hometown", "maritalStatus", "yearsOfExperience", "educationLevel"];
-                let info_parts: Vec<String> = info_keys.iter()
-                    .filter_map(|k| { let s = gstr(&content, k); if s.is_empty() { None } else { Some(s.to_string()) } })
+                let info_keys = [
+                    "age",
+                    "gender",
+                    "politicalStatus",
+                    "ethnicity",
+                    "hometown",
+                    "maritalStatus",
+                    "yearsOfExperience",
+                    "educationLevel",
+                ];
+                let info_parts: Vec<String> = info_keys
+                    .iter()
+                    .filter_map(|k| {
+                        let s = gstr(&content, k);
+                        if s.is_empty() {
+                            None
+                        } else {
+                            Some(s.to_string())
+                        }
+                    })
                     .collect();
-                if !info_parts.is_empty() { out.push(info_parts.join(" · ")); }
+                if !info_parts.is_empty() {
+                    out.push(info_parts.join(" · "));
+                }
 
                 let contact_keys = ["email", "phone", "wechat", "location", "website"];
-                let contact_parts: Vec<String> = contact_keys.iter()
-                    .filter_map(|k| { let s = gstr(&content, k); if s.is_empty() { None } else { Some(s.to_string()) } })
+                let contact_parts: Vec<String> = contact_keys
+                    .iter()
+                    .filter_map(|k| {
+                        let s = gstr(&content, k);
+                        if s.is_empty() {
+                            None
+                        } else {
+                            Some(s.to_string())
+                        }
+                    })
                     .collect();
-                if !contact_parts.is_empty() { out.push(contact_parts.join(" · ")); }
+                if !contact_parts.is_empty() {
+                    out.push(contact_parts.join(" · "));
+                }
                 out.push(String::new());
             }
             "summary" => {
                 out.push(format!("## {}", title));
                 let text = gstr(&content, "text");
-                if !text.is_empty() { out.push(text.into()); }
+                if !text.is_empty() {
+                    out.push(text.into());
+                }
                 out.push(String::new());
             }
             "work_experience" => {
@@ -71,16 +122,29 @@ pub fn generate_markdown(sections: &[Value], style: DateStyle, lang: &str) -> St
                     let range = date_range(item, style, lang);
                     let location = gstr(item, "location");
                     let mut head = format!("### {}", position);
-                    if !company.is_empty() { head.push_str(&format!(" · {}", company)); }
+                    if !company.is_empty() {
+                        head.push_str(&format!(" · {}", company));
+                    }
                     out.push(head);
-                    let meta: Vec<String> = [range, location.to_string()].into_iter().filter(|s| !s.is_empty()).collect();
-                    if !meta.is_empty() { out.push(format!("*{}*", meta.join(" · "))); }
+                    let meta: Vec<String> = [range, location.to_string()]
+                        .into_iter()
+                        .filter(|s| !s.is_empty())
+                        .collect();
+                    if !meta.is_empty() {
+                        out.push(format!("*{}*", meta.join(" · ")));
+                    }
                     let desc = gstr(item, "description");
-                    if !desc.is_empty() { out.push(desc.into()); }
+                    if !desc.is_empty() {
+                        out.push(desc.into());
+                    }
                     let techs = garr_str(item, "technologies");
-                    if !techs.is_empty() { out.push(format!("**技术栈:** {}", techs.join(", "))); }
+                    if !techs.is_empty() {
+                        out.push(format!("**技术栈:** {}", techs.join(", ")));
+                    }
                     for h in garr_str(item, "highlights") {
-                        if !h.is_empty() { out.push(format!("- {}", h)); }
+                        if !h.is_empty() {
+                            out.push(format!("- {}", h));
+                        }
                     }
                     out.push(String::new());
                 }
@@ -91,16 +155,29 @@ pub fn generate_markdown(sections: &[Value], style: DateStyle, lang: &str) -> St
                     let inst = gstr(item, "institution");
                     let degree = gstr(item, "degree");
                     let field = gstr(item, "field");
-                    let head: Vec<String> = [inst, degree, field].into_iter().filter(|s| !s.is_empty()).map(String::from).collect();
+                    let head: Vec<String> = [inst, degree, field]
+                        .into_iter()
+                        .filter(|s| !s.is_empty())
+                        .map(String::from)
+                        .collect();
                     out.push(format!("### {}", head.join(" · ")));
                     let range = date_range(item, style, lang);
                     let location = gstr(item, "location");
-                    let meta: Vec<String> = [range, location.to_string()].into_iter().filter(|s| !s.is_empty()).collect();
-                    if !meta.is_empty() { out.push(format!("*{}*", meta.join(" · "))); }
+                    let meta: Vec<String> = [range, location.to_string()]
+                        .into_iter()
+                        .filter(|s| !s.is_empty())
+                        .collect();
+                    if !meta.is_empty() {
+                        out.push(format!("*{}*", meta.join(" · ")));
+                    }
                     let gpa = gstr(item, "gpa");
-                    if !gpa.is_empty() { out.push(format!("GPA: {}", gpa)); }
+                    if !gpa.is_empty() {
+                        out.push(format!("GPA: {}", gpa));
+                    }
                     for h in garr_str(item, "highlights") {
-                        if !h.is_empty() { out.push(format!("- {}", h)); }
+                        if !h.is_empty() {
+                            out.push(format!("- {}", h));
+                        }
                     }
                     out.push(String::new());
                 }
@@ -125,11 +202,17 @@ pub fn generate_markdown(sections: &[Value], style: DateStyle, lang: &str) -> St
                         out.push(format!("### {}", name));
                     }
                     let desc = gstr(item, "description");
-                    if !desc.is_empty() { out.push(desc.into()); }
+                    if !desc.is_empty() {
+                        out.push(desc.into());
+                    }
                     let techs = garr_str(item, "technologies");
-                    if !techs.is_empty() { out.push(format!("**技术栈:** {}", techs.join(", "))); }
+                    if !techs.is_empty() {
+                        out.push(format!("**技术栈:** {}", techs.join(", ")));
+                    }
                     for h in garr_str(item, "highlights") {
-                        if !h.is_empty() { out.push(format!("- {}", h)); }
+                        if !h.is_empty() {
+                            out.push(format!("- {}", h));
+                        }
                     }
                     out.push(String::new());
                 }
@@ -140,7 +223,11 @@ pub fn generate_markdown(sections: &[Value], style: DateStyle, lang: &str) -> St
                     let name = gstr(item, "name");
                     let issuer = gstr(item, "issuer");
                     let date = gstr(item, "date");
-                    let extra: Vec<String> = [issuer, date].into_iter().filter(|s| !s.is_empty()).map(String::from).collect();
+                    let extra: Vec<String> = [issuer, date]
+                        .into_iter()
+                        .filter(|s| !s.is_empty())
+                        .map(String::from)
+                        .collect();
                     if extra.is_empty() {
                         out.push(format!("- {}", name));
                     } else {
@@ -152,7 +239,11 @@ pub fn generate_markdown(sections: &[Value], style: DateStyle, lang: &str) -> St
             "languages" => {
                 out.push(format!("## {}", title));
                 for item in garr(&content, "items") {
-                    out.push(format!("- **{}:** {}", gstr(item, "language"), gstr(item, "proficiency")));
+                    out.push(format!(
+                        "- **{}:** {}",
+                        gstr(item, "language"),
+                        gstr(item, "proficiency")
+                    ));
                 }
                 out.push(String::new());
             }
@@ -162,12 +253,18 @@ pub fn generate_markdown(sections: &[Value], style: DateStyle, lang: &str) -> St
                     let i_title = gstr(item, "title");
                     let subtitle = gstr(item, "subtitle");
                     let mut head = format!("### {}", i_title);
-                    if !subtitle.is_empty() { head.push_str(&format!(" — {}", subtitle)); }
+                    if !subtitle.is_empty() {
+                        head.push_str(&format!(" — {}", subtitle));
+                    }
                     out.push(head);
                     let date = gstr(item, "date");
-                    if !date.is_empty() { out.push(format!("*{}*", date)); }
+                    if !date.is_empty() {
+                        out.push(format!("*{}*", date));
+                    }
                     let desc = gstr(item, "description");
-                    if !desc.is_empty() { out.push(desc.into()); }
+                    if !desc.is_empty() {
+                        out.push(desc.into());
+                    }
                     out.push(String::new());
                 }
             }
