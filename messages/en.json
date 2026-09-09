@@ -171,7 +171,10 @@
       "more": "More",
       "file": "File",
       "duplicate": "Save a copy",
-      "history": "Version history"
+      "history": "Version history",
+      "smartFit": "Smart fit",
+      "smartFitTitle": "Fit to one page",
+      "smartFitError": "Smart fit failed"
     },
     "aiPolish": "AI Polish",
     "invalidSectionContent": "This section has invalid data. Please use AI to regenerate the content.",
@@ -254,7 +257,17 @@
         "10": "Oct",
         "11": "Nov",
         "12": "Dec"
-      }
+      },
+      "groupBasic": "Basics",
+      "groupContact": "Contact",
+      "groupExtra": "Additional (common for SOE / public sector)"
+    },
+    "items": {
+      "drag": "Drag item",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "insertAbove": "Insert above",
+      "remove": "Remove"
     }
   },
   "ai": {
@@ -293,7 +306,15 @@
     "model": "Model",
     "stopGenerate": "Stop generating",
     "knowledgeProposalFailed": "Failed to apply knowledge proposal",
-    "knowledgeProposalSaving": "Saving…"
+    "knowledgeProposalSaving": "Saving…",
+    "sources": "Sources",
+    "saveToKnowledge": "Save to knowledge",
+    "savedToKnowledge": "Saved to knowledge base",
+    "saveToKnowledgeFailed": "Failed to save to knowledge base",
+    "thinkingLive": "Thinking",
+    "thinkingDone": "Thoughts",
+    "editResend": "Edit & resend",
+    "sourceOrigin": "Source"
   },
   "pdf": {
     "exporting": "Generating PDF..."
@@ -617,7 +638,13 @@
     "reflectConfirmAction": "Start reflection",
     "reflecting": "Reflecting…",
     "reflectionResult": "Reflection result",
-    "openExperiencePage": "Open experience page"
+    "openExperiencePage": "Open experience page",
+    "kanbanNoCompany": "Untitled company",
+    "kanbanNoRole": "Untitled role",
+    "kanbanNoDate": "No date",
+    "graphUntitledApplication": "Untitled application",
+    "graphInterview": "Interview",
+    "graphMockInterview": "Mock interview"
   },
   "export": {
     "title": "Export Resume",

@@ -2,7 +2,7 @@
 
 import { useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import { Camera, X, Circle, RectangleVertical } from 'lucide-react';
+import { Camera, ChevronDown, X, Circle, RectangleVertical } from 'lucide-react';
 import { EditableText } from '../fields/editable-text';
 import { EditableSelect } from '../fields/editable-select';
 import { FieldWrapper } from '../fields/field-wrapper';
@@ -133,63 +133,88 @@ export function PersonalInfoSection({ section, onUpdate }: Props) {
         />
       </div>
 
-      <FieldWrapper>
-        <EditableText label={t('fullName')} value={content.fullName} onChange={(v) => onUpdate({ fullName: v })} />
-        <EditableText label={t('jobTitle')} value={content.jobTitle} onChange={(v) => onUpdate({ jobTitle: v })} />
-      </FieldWrapper>
-      <FieldWrapper>
-        <EditableText label={t('age')} value={content.age || ''} onChange={(v) => onUpdate({ age: v })} />
-        <EditableSelect
-          label={t('gender')}
-          value={content.gender || ''}
-          onChange={(v) => onUpdate({ gender: v })}
-          options={t('genderOptions').split(',').map((s) => ({ label: s, value: s }))}
-        />
-      </FieldWrapper>
-      <FieldWrapper>
-        <EditableSelect
-          label={t('politicalStatus')}
-          value={content.politicalStatus || ''}
-          onChange={(v) => onUpdate({ politicalStatus: v })}
-          options={t('politicalStatusOptions').split(',').map((s) => ({ label: s, value: s }))}
-        />
-        <EditableSelect
-          label={t('ethnicity')}
-          value={content.ethnicity || ''}
-          onChange={(v) => onUpdate({ ethnicity: v })}
-          options={t('ethnicityOptions').split(',').map((s) => ({ label: s, value: s }))}
-        />
-      </FieldWrapper>
-      <FieldWrapper>
-        <EditableText label={t('hometown')} value={content.hometown || ''} onChange={(v) => onUpdate({ hometown: v })} />
-        <EditableSelect
-          label={t('maritalStatus')}
-          value={content.maritalStatus || ''}
-          onChange={(v) => onUpdate({ maritalStatus: v })}
-          options={t('maritalStatusOptions').split(',').map((s) => ({ label: s, value: s }))}
-        />
-      </FieldWrapper>
-      <FieldWrapper>
-        <EditableText label={t('yearsOfExperience')} value={content.yearsOfExperience || ''} onChange={(v) => onUpdate({ yearsOfExperience: v })} />
-        <EditableSelect
-          label={t('educationLevel')}
-          value={content.educationLevel || ''}
-          onChange={(v) => onUpdate({ educationLevel: v })}
-          options={t('educationLevelOptions').split(',').map((s) => ({ label: s, value: s }))}
-        />
-      </FieldWrapper>
-      <FieldWrapper>
-        <EditableText label={t('email')} value={content.email} onChange={(v) => onUpdate({ email: v })} type="email" />
-        <EditableText label={t('phone')} value={content.phone} onChange={(v) => onUpdate({ phone: v })} type="tel" />
-      </FieldWrapper>
-      <FieldWrapper>
-        <EditableText label={t('wechat')} value={content.wechat || ''} onChange={(v) => onUpdate({ wechat: v })} />
-        <EditableText label={t('location')} value={content.location} onChange={(v) => onUpdate({ location: v })} />
-      </FieldWrapper>
-      <FieldWrapper>
-        <EditableText label={t('website')} value={content.website || ''} onChange={(v) => onUpdate({ website: v })} />
-      </FieldWrapper>
-
+      <FieldGroup title={t('groupBasic')} defaultOpen>
+        <FieldWrapper>
+          <EditableText label={t('fullName')} value={content.fullName} onChange={(v) => onUpdate({ fullName: v })} />
+          <EditableText label={t('jobTitle')} value={content.jobTitle} onChange={(v) => onUpdate({ jobTitle: v })} />
+        </FieldWrapper>
+        <FieldWrapper>
+          <EditableText label={t('yearsOfExperience')} value={content.yearsOfExperience || ''} onChange={(v) => onUpdate({ yearsOfExperience: v })} />
+          <EditableSelect
+            label={t('educationLevel')}
+            value={content.educationLevel || ''}
+            onChange={(v) => onUpdate({ educationLevel: v })}
+            options={t('educationLevelOptions').split(',').map((s) => ({ label: s, value: s }))}
+          />
+        </FieldWrapper>
+      </FieldGroup>
+      <FieldGroup title={t('groupContact')} defaultOpen>
+        <FieldWrapper>
+          <EditableText label={t('email')} value={content.email} onChange={(v) => onUpdate({ email: v })} type="email" />
+          <EditableText label={t('phone')} value={content.phone} onChange={(v) => onUpdate({ phone: v })} type="tel" />
+        </FieldWrapper>
+        <FieldWrapper>
+          <EditableText label={t('wechat')} value={content.wechat || ''} onChange={(v) => onUpdate({ wechat: v })} />
+          <EditableText label={t('location')} value={content.location} onChange={(v) => onUpdate({ location: v })} />
+        </FieldWrapper>
+        <FieldWrapper>
+          <EditableText label={t('website')} value={content.website || ''} onChange={(v) => onUpdate({ website: v })} />
+        </FieldWrapper>
+      </FieldGroup>
+      {/* 社招简历通常不填这些；已有值时默认展开，避免用户找不到自己填过的内容 */}
+      <FieldGroup
+        title={t('groupExtra')}
+        defaultOpen={Boolean(
+          content.age || content.gender || content.politicalStatus || content.ethnicity ||
+          content.hometown || content.maritalStatus,
+        )}
+      >
+        <FieldWrapper>
+          <EditableText label={t('age')} value={content.age || ''} onChange={(v) => onUpdate({ age: v })} />
+          <EditableSelect
+            label={t('gender')}
+            value={content.gender || ''}
+            onChange={(v) => onUpdate({ gender: v })}
+            options={t('genderOptions').split(',').map((s) => ({ label: s, value: s }))}
+          />
+        </FieldWrapper>
+        <FieldWrapper>
+          <EditableSelect
+            label={t('politicalStatus')}
+            value={content.politicalStatus || ''}
+            onChange={(v) => onUpdate({ politicalStatus: v })}
+            options={t('politicalStatusOptions').split(',').map((s) => ({ label: s, value: s }))}
+          />
+          <EditableSelect
+            label={t('ethnicity')}
+            value={content.ethnicity || ''}
+            onChange={(v) => onUpdate({ ethnicity: v })}
+            options={t('ethnicityOptions').split(',').map((s) => ({ label: s, value: s }))}
+          />
+        </FieldWrapper>
+        <FieldWrapper>
+          <EditableText label={t('hometown')} value={content.hometown || ''} onChange={(v) => onUpdate({ hometown: v })} />
+          <EditableSelect
+            label={t('maritalStatus')}
+            value={content.maritalStatus || ''}
+            onChange={(v) => onUpdate({ maritalStatus: v })}
+            options={t('maritalStatusOptions').split(',').map((s) => ({ label: s, value: s }))}
+          />
+        </FieldWrapper>
+      </FieldGroup>
     </div>
+  );
+}
+
+/** 原生 details：键盘可达、无额外依赖；标题栏沿用 Whale Cream 的分隔线与墨色。 */
+function FieldGroup({ title, defaultOpen, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
+  return (
+    <details open={defaultOpen} className="group rounded-lg border border-[var(--whale-divider)] bg-[var(--whale-card)]">
+      <summary className="flex cursor-pointer select-none items-center justify-between px-3 py-2 text-xs font-semibold text-[var(--whale-ink-soft)]">
+        {title}
+        <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="space-y-3 border-t border-[var(--whale-divider)] p-3">{children}</div>
+    </details>
   );
 }

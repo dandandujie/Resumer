@@ -40,6 +40,7 @@ function Card({
   application: Application;
   onOpen: (id: string) => void;
 }) {
+  const t = useTranslations('journal');
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: application.id });
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
   return (
@@ -52,10 +53,10 @@ function Card({
       onClick={() => onOpen(application.id)}
       className={`w-full cursor-grab rounded-lg border border-[var(--whale-divider)] bg-[var(--whale-card)] p-3 text-left shadow-sm active:cursor-grabbing ${isDragging ? 'opacity-50' : ''}`}
     >
-      <div className="truncate text-xs font-semibold text-[var(--whale-ink)]">{application.company || '未命名公司'}</div>
-      <div className="mt-1 truncate text-[11px] text-[var(--whale-ink-muted)]">{application.role || '未命名岗位'}</div>
+      <div className="truncate text-xs font-semibold text-[var(--whale-ink)]">{application.company || t('kanbanNoCompany')}</div>
+      <div className="mt-1 truncate text-[11px] text-[var(--whale-ink-muted)]">{application.role || t('kanbanNoRole')}</div>
       <span className={`mt-2 inline-flex rounded-full px-1.5 py-0.5 text-[10px] ${statusTone(application.status)}`}>
-        {application.appliedDate || '未填日期'}
+        {application.appliedDate || t('kanbanNoDate')}
       </span>
     </button>
   );

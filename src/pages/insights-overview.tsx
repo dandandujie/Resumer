@@ -126,8 +126,12 @@ export default function InsightsOverviewPage() {
   const selected = applications.find((a) => a.id === selectedId) || null;
   const mocks = useJournalStore((state) => state.mocks);
   const mergedGraph = useMemo(
-    () => mergeKnowledgeGraph(graph, applications, mocks, resumes),
-    [applications, graph, mocks, resumes],
+    () => mergeKnowledgeGraph(graph, applications, mocks, resumes, {
+      application: tJournal('graphUntitledApplication'),
+      interview: tJournal('graphInterview'),
+      mockInterview: tJournal('graphMockInterview'),
+    }),
+    [applications, graph, mocks, resumes, tJournal],
   );
 
   const filtered = useMemo(() => {

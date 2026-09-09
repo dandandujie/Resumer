@@ -15,11 +15,19 @@ export function normalizeCompany(value: string): string {
   return normalized.toLowerCase();
 }
 
+export interface GraphFallbackLabels {
+  application: string;
+  interview: string;
+  mockInterview: string;
+}
+
+/** 无标题节点的兜底文案由调用方按当前语言传入，纯函数本身不依赖 i18n。 */
 export function mergeKnowledgeGraph(
   graph: KnowledgeGraphData,
   applications: Application[],
   mocks: MockInterview[],
   resumes: Resume[],
+  labels: GraphFallbackLabels,
 ): { nodes: GraphNodeDatum[]; edges: GraphLinkDatum[] } {
   const nodes: GraphNodeDatum[] = graph.nodes.map((node) => ({
     id: node.id,
@@ -42,7 +50,7 @@ export function mergeKnowledgeGraph(
     const applicationId = `application:${application.id}`;
     addNode({
       id: applicationId,
-      title: [application.company, application.role].filter(Boolean).join(' · ') || '未命名投递',
+      title: [application.company, application.role].filter(Boolean).join(' · ') || labels.application,
       type: 'application',
     });
     if (application.resumeId) addEdge(applicationId, `resume:${application.resumeId}`, 'application→resume');
@@ -52,13 +60,13 @@ export function mergeKnowledgeGraph(
     if (role) addEdge(applicationId, role.id, 'application→role');
     application.interviews.forEach((interview) => {
       const interviewId = `interview:${application.id}:${interview.id}`;
-      addNode({ id: interviewId, title: interview.round || '面试', type: 'interview' });
+      addNode({ id: interviewId, title: interview.round || labels.interview, type: 'interview' });
       addEdge(interviewId, applicationId, 'interview→application');
     });
   });
   mocks.forEach((mock) => {
     const mockId = `mock:${mock.id}`;
-    addNode({ id: mockId, title: `${mock.company} ${mock.role}`.trim() || '模拟面试', type: 'interview' });
+    addNode({ id: mockId, title: `${mock.company} ${mock.role}`.trim() || labels.mockInterview, type: 'interview' });
     if (mock.applicationId) addEdge(mockId, `application:${mock.applicationId}`, 'interview→application');
   });
   return { nodes, edges };

@@ -45,6 +45,7 @@ function errorMessage(error: unknown): string {
 
 export default function KnowledgePage() {
   const t = useTranslations('knowledge');
+  const tJournal = useTranslations('journal');
   const {
     pages, selectedPath, selectedContent, pendingEntities, loading,
     load, reindex, select, write, ingest, adoptEntity, dismissEntity, setSelectedContent,
@@ -87,8 +88,12 @@ export default function KnowledgePage() {
   );
 
   const mergedGraph = useMemo(
-    () => mergeKnowledgeGraph(graph, applications, mocks, resumes),
-    [applications, graph, mocks, resumes],
+    () => mergeKnowledgeGraph(graph, applications, mocks, resumes, {
+      application: tJournal('graphUntitledApplication'),
+      interview: tJournal('graphInterview'),
+      mockInterview: tJournal('graphMockInterview'),
+    }),
+    [applications, graph, mocks, resumes, tJournal],
   );
 
   const grouped = useMemo(() => {

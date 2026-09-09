@@ -19,6 +19,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { ArrowDown, ArrowUp, GripVertical, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useTranslations } from 'next-intl';
 
 export interface SortableHandleProps {
   attributes: ReturnType<typeof useSortable>['attributes'];
@@ -33,6 +34,7 @@ interface SortableItemProps {
 }
 
 export function SortableItem({ id, children }: SortableItemProps) {
+  const t = useTranslations('editor.items');
   const {
     attributes,
     listeners,
@@ -62,7 +64,7 @@ export function SortableItem({ id, children }: SortableItemProps) {
         {...attributes}
         {...listeners}
         className="mt-1 cursor-grab touch-none rounded p-1 text-muted-foreground hover:bg-muted active:cursor-grabbing"
-        aria-label="拖动条目"
+        aria-label={t('drag')}
       >
         <GripVertical className="h-3.5 w-3.5" />
       </button>
@@ -129,6 +131,7 @@ export function SortableItemActions({
   onInsert,
   onRemove,
 }: SortableItemActionsProps) {
+  const t = useTranslations('editor.items');
   const iconClass = 'h-3.5 w-3.5';
   return (
     <div className="flex items-center gap-0.5">
@@ -138,7 +141,7 @@ export function SortableItemActions({
           {...handle.attributes}
           {...handle.listeners}
           className="cursor-grab touch-none rounded p-1 text-muted-foreground hover:bg-muted active:cursor-grabbing"
-          aria-label="拖动条目"
+          aria-label={t('drag')}
         >
           <GripVertical className={iconClass} />
         </button>
@@ -148,7 +151,7 @@ export function SortableItemActions({
         size="icon-xs"
         disabled={index === 0}
         onClick={() => onMove(index - 1)}
-        aria-label="上移"
+        aria-label={t('moveUp')}
       >
         <ArrowUp className={iconClass} />
       </Button>
@@ -157,7 +160,7 @@ export function SortableItemActions({
         size="icon-xs"
         disabled={index === count - 1}
         onClick={() => onMove(index + 1)}
-        aria-label="下移"
+        aria-label={t('moveDown')}
       >
         <ArrowDown className={iconClass} />
       </Button>
@@ -165,7 +168,7 @@ export function SortableItemActions({
         variant="ghost"
         size="icon-xs"
         onClick={onInsert}
-        aria-label="在上方插入"
+        aria-label={t('insertAbove')}
       >
         <Plus className={iconClass} />
       </Button>
@@ -174,7 +177,7 @@ export function SortableItemActions({
         size="icon-xs"
         className="text-muted-foreground hover:text-red-500"
         onClick={onRemove}
-        aria-label="删除"
+        aria-label={t('remove')}
       >
         ×
       </Button>

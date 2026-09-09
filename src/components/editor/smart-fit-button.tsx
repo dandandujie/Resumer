@@ -34,13 +34,13 @@ export function SmartFitButton() {
         // smart-layout change can be reverted with undo/redo.
         pushSnapshot(sections);
         updateThemeConfig(optimalTheme);
-        toast.success(t('toolbar.smartFitSuccess') || '已为您智能排版至单页最优状态');
+        toast.success(t('toolbar.smartFitSuccess'));
       } else {
-        logError(t('toolbar.smartFitFailed') || '内容过多，建议删减工作经历或项目细节');
+        logError(t('toolbar.smartFitFailed'));
       }
     } catch (err) {
       console.error(err);
-      logError('智能排版失败');
+      logError(t('toolbar.smartFitError'), String((err as Error)?.message || err));
     } finally {
       setIsCalculating(false);
     }
@@ -53,14 +53,14 @@ export function SmartFitButton() {
       size="sm"
       className="cursor-pointer gap-1 text-[var(--whale-ink-soft)] hover:bg-[var(--whale-mint)]/40 hover:text-[var(--whale-ink)]"
       disabled={isCalculating}
-      title="一键智能单页"
+      title={t('toolbar.smartFitTitle')}
     >
       {isCalculating ? (
         <Loader2 className="h-4 w-4 animate-spin" />
       ) : (
         <Sparkles className="h-4 w-4 text-[var(--whale-ink)]" />
       )}
-      <span className="ml-1 text-xs hidden sm:inline">智能排版</span>
+      <span className="ml-1 text-xs hidden sm:inline">{t('toolbar.smartFit')}</span>
     </Button>
   );
 }

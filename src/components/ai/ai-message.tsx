@@ -24,6 +24,8 @@ import { AIProposalCard, KnowledgeProposalCard } from './ai-proposal-card';
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import * as api from '@/lib/tauri-api';
+import { toast } from 'sonner';
+import { logError } from '@/stores/error-log-store';
 
 interface AIMessageProps {
   message: UIMessage;
@@ -234,7 +236,7 @@ function cleanAssistantText(text: string): string {
       /^.*You[’']ve used\s+~?\d+[×x]\s+more tokens than Animal Farm\.\s*$/gim,
       '',
     )
-    .replace(/\bdashboard\.thinking\b/g, '思考中...')
+    .replace(/\bdashboard\.thinking\b/g, '')
     .trim();
 }
 
@@ -310,6 +312,7 @@ function ToolPill({ part }: { part: ToolPart }) {
 }
 
 function WebSearchSources({ result }: { result: unknown }) {
+  const t = useTranslations('ai');
   const value =
     result && typeof result === 'object'
       ? (result as { results?: unknown }).results
@@ -318,7 +321,7 @@ function WebSearchSources({ result }: { result: unknown }) {
   if (results.length === 0) return null;
   return (
     <div className="my-2 space-y-1.5 rounded-lg border border-[var(--whale-divider)] bg-[var(--whale-card)] p-2 text-xs">
-      <div className="font-medium text-[var(--whale-ink)]">参考来源</div>
+      <div className="font-medium text-[var(--whale-ink)]">{t('sources')}</div>
       {results.slice(0, 5).map((item, index) => {
         if (!item || typeof item !== 'object') return null;
         const source = item as {
@@ -327,9 +330,14 @@ function WebSearchSources({ result }: { result: unknown }) {
           content?: string;
         };
         const save = async () => {
-          const slug = (source.title || 'web-source').replace(/[^\\p{L}\\p{N}]+/gu, '-');
-          const text = `# ${source.title || source.url}\n\n来源：${source.url || ''}\n\n${source.content || ''}`;
-          await api.knowledgeIngestFile(Array.from(new TextEncoder().encode(text)), `${slug}.md`);
+          const slug = (source.title || 'web-source').replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '') || 'web-source';
+          const text = `# ${source.title || source.url}\n\n${t('sourceOrigin')}: ${source.url || ''}\n\n${source.content || ''}`;
+          try {
+            await api.knowledgeIngestFile(Array.from(new TextEncoder().encode(text)), `${slug}.md`);
+            toast.success(t('savedToKnowledge'));
+          } catch (error) {
+            logError(t('saveToKnowledgeFailed'), String((error as Error)?.message || error));
+          }
         };
         return (
           <div key={`${source.url || 'source'}-${index}`} className="rounded px-1.5 py-1 hover:bg-muted">
@@ -337,8 +345,12 @@ function WebSearchSources({ result }: { result: unknown }) {
               <div className="truncate font-medium text-[var(--whale-ink)]">{source.title || source.url}</div>
               <div className="line-clamp-2 text-[var(--whale-ink-muted)]">{source.content}</div>
             </a>
-            <button type="button" onClick={() => void save()} className="mt-1 text-[11px] text-[var(--whale-ink-muted)] hover:text-[var(--whale-ink)]">
-              存入知识库
+            <button
+              type="button"
+              onClick={() => void save()}
+              className="mt-1 cursor-pointer text-[11px] text-[var(--whale-ink-muted)] hover:text-[var(--whale-ink)]"
+            >
+              {t('saveToKnowledge')}
             </button>
           </div>
         );
@@ -419,6 +431,7 @@ function AIMessageImpl({
   onRollback,
   onRegenerate,
 }: AIMessageProps) {
+  const t = useTranslations('ai');
   const isUser = message.role === 'user';
 
   if (!isUser && !hasRenderableContent(message)) return null;
@@ -516,7 +529,7 @@ function AIMessageImpl({
             {isUser && onEditResend && (
               <MsgAction
                 icon={Pencil}
-                label="编辑重发"
+                label={t('editResend')}
                 onClick={() => onEditResend(message.id, userText)}
                 dark={false}
               />
@@ -584,6 +597,7 @@ function ReasoningBlock({
   startedAt?: number;
   endedAt?: number;
 }) {
+  const t = useTranslations('ai');
   const [manuallyToggled, setManuallyToggled] = useState(false);
   const [open, setOpen] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -625,7 +639,7 @@ function ReasoningBlock({
           />
         </span>
         <span className="font-medium tracking-wide">
-          {live ? '正在思考' : '思考过程'}
+          {live ? t('thinkingLive') : t('thinkingDone')}
         </span>
         {elapsedSec && (
           <span

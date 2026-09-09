@@ -119,9 +119,14 @@ pub async fn ai_chat(
             let existing = chat_repo::find_messages(&conn, sid, 1, 0).unwrap_or_default();
             if existing.is_empty() {
                 let title: String = last.content.chars().take(50).collect();
-                let _ = chat_repo::update_session_title(&conn, sid, &title);
+                if let Err(error) = chat_repo::update_session_title(&conn, sid, &title) {
+                    log::warn!("chat session title not saved: {error}");
+                }
             }
-            let _ = chat_repo::add_message(&conn, sid, "user", &last.content, &json!({}));
+            // 落库失败不阻断对话，但必须留下痕迹，否则"消息刷新后消失"无从排查。
+            if let Err(error) = chat_repo::add_message(&conn, sid, "user", &last.content, &json!({})) {
+                log::warn!("user message not persisted: {error}");
+            }
         }
     }
 
@@ -186,13 +191,11 @@ pub async fn ai_chat(
                         if let Ok(conn) = db.conn.lock() {
                             let metadata =
                                 json!({ "orderedParts": ordered_parts, "partial": true });
-                            let _ = chat_repo::add_message(
-                                &conn,
-                                sid,
-                                "assistant",
-                                &final_text,
-                                &metadata,
-                            );
+                            if let Err(error) =
+                                chat_repo::add_message(&conn, sid, "assistant", &final_text, &metadata)
+                            {
+                                log::warn!("partial assistant message not persisted: {error}");
+                            }
                         }
                     }
                 }
@@ -401,7 +404,9 @@ pub async fn ai_chat(
                 message: e.to_string(),
             })?;
             let metadata = json!({ "orderedParts": ordered_parts });
-            let _ = chat_repo::add_message(&conn, sid, "assistant", &final_text, &metadata);
+            if let Err(error) = chat_repo::add_message(&conn, sid, "assistant", &final_text, &metadata) {
+                log::warn!("assistant message not persisted: {error}");
+            }
         }
     }
 

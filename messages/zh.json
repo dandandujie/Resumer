@@ -171,7 +171,10 @@
       "more": "更多",
       "file": "文件",
       "duplicate": "另存副本",
-      "history": "版本历史"
+      "history": "版本历史",
+      "smartFit": "智能排版",
+      "smartFitTitle": "一键智能单页",
+      "smartFitError": "智能排版失败"
     },
     "aiPolish": "AI 润色",
     "invalidSectionContent": "该模块数据异常，请使用 AI 重新生成内容",
@@ -254,7 +257,17 @@
         "10": "10月",
         "11": "11月",
         "12": "12月"
-      }
+      },
+      "groupBasic": "基本信息",
+      "groupContact": "联系方式",
+      "groupExtra": "补充信息（国企/事业单位常用）"
+    },
+    "items": {
+      "drag": "拖动条目",
+      "moveUp": "上移",
+      "moveDown": "下移",
+      "insertAbove": "在上方插入",
+      "remove": "删除"
     }
   },
   "ai": {
@@ -293,7 +306,15 @@
     "needModelSetup": "需要设置模型",
     "stopGenerate": "停止生成",
     "knowledgeProposalFailed": "知识库提案采纳失败",
-    "knowledgeProposalSaving": "写入中…"
+    "knowledgeProposalSaving": "写入中…",
+    "sources": "参考来源",
+    "saveToKnowledge": "存入知识库",
+    "savedToKnowledge": "已存入知识库",
+    "saveToKnowledgeFailed": "存入知识库失败",
+    "thinkingLive": "正在思考",
+    "thinkingDone": "思考过程",
+    "editResend": "编辑重发",
+    "sourceOrigin": "来源"
   },
   "pdf": {
     "exporting": "正在生成 PDF..."
@@ -617,7 +638,13 @@
     "reflectConfirmAction": "开始复盘",
     "reflecting": "复盘中…",
     "reflectionResult": "复盘结果",
-    "openExperiencePage": "打开经验页"
+    "openExperiencePage": "打开经验页",
+    "kanbanNoCompany": "未命名公司",
+    "kanbanNoRole": "未命名岗位",
+    "kanbanNoDate": "未填日期",
+    "graphUntitledApplication": "未命名投递",
+    "graphInterview": "面试",
+    "graphMockInterview": "模拟面试"
   },
   "export": {
     "title": "导出简历",

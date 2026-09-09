@@ -77,7 +77,8 @@ export function ExportDialog({ open, onOpenChange, resumeId }: ExportDialogProps
       // Save first if dirty
       if (isDirty) await save();
 
-      const title = currentResume?.title || 'resume';
+      // 标题里的路径分隔符与 Windows 非法字符会让保存对话框失败
+      const title = (currentResume?.title || 'resume').replace(/[\\/:*?"<>|]+/g, '-').trim() || 'resume';
       const now = new Date();
       const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
       const extMap: Record<ExportFormat, string> = {

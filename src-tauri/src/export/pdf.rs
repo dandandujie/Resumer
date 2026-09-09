@@ -6,16 +6,25 @@ use std::process::Command;
 /// Opera, Arc, Chromium) before giving up.
 pub fn find_chrome() -> Option<PathBuf> {
     let candidates: Vec<PathBuf> = if cfg!(target_os = "windows") {
-        vec![
-            r"C:\Program Files\Google\Chrome\Application\chrome.exe".into(),
-            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe".into(),
-            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe".into(),
-            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe".into(),
-            r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe".into(),
-            r"C:\Program Files\Vivaldi\Application\vivaldi.exe".into(),
-            r"C:\Program Files\Opera\opera.exe".into(),
-            r"C:\Program Files\Chromium\Application\chrome.exe".into(),
-        ]
+        // 国内 Windows 上 Chrome/Edge 多数是按用户安装在 %LOCALAPPDATA%，不能只看 Program Files。
+        let roots: Vec<PathBuf> = ["LOCALAPPDATA", "PROGRAMFILES", "PROGRAMFILES(X86)"]
+            .iter()
+            .filter_map(|key| std::env::var_os(key).map(PathBuf::from))
+            .chain([PathBuf::from(r"C:\Program Files"), PathBuf::from(r"C:\Program Files (x86)")])
+            .collect();
+        let relative = [
+            r"Google\Chrome\Application\chrome.exe",
+            r"Microsoft\Edge\Application\msedge.exe",
+            r"BraveSoftware\Brave-Browser\Application\brave.exe",
+            r"Vivaldi\Application\vivaldi.exe",
+            r"Programs\Opera\opera.exe",
+            r"Opera\opera.exe",
+            r"Chromium\Application\chrome.exe",
+        ];
+        roots
+            .iter()
+            .flat_map(|root| relative.iter().map(move |path| root.join(path)))
+            .collect()
     } else if cfg!(target_os = "macos") {
         vec![
             "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome".into(),
@@ -155,7 +164,15 @@ pub fn generate_pdf_from_html(
     let file_url = format!("file://{}", html_path.to_string_lossy().replace('\\', "/"));
     let pdf_arg = format!("--print-to-pdf={}", output_path.to_string_lossy());
 
-    let output = Command::new(&chrome)
+    let mut command = Command::new(&chrome);
+    // Windows 上从 GUI 进程 spawn 子进程会闪出一个黑色控制台窗口。
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    let output = command
         .args([
             "--headless=new",
             "--disable-gpu",
