@@ -10,6 +10,9 @@ use serde_json::Value;
 pub struct Application {
     pub id: String,
     pub resume_id: Option<String>,
+    /// 投递时对应的简历版本快照 id（resume_versions.id），复盘与"投出去的那一版"由它定位。
+    #[serde(default)]
+    pub resume_version_id: Option<String>,
     #[serde(default)]
     pub company: String,
     #[serde(default)]
@@ -67,7 +70,7 @@ pub struct MockInterview {
     pub created_at: i64,
 }
 
-const APPLICATION_COLUMNS: &str = "id, resume_id, company, role, channel, applied_date, status, hr_name, hr_contact, jd, notes, next_follow_up, interviews, outcome, created_at, updated_at";
+const APPLICATION_COLUMNS: &str = "id, resume_id, company, role, channel, applied_date, status, hr_name, hr_contact, jd, notes, next_follow_up, interviews, outcome, created_at, updated_at, resume_version_id";
 
 fn map_application(row: &rusqlite::Row) -> Result<Application, rusqlite::Error> {
     let interviews: String = row.get(12)?;
@@ -89,6 +92,7 @@ fn map_application(row: &rusqlite::Row) -> Result<Application, rusqlite::Error> 
         outcome: outcome.and_then(|s| serde_json::from_str(&s).ok()),
         created_at: row.get(14)?,
         updated_at: row.get(15)?,
+        resume_version_id: row.get(16)?,
     })
 }
 
@@ -143,21 +147,23 @@ pub fn save_application(
         conn.execute(
             "UPDATE applications SET resume_id = ?2, company = ?3, role = ?4, channel = ?5, applied_date = ?6,
                 status = ?7, hr_name = ?8, hr_contact = ?9, jd = ?10, notes = ?11, next_follow_up = ?12,
-                interviews = ?13, outcome = ?14, updated_at = unixepoch()
+                interviews = ?13, outcome = ?14, resume_version_id = ?15, updated_at = unixepoch()
              WHERE id = ?1",
             params![
                 app.id, app.resume_id, app.company, app.role, app.channel, app.applied_date, app.status,
-                app.hr_name, app.hr_contact, app.jd, app.notes, app.next_follow_up, interviews, outcome
+                app.hr_name, app.hr_contact, app.jd, app.notes, app.next_follow_up, interviews, outcome,
+                app.resume_version_id
             ],
         )?;
     } else {
         conn.execute(
             "INSERT INTO applications (id, resume_id, company, role, channel, applied_date, status, hr_name, hr_contact,
-                jd, notes, next_follow_up, interviews, outcome)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+                jd, notes, next_follow_up, interviews, outcome, resume_version_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
             params![
                 app.id, app.resume_id, app.company, app.role, app.channel, app.applied_date, app.status,
-                app.hr_name, app.hr_contact, app.jd, app.notes, app.next_follow_up, interviews, outcome
+                app.hr_name, app.hr_contact, app.jd, app.notes, app.next_follow_up, interviews, outcome,
+                app.resume_version_id
             ],
         )?;
     }
@@ -365,6 +371,7 @@ mod tests {
         Application {
             id: id.into(),
             resume_id: resume_id.map(String::from),
+            resume_version_id: None,
             company: "字节跳动".into(),
             role: "后端工程师".into(),
             channel: "Boss直聘".into(),

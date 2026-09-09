@@ -207,7 +207,10 @@ export function EditorToolbar() {
               <Copy className="mr-2 h-4 w-4" />
               {t('duplicate')}
             </DropdownMenuItem>
-            <DropdownMenuItem disabled>
+            <DropdownMenuItem
+              className="cursor-pointer"
+              onClick={() => openModal('version-history')}
+            >
               <History className="mr-2 h-4 w-4" />
               {t('history')}
             </DropdownMenuItem>
@@ -345,7 +348,7 @@ export function EditorToolbar() {
                 <Copy className="mr-2 h-4 w-4" />
                 {t('duplicate')}
               </DropdownMenuItem>
-              <DropdownMenuItem disabled>
+              <DropdownMenuItem onClick={() => openModal('version-history')}>
                 <History className="mr-2 h-4 w-4" />
                 {t('history')}
               </DropdownMenuItem>

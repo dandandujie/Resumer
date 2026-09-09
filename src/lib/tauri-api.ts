@@ -171,6 +171,45 @@ export async function duplicateResume(id: string) {
   return invoke<string>('duplicate_resume', { id, userId });
 }
 
+// ── 版本历史 ──
+
+export type ResumeVersionEvent = 'save' | 'export' | 'apply' | 'ai_accept' | 'restore';
+
+export interface ResumeVersionSummary {
+  id: string;
+  resumeId: string;
+  event: ResumeVersionEvent | string;
+  label: string;
+  resumeTitle: string;
+  /** unix 秒 */
+  createdAt: number;
+}
+
+export interface ResumeVersionDetail extends ResumeVersionSummary {
+  snapshot: any;
+}
+
+export async function listResumeVersions(resumeId: string) {
+  const userId = await getCachedUserId();
+  return invoke<ResumeVersionSummary[]>('list_resume_versions', { resumeId, userId });
+}
+
+export async function getResumeVersion(id: string) {
+  const userId = await getCachedUserId();
+  return invoke<ResumeVersionDetail | null>('get_resume_version', { id, userId });
+}
+
+/** 在导出 / 投递 / AI 采纳等事件点显式留档；返回版本 id（内容未变且无标签时为 null）。 */
+export async function createResumeVersion(resumeId: string, event: ResumeVersionEvent, label?: string) {
+  const userId = await getCachedUserId();
+  return invoke<string | null>('create_resume_version', { resumeId, userId, event, label });
+}
+
+export async function restoreResumeVersion(versionId: string, label: string) {
+  const userId = await getCachedUserId();
+  return invoke<void>('restore_resume_version', { versionId, userId, label });
+}
+
 // ── 知识库 ──
 
 export interface KnowledgePageSummary {
@@ -485,6 +524,7 @@ export async function interviewChat(data: {
 export interface ApplicationRecord {
   id: string;
   resumeId: string | null;
+  resumeVersionId?: string | null;
   company: string;
   role: string;
   channel: string;

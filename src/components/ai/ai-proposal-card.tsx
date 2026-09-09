@@ -99,6 +99,13 @@ export function useProposalActions(proposal: Proposal | undefined) {
     if (!proposal) return;
     useProposalsStore.getState().acceptProposal(proposal.id);
     toast.success(t('proposalAccepted'));
+    const resumeId = useResumeStore.getState().currentResume?.id;
+    if (resumeId) {
+      const label = summarizeProposal(proposal).affectedSectionTitles.slice(0, 2).join('、');
+      api.createResumeVersion(resumeId, 'ai_accept', label).catch((error) =>
+        logError(t('proposalAccepted'), String((error as Error)?.message || error)),
+      );
+    }
   }, [proposal, t]);
 
   const handleReject = useCallback(async () => {

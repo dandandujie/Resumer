@@ -762,5 +762,32 @@
     "typeRoot": "Root page",
     "openInsights": "Open in Journal",
     "linkMissing": "Page not found: {path}"
+  },
+  "versionHistory": {
+    "title": "Version history",
+    "description": "Every save, export, application and accepted AI edit leaves a version; the current state is saved before restoring.",
+    "empty": "No versions yet. Save or export once and they will show up here.",
+    "loading": "Loading…",
+    "loadFailed": "Failed to load versions",
+    "event": {
+      "save": "Saved",
+      "export": "Exported",
+      "apply": "Applied",
+      "ai_accept": "AI edit",
+      "restore": "Before restore"
+    },
+    "appliedTo": "Applied to {target}",
+    "exportedAs": "Exported {format}",
+    "restore": "Restore this version",
+    "restoring": "Restoring…",
+    "restored": "Restored",
+    "restoreFailed": "Restore failed",
+    "restoreConfirmTitle": "Restore this version?",
+    "restoreConfirmBody": "The current content is saved first as a “before restore” version, so you can always switch back.",
+    "restoreLabel": "Before restore ({time})",
+    "current": "Current",
+    "preview": "Preview",
+    "selectVersion": "Pick a version on the left to preview it",
+    "viewApplied": "View the resume version that was applied"
   }
 }

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-type ModalType = 'create-resume' | 'settings' | 'jd-analysis' | 'translate' | 'export' | 'import' | 'generate-resume' | 'grammar-check' | 'journal' | 'cover-letter' | 'interview' | null;
+type ModalType = 'create-resume' | 'settings' | 'jd-analysis' | 'translate' | 'export' | 'import' | 'generate-resume' | 'grammar-check' | 'journal' | 'cover-letter' | 'interview' | 'version-history' | null;
 
 interface UIStore {
   sidebarOpen: boolean;

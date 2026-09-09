@@ -5,7 +5,7 @@ use super::{CommandError, cfg_from};
 use crate::ai::provider::ChatMessage;
 use crate::ai::{prompts, provider};
 use crate::db::AppDb;
-use crate::db::repo::{journal as journal_repo, resume as resume_repo};
+use crate::db::repo::{journal as journal_repo, resume as resume_repo, version as version_repo};
 use crate::knowledge;
 
 /// 送给摘要模型的最大字符数（约 8–10K token）；原始资料本身不截断。
@@ -181,14 +181,16 @@ fn reflect_context(db: &AppDb, application_id: &str) -> Result<String, String> {
     let application = journal_repo::find_application(&conn, application_id)
         .map_err(|error| error.to_string())?
         .ok_or_else(|| "投递记录不存在".to_string())?;
-    let snapshot = if !application.applied_date.trim().is_empty() {
-        conn.query_row(
-            "SELECT snapshot FROM resume_versions WHERE resume_id = ?1 AND created_at <= unixepoch(?2) ORDER BY created_at DESC LIMIT 1",
-            rusqlite::params![application.resume_id, application.applied_date],
-            |row| row.get::<_, String>(0),
-        ).ok()
-    } else {
-        None
+    // 优先用投递时关联的版本；旧数据没有关联则退回投递日期前最近的快照。
+    let snapshot = match application.resume_id.as_deref() {
+        Some(resume_id) => version_repo::snapshot_for_application(
+            &conn,
+            resume_id,
+            application.resume_version_id.as_deref(),
+            &application.applied_date,
+        )
+        .map_err(|error| error.to_string())?,
+        None => None,
     };
     let current = application.resume_id.as_deref().and_then(|id| {
         resume_repo::find_by_id_any(&conn, id)

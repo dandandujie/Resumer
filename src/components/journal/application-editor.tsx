@@ -96,6 +96,13 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool }
   const resolveKnowledgeProposal = useJournalStore((s) => s.resolveKnowledgeProposal);
   const reflectApplication = useJournalStore((s) => s.reflectApplication);
   const launch = useLaunchResumeTool(onBeforeLaunchTool);
+  const tVersion = useTranslations('versionHistory');
+  const setPendingVersionId = useEditorStore((s) => s.setPendingVersionId);
+  const openAppliedVersion = () => {
+    if (!app.resumeVersionId) return;
+    setPendingVersionId(app.resumeVersionId);
+    launch(app, 'version-history');
+  };
   const [jdExpanded, setJdExpanded] = useState(false);
   const [confirmReflect, setConfirmReflect] = useState(false);
 
@@ -175,6 +182,15 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool }
               </SelectContent>
             </Select>
             {resumeMissing && <p className="text-[11px] text-red-600">{t('resumeDeleted')}</p>}
+            {!resumeMissing && app.resumeId && app.resumeVersionId && (
+              <button
+                type="button"
+                onClick={openAppliedVersion}
+                className="mt-1 cursor-pointer text-[11px] text-[var(--whale-mint-deep)] underline underline-offset-2"
+              >
+                {tVersion('viewApplied')}
+              </button>
+            )}
           </Field>
         )}
         <Field label={t('fieldChannel')}>

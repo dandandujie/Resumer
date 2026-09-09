@@ -18,6 +18,7 @@ import { GrammarCheckDialog } from '@/components/editor/grammar-check-dialog';
 import { CoverLetterDialog } from '@/components/editor/cover-letter-dialog';
 import { InterviewDialog } from '@/components/editor/interview-dialog';
 import { JournalDialog } from '@/components/editor/journal-dialog';
+import { VersionHistoryDialog } from '@/components/editor/version-history-dialog';
 import { useEditorStore } from '@/stores/editor-store';
 import { useResumeStore } from '@/stores/resume-store';
 import { useUIStore } from '@/stores/ui-store';
@@ -28,7 +29,7 @@ import { cn } from '@/lib/utils';
 
 export default function EditorPage() {
   const { id } = useParams<{ id: string }>();
-  const { resume, sections, updateSection, addSection, removeSection, reorderSections } = useEditor(id!);
+  const { resume, sections, updateSection, addSection, removeSection, reorderSections, loadResume } = useEditor(id!);
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { mobileActiveTab } = useEditorStore();
@@ -150,6 +151,16 @@ export default function EditorPage() {
       <GrammarCheckDialog open={activeModal === 'grammar-check'} onOpenChange={(open) => open ? openModal('grammar-check') : closeModal()} resumeId={id!} />
       <CoverLetterDialog open={activeModal === 'cover-letter'} onOpenChange={(open) => open ? openModal('cover-letter') : closeModal()} resumeId={id!} />
       <JournalDialog open={activeModal === 'journal'} onOpenChange={(open) => open ? openModal('journal') : closeModal()} resumeId={id!} />
+      <VersionHistoryDialog
+        open={activeModal === 'version-history'}
+        onOpenChange={(open) => (open ? openModal('version-history') : closeModal())}
+        resumeId={id!}
+        onRestored={async () => {
+          // 恢复是整体覆盖：撤销栈里的旧快照已无意义，清掉再重新拉取
+          useEditorStore.getState().reset();
+          await loadResume();
+        }}
+      />
       <InterviewDialog />
     </div>
   );

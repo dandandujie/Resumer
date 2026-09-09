@@ -75,6 +75,8 @@ export interface Outcome {
 export interface Application {
   id: string;
   resumeId: string | null;
+  /** 投递时留档的简历版本（resume_versions.id）；改选简历时重新留档。 */
+  resumeVersionId: string | null;
   company: string;
   role: string;
   channel: string;
@@ -132,6 +134,7 @@ function fromRecord(record: api.ApplicationRecord): Application {
   return {
     id: record.id,
     resumeId: record.resumeId ?? null,
+    resumeVersionId: record.resumeVersionId ?? null,
     company: record.company ?? '',
     role: record.role ?? '',
     channel: record.channel ?? '',
@@ -308,6 +311,24 @@ function schedulePersist(get: () => JournalStore, id: string) {
   );
 }
 
+/** 给投递记录留一份"当时的简历"快照并回填 resumeVersionId；简历为空则清掉关联。 */
+async function linkResumeVersion(get: () => JournalStore, id: string) {
+  const app = get().applications.find((a) => a.id === id);
+  if (!app) return;
+  if (!app.resumeId) {
+    get().updateApplication(id, { resumeVersionId: null });
+    return;
+  }
+  try {
+    const label = [app.company, app.role].filter(Boolean).join(' · ');
+    const versionId = await api.createResumeVersion(app.resumeId, 'apply', label);
+    if (versionId) get().updateApplication(id, { resumeVersionId: versionId });
+  } catch (err) {
+    const { logError } = await import('@/stores/error-log-store');
+    logError('简历版本留档失败', String((err as Error)?.message || err));
+  }
+}
+
 export const useJournalStore = create<JournalStore>((set, get) => ({
   applications: [],
   mocks: [],
@@ -358,6 +379,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
     const draft: Application = {
       id: generateId(),
       resumeId: null,
+      resumeVersionId: null,
       company: '',
       role: '',
       channel: '',
@@ -377,16 +399,22 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
     set((state) => ({ applications: [draft, ...state.applications] }));
     const saved = fromRecord(await api.saveApplication(toRecord(draft)));
     set((state) => ({ applications: state.applications.map((a) => (a.id === saved.id ? saved : a)) }));
+    if (saved.resumeId) void linkResumeVersion(get, saved.id);
     return saved;
   },
 
   updateApplication: (id, patch) => {
+    const before = get().applications.find((a) => a.id === id);
     set((state) => ({
       applications: state.applications.map((a) =>
         a.id === id ? { ...a, ...patch, updatedAt: Math.floor(Date.now() / 1000) } : a
       ),
     }));
     schedulePersist(get, id);
+    // 换了简历就重新留档"投出去的那一版"
+    if (patch.resumeId !== undefined && patch.resumeId !== before?.resumeId) {
+      void linkResumeVersion(get, id);
+    }
   },
 
   deleteApplication: async (id) => {

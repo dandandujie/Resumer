@@ -4,6 +4,7 @@ use tauri::State;
 use super::CommandError;
 use crate::db::AppDb;
 use crate::db::repo::resume as repo;
+use crate::db::repo::version as version_repo;
 
 fn parse_sections_payload(
     sections: Option<Value>,
@@ -396,7 +397,94 @@ pub fn update_resume(db: State<AppDb>, payload: Value) -> Result<(), CommandErro
     if let Some(incoming) = input.sections {
         sync_sections(&tx, &input.id, &incoming)?;
     }
+    // 每次落库都留快照：十分钟内的连续自动保存合并为一条，内容没变则不记。
+    version_repo::create_snapshot(
+        &tx,
+        &input.id,
+        &input.user_id,
+        "save",
+        "",
+        Some(version_repo::SAVE_COALESCE_SECS),
+    )?;
 
+    tx.commit()?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn list_resume_versions(
+    db: State<AppDb>,
+    resume_id: String,
+    user_id: String,
+) -> Result<Vec<version_repo::ResumeVersionSummary>, CommandError> {
+    let conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
+    version_repo::list(&conn, &resume_id, &user_id).map_err(Into::into)
+}
+
+#[tauri::command]
+pub fn get_resume_version(
+    db: State<AppDb>,
+    id: String,
+    user_id: String,
+) -> Result<Option<version_repo::ResumeVersion>, CommandError> {
+    let conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
+    version_repo::find(&conn, &id, &user_id).map_err(Into::into)
+}
+
+/// 由前端在导出 / 投递 / AI 采纳等事件点显式调用；带 label 的事件总会记录一条。
+#[tauri::command]
+pub fn create_resume_version(
+    db: State<AppDb>,
+    resume_id: String,
+    user_id: String,
+    event: String,
+    label: Option<String>,
+) -> Result<Option<String>, CommandError> {
+    let conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
+    version_repo::create_snapshot(
+        &conn,
+        &resume_id,
+        &user_id,
+        &event,
+        label.as_deref().unwrap_or(""),
+        None,
+    )
+    .map_err(Into::into)
+}
+
+/// 恢复前先把当前状态存成一条 `restore` 版本，恢复永远可以再撤回。
+#[tauri::command]
+pub fn restore_resume_version(
+    db: State<AppDb>,
+    version_id: String,
+    user_id: String,
+    label: String,
+) -> Result<(), CommandError> {
+    let mut conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
+    let version = {
+        let conn: &rusqlite::Connection = &conn;
+        version_repo::find(conn, &version_id, &user_id)?.ok_or(CommandError {
+            message: "版本不存在".into(),
+        })?
+    };
+    let tx = conn.transaction()?;
+    version_repo::create_snapshot(
+        &tx,
+        &version.summary.resume_id,
+        &user_id,
+        "restore",
+        &label,
+        None,
+    )?;
+    version_repo::restore(&tx, &version, &user_id)?;
     tx.commit()?;
     Ok(())
 }

@@ -762,5 +762,32 @@
     "typeRoot": "根页面",
     "openInsights": "在求职动态中查看",
     "linkMissing": "页面不存在：{path}"
+  },
+  "versionHistory": {
+    "title": "版本历史",
+    "description": "每次保存、导出、投递和采纳 AI 修改都会留下一版；恢复前会自动保存当前状态。",
+    "empty": "还没有历史版本。保存一次或导出一次之后就会出现在这里。",
+    "loading": "加载中…",
+    "loadFailed": "版本历史加载失败",
+    "event": {
+      "save": "保存",
+      "export": "导出",
+      "apply": "投递",
+      "ai_accept": "AI 修改",
+      "restore": "恢复前"
+    },
+    "appliedTo": "投递：{target}",
+    "exportedAs": "导出 {format}",
+    "restore": "恢复此版本",
+    "restoring": "恢复中…",
+    "restored": "已恢复到该版本",
+    "restoreFailed": "恢复失败",
+    "restoreConfirmTitle": "恢复到这个版本？",
+    "restoreConfirmBody": "当前内容会先自动存为一版「恢复前」，随时可以再切回来。",
+    "restoreLabel": "恢复前（{time}）",
+    "current": "当前",
+    "preview": "预览",
+    "selectVersion": "选择左侧的一个版本查看预览",
+    "viewApplied": "查看投递时的简历版本"
   }
 }

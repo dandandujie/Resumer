@@ -30,7 +30,7 @@ export interface ToolPrefill {
   round?: string;
 }
 
-export type PendingModal = 'jd-analysis' | 'cover-letter' | 'interview';
+export type PendingModal = 'jd-analysis' | 'cover-letter' | 'interview' | 'version-history';
 
 interface EditorStore {
   selectedSectionId: string | null;
@@ -42,6 +42,8 @@ interface EditorStore {
   toolPrefill: ToolPrefill | null;
   /** 跨页跳转到编辑器后要自动打开的对话框（编辑器挂载完成即消费）。 */
   pendingModal: PendingModal | null;
+  /** 打开版本历史时要预选中的版本（从投递记录"查看投递版本"跳转过来）。 */
+  pendingVersionId: string | null;
   mobileActiveTab: "edit" | "preview";
   rightPaneTab: "edit" | "ai";
 
@@ -55,6 +57,7 @@ interface EditorStore {
   setPendingAiMessage: (message: PendingAiMessage | null) => void;
   setToolPrefill: (prefill: ToolPrefill | null) => void;
   setPendingModal: (modal: PendingModal | null) => void;
+  setPendingVersionId: (id: string | null) => void;
   setMobileActiveTab: (tab: "edit" | "preview") => void;
   setRightPaneTab: (tab: "edit" | "ai") => void;
   reset: () => void;
@@ -69,6 +72,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   pendingAiMessage: null,
   toolPrefill: null,
   pendingModal: null,
+  pendingVersionId: null,
   mobileActiveTab: "edit",
   rightPaneTab: "edit",
 
@@ -118,6 +122,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setPendingAiMessage: (message) => set({ pendingAiMessage: message }),
   setToolPrefill: (prefill) => set({ toolPrefill: prefill }),
   setPendingModal: (modal) => set({ pendingModal: modal }),
+  setPendingVersionId: (id) => set({ pendingVersionId: id }),
   setMobileActiveTab: (tab) => set({ mobileActiveTab: tab }),
   setRightPaneTab: (tab) => set({ rightPaneTab: tab }),
 

@@ -17,6 +17,7 @@ import { generateHtml } from '@/lib/export/builders';
 import * as api from '@/lib/tauri-api';
 import type { Resume } from '@/types/resume';
 import { resolveOfficeFonts, resolveTheme } from '@/lib/theme-config';
+import { logError } from '@/stores/error-log-store';
 import {
   FileDown,
   FileText,
@@ -127,6 +128,10 @@ export function ExportDialog({ open, onOpenChange, resumeId }: ExportDialogProps
       }
 
       setState('success');
+      // 留档"导出的那一版"，版本历史里能找回 HR 手里的那份
+      api.createResumeVersion(resumeId, 'export', extMap[selectedFormat].toUpperCase()).catch((error) =>
+        logError(t('title'), String((error as Error)?.message || error)),
+      );
       setTimeout(() => onOpenChange(false), 1500);
     } catch (err: any) {
       setState('error');
