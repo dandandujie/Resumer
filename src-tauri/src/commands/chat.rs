@@ -1,8 +1,8 @@
 use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter, State};
 
-use super::CommandError;
-use crate::ai::provider::{AIConfig, ChatMessage, ToolCall};
+use super::{CommandError, cfg_from};
+use crate::ai::provider::{ChatMessage, ToolCall};
 use crate::ai::{prompts, search, stream, tools};
 use crate::db::AppDb;
 use crate::db::repo::{chat as chat_repo, journal as journal_repo, resume as resume_repo};
@@ -10,10 +10,6 @@ use crate::knowledge;
 
 const MAX_ROUNDS: usize = 10;
 const MAX_STEPS: usize = 25;
-
-fn cfg_from(config: Value) -> AIConfig {
-    serde_json::from_value(config).unwrap_or_default()
-}
 
 #[tauri::command]
 pub async fn list_chat_sessions(
@@ -112,7 +108,7 @@ pub async fn ai_chat(
     resume_id: String,
     session_id: Option<String>,
 ) -> Result<Value, CommandError> {
-    let cfg = cfg_from(config);
+    let cfg = cfg_from(config)?;
 
     // Persist the user message; the first message names the session.
     if let (Some(sid), Some(last)) = (&session_id, messages.last()) {

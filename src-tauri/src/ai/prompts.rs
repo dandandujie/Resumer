@@ -217,7 +217,7 @@ pub fn generate_resume_prompt(description: &str, language: &str) -> (String, Str
         - 用户描述中没有提供的具体数字，用【补充：具体数据】占位，绝不编造具体数值、公司名、证书\n\
         - 技能按类别分组，表述分级用\"熟练/熟悉\"（避免轻易写\"精通\"）\n\
         - summary 控制在 3-4 行：年限+领域定位、核心能力、最有说服力的一项成果\n\
-        - 日期格式 YYYY.MM；经历倒序排列\n\n\
+        - 日期字段用 YYYY-MM（app 会按用户设置显示为 2022.07 等）；经历倒序排列\n\n\
         CRITICAL: Return a single valid JSON object. No markdown, no code fences.\n\
         The JSON structure is:\n\
         {{\n\

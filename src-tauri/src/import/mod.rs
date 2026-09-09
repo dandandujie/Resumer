@@ -8,23 +8,18 @@ use crate::db::repo::resume as resume_repo;
 pub(crate) struct ImportAssets {
     pub(crate) text: String,
     pub(crate) avatar: Option<String>,
-    pub(crate) theme: Value,
+    /// 只包含从文件里推断出来的字段（fontScheme / fontSize / margin），由调用方与基底合并。
+    pub(crate) inferred_theme: Value,
 }
 
-pub(crate) fn standard_import_theme() -> Value {
-    json!({"fontScheme":"yahei","fontSize":14,"lineSpacing":1.35,"sectionSpacing":6,
-        "margin":{"top":18,"right":18,"bottom":18,"left":18},
-        "primaryColor":"#1a1a1a","accentColor":"#1a1a1a","bodyColor":"#1a1a1a",
-        "dateStyle":"dot","headingStyle":"underline","avatarStyle":"oneInch","infoLayout":"inline"})
-}
-
-fn inferred_theme(mut theme: Value, inferred: Value) -> Value {
-    if let (Some(base), Some(extra)) = (theme.as_object_mut(), inferred.as_object()) {
+/// 导入的主题 = 前端传入的基底（唯一默认主题）⊕ 从文件推断出的字段。Rust 侧不保存默认值。
+pub(crate) fn merge_theme(mut base: Value, inferred: &Value) -> Value {
+    if let (Some(target), Some(extra)) = (base.as_object_mut(), inferred.as_object()) {
         for (key, value) in extra {
-            base.insert(key.clone(), value.clone());
+            target.insert(key.clone(), value.clone());
         }
     }
-    theme
+    base
 }
 
 pub(crate) fn pick_avatar_candidate(images: Vec<(u32, u32, Vec<u8>)>) -> Option<Vec<u8>> {
@@ -78,7 +73,7 @@ fn xml_text(xml: &str) -> String {
     out.replace("&amp;", "&")
         .replace("&lt;", "<")
         .replace("&gt;", ">")
-        .replace("&quot;", "\\\"")
+        .replace("&quot;", "\"")
         .replace("&apos;", "'")
 }
 
@@ -161,7 +156,7 @@ fn docx_text(xml: &str) -> String {
         cursor = end;
     }
     output.extend(paragraph_texts(&xml[cursor..]));
-    output.join("\\n")
+    output.join("\n")
 }
 
 fn infer_font_scheme(name: &str) -> Option<&'static str> {
@@ -258,8 +253,7 @@ pub(crate) fn parse_docx_assets(bytes: &[u8]) -> Result<ImportAssets, String> {
     let avatar = pick_avatar_candidate(images)
         .map(image_data_url)
         .transpose()?;
-    let mut theme = standard_import_theme();
-    theme = inferred_theme(theme, docx_theme(&styles, &document));
+    let inferred_theme = docx_theme(&styles, &document);
     let structured_text = docx_text(&document);
     let text = if structured_text.trim().is_empty() {
         reader_text
@@ -269,7 +263,7 @@ pub(crate) fn parse_docx_assets(bytes: &[u8]) -> Result<ImportAssets, String> {
     Ok(ImportAssets {
         text,
         avatar,
-        theme,
+        inferred_theme,
     })
 }
 
@@ -330,16 +324,16 @@ pub(crate) fn parse_pdf_assets(bytes: &[u8]) -> Result<ImportAssets, String> {
     let avatar = pick_avatar_candidate(images)
         .map(image_data_url)
         .transpose()?;
-    let mut theme = standard_import_theme();
+    let mut inferred_theme = json!({});
     if let Some(scheme) = pdf_font_scheme(&document, page_id) {
-        theme["fontScheme"] = json!(scheme);
+        inferred_theme["fontScheme"] = json!(scheme);
     }
     let text = pdf_extract::extract_text_from_mem(bytes)
         .map_err(|e| format!("PDF 文本读取失败: {}", e))?;
     Ok(ImportAssets {
         text,
         avatar,
-        theme,
+        inferred_theme,
     })
 }
 
@@ -426,6 +420,17 @@ pub(crate) fn add_avatar(parsed: &mut Value, avatar: Option<String>) {
     }
 }
 
+/// 视觉模型返回的 avatarBox 只用于裁剪，不属于简历数据，落库前删掉。
+pub(crate) fn strip_avatar_box(parsed: &mut Value) {
+    if let Some(sections) = parsed.get_mut("sections").and_then(Value::as_array_mut) {
+        for section in sections {
+            if let Some(content) = section.get_mut("content").and_then(Value::as_object_mut) {
+                content.remove("avatarBox");
+            }
+        }
+    }
+}
+
 pub(crate) fn persist_import(
     conn: &mut rusqlite::Connection,
     user_id: &str,
@@ -437,7 +442,8 @@ pub(crate) fn persist_import(
     let title = parsed
         .get("title")
         .and_then(Value::as_str)
-        .unwrap_or("未命名简历");
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(if language == "zh" { "未命名简历" } else { "Untitled Resume" });
     let sections = parsed
         .get("sections")
         .and_then(Value::as_array)
@@ -518,6 +524,9 @@ mod import_tests {
             .add_paragraph(
                 docx_rs::Paragraph::new().add_run(docx_rs::Run::new().add_text("Jane Doe")),
             )
+            .add_paragraph(
+                docx_rs::Paragraph::new().add_run(docx_rs::Run::new().add_text("Said \"hi\"")),
+            )
             .add_paragraph(docx_rs::Paragraph::new().add_run(
                 docx_rs::Run::new().add_image(docx_rs::Pic::new(&image).size(1000000, 1000000)),
             ));
@@ -526,6 +535,8 @@ mod import_tests {
         let assets = parse_docx_assets(&bytes.into_inner()).unwrap();
         assert!(assets.text.contains("Jane Doe"));
         assert!(assets.avatar.is_some());
+        // 段落之间是真实换行，不是字面量 \n；引号还原为 "
+        assert!(assets.text.contains("Jane Doe\nSaid \"hi\""), "{:?}", assets.text);
     }
 
     #[test]
@@ -568,7 +579,16 @@ mod import_tests {
         document.save_to(&mut bytes).unwrap();
         let assets = parse_pdf_assets(&bytes.into_inner()).unwrap();
         assert!(assets.avatar.is_some());
-        assert_eq!(assets.theme["fontScheme"], "songti");
+        assert_eq!(assets.inferred_theme["fontScheme"], "songti");
+    }
+
+    #[test]
+    fn merges_inferred_theme_over_base_and_strips_avatar_box() {
+        let merged = merge_theme(json!({"fontScheme":"yahei","fontSize":14}), &json!({"fontScheme":"songti"}));
+        assert_eq!(merged, json!({"fontScheme":"songti","fontSize":14}));
+        let mut parsed = json!({"sections":[{"type":"personal_info","content":{"avatarBox":[0,0,1,1],"fullName":"x"}}]});
+        strip_avatar_box(&mut parsed);
+        assert_eq!(parsed["sections"][0]["content"], json!({"fullName":"x"}));
     }
 
     #[test]
@@ -585,7 +605,7 @@ mod import_tests {
                 "user",
                 &parsed,
                 "zh",
-                &standard_import_theme(),
+                &json!({"fontScheme":"yahei"}),
                 None
             )
             .is_err()

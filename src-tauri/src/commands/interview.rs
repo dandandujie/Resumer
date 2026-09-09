@@ -4,15 +4,11 @@
 use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter, State};
 
-use super::CommandError;
-use crate::ai::provider::{AIConfig, ChatMessage};
+use super::{CommandError, cfg_from};
+use crate::ai::provider::ChatMessage;
 use crate::ai::{prompts, stream};
 use crate::db::AppDb;
 use crate::db::repo::resume as resume_repo;
-
-fn cfg_from(config: Value) -> AIConfig {
-    serde_json::from_value(config).unwrap_or_default()
-}
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -34,7 +30,7 @@ pub async fn interview_chat(
     jd: Option<String>,
     round: Option<String>,
 ) -> Result<Value, CommandError> {
-    let cfg = cfg_from(config);
+    let cfg = cfg_from(config)?;
     let should_prefetch = messages.is_empty();
 
     let resume_context = if let Some(rid) = &resume_id {

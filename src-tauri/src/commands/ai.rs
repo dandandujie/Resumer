@@ -2,7 +2,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter, State};
 
-use super::CommandError;
+use super::{CommandError, cfg_from};
 use crate::ai::{
     self,
     provider::{AIConfig, ChatMessage},
@@ -11,10 +11,6 @@ use crate::db::AppDb;
 use crate::db::repo::{analysis as analysis_repo, resume as resume_repo};
 use crate::export::date::normalize_value_fields;
 use crate::import;
-
-fn cfg_from(config: Value) -> AIConfig {
-    serde_json::from_value(config).unwrap_or_default()
-}
 
 pub(crate) async fn prefetch_context(
     app: &AppHandle,
@@ -74,7 +70,7 @@ pub(crate) async fn prefetch_context(
 
 #[tauri::command]
 pub async fn ai_list_models(config: Value) -> Result<Vec<ai::provider::AiModel>, CommandError> {
-    let cfg = cfg_from(config);
+    let cfg = cfg_from(config)?;
     ai::provider::list_models(&cfg)
         .await
         .map_err(|e| CommandError {
@@ -86,7 +82,7 @@ pub async fn ai_list_models(config: Value) -> Result<Vec<ai::provider::AiModel>,
 pub async fn ai_test_connection(
     config: Value,
 ) -> Result<ai::provider::AiConnectionTest, CommandError> {
-    let cfg = cfg_from(config);
+    let cfg = cfg_from(config)?;
     ai::provider::test_connection(&cfg)
         .await
         .map_err(|e| CommandError {
@@ -101,7 +97,7 @@ pub async fn ai_grammar_check(
     resume_id: String,
     language: Option<String>,
 ) -> Result<Value, CommandError> {
-    let cfg = cfg_from(config);
+    let cfg = cfg_from(config)?;
     let lang = language.unwrap_or_else(|| "en".into());
     let lang_name = if lang == "zh" {
         "Simplified Chinese"
@@ -176,7 +172,7 @@ pub async fn ai_cover_letter(
     style: String,
     language: Option<String>,
 ) -> Result<String, CommandError> {
-    let cfg = cfg_from(config);
+    let cfg = cfg_from(config)?;
     let lang = language.unwrap_or_else(|| "zh".into());
 
     let resume_ctx = {
@@ -237,7 +233,7 @@ pub async fn ai_jd_analysis(
     company: Option<String>,
     role: Option<String>,
 ) -> Result<Value, CommandError> {
-    let cfg = cfg_from(config);
+    let cfg = cfg_from(config)?;
 
     let resume_ctx = {
         let conn = db.conn.lock().map_err(|e| CommandError {
@@ -375,7 +371,7 @@ pub async fn ai_translate(
     resume_id: String,
     target_language: String,
 ) -> Result<Value, CommandError> {
-    let cfg = cfg_from(config);
+    let cfg = cfg_from(config)?;
     let lang_name = if target_language == "zh" {
         "Simplified Chinese"
     } else {
@@ -501,9 +497,10 @@ pub async fn ai_generate_resume(
     user_id: String,
     description: String,
     language: Option<String>,
+    theme_config: Value,
 ) -> Result<String, CommandError> {
-    let cfg = cfg_from(config);
-    let lang = language.unwrap_or_else(|| "en".into());
+    let cfg = cfg_from(config)?;
+    let lang = language.unwrap_or_else(|| "zh".into());
 
     let (system, prompt) = ai::prompts::generate_resume_prompt(&description, &lang);
     let messages = vec![ChatMessage {
@@ -523,59 +520,18 @@ pub async fn ai_generate_resume(
         .map_err(|e| CommandError {
             message: e.to_string(),
         })?;
-    let parsed =
+    let mut parsed =
         ai::extract_json::extract_json(&res.text).map_err(|e| CommandError { message: e })?;
-
-    let title = parsed
-        .get("title")
-        .and_then(|v| v.as_str())
-        .unwrap_or("AI Generated Resume")
-        .to_string();
-    let sections = parsed
-        .get("sections")
-        .and_then(|v| v.as_array())
-        .cloned()
-        .unwrap_or_default();
+    normalize_value_fields(&mut parsed);
 
     let mut conn = db.conn.lock().map_err(|e| CommandError {
         message: e.to_string(),
     })?;
-    let theme = import::standard_import_theme();
-    let tx = conn.transaction()?;
-    let resume_id =
-        resume_repo::create(&tx, &user_id, &title, "classic", &lang, &theme).map_err(|e| {
-            CommandError {
-                message: e.to_string(),
-            }
-        })?;
-
-    for (i, sec) in sections.iter().enumerate() {
-        let sec_type = sec
-            .get("type")
-            .and_then(|v| v.as_str())
-            .unwrap_or("custom")
-            .to_string();
-        let sec_title = sec
-            .get("title")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-        let content = sec
-            .get("content")
-            .cloned()
-            .unwrap_or(Value::Object(Default::default()));
-        resume_repo::create_section(
-            &tx, &resume_id, &sec_type, &sec_title, i as i32, true, &content,
-        )
-        .map_err(|e| CommandError {
-            message: e.to_string(),
-        })?;
-    }
-    tx.commit().map_err(|e| CommandError {
-        message: e.to_string(),
-    })?;
-
-    Ok(resume_id)
+    import::persist_import(&mut conn, &user_id, &parsed, &lang, &theme_config, None).map_err(|e| {
+        CommandError {
+            message: format!("生成简历写入失败，已回滚: {}", e),
+        }
+    })
 }
 
 #[tauri::command]
@@ -626,30 +582,27 @@ pub async fn parse_resume_file(
     file_type: String,
     language: Option<String>,
     target_resume_id: Option<String>,
+    theme_config: Value,
 ) -> Result<String, CommandError> {
-    let cfg = cfg_from(config);
+    let cfg = cfg_from(config)?;
     let lang = language.unwrap_or_else(|| "zh".into());
-    let image_source = if ["image/png", "image/jpeg", "image/webp"].contains(&file_type.as_str()) {
-        Some(file_data.as_slice())
-    } else {
-        None
-    };
-    let (text, avatar, theme) = if file_type
+    let is_image = ["image/png", "image/jpeg", "image/webp"].contains(&file_type.as_str());
+    let (text, avatar, inferred_theme) = if file_type
         == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     {
         let assets =
             import::parse_docx_assets(&file_data).map_err(|message| CommandError { message })?;
-        (assets.text, assets.avatar, assets.theme)
+        (assets.text, assets.avatar, assets.inferred_theme)
     } else if file_type == "application/pdf" {
         let assets =
             import::parse_pdf_assets(&file_data).map_err(|message| CommandError { message })?;
-        (assets.text, assets.avatar, assets.theme)
-    } else if ["image/png", "image/jpeg", "image/webp"].contains(&file_type.as_str()) {
+        (assets.text, assets.avatar, assets.inferred_theme)
+    } else if is_image {
         let base64_data = BASE64.encode(&file_data);
         let text = generate_vision(&cfg, &lang, &file_type, &base64_data)
             .await
             .map_err(|message| CommandError { message })?;
-        (text, None, import::standard_import_theme())
+        (text, None, json!({}))
     } else {
         return Err(CommandError {
             message: format!(
@@ -659,35 +612,50 @@ pub async fn parse_resume_file(
         });
     };
 
-    let (system, prompt) = ai::prompts::parse_resume_prompt(&text, &lang);
-    let messages = vec![ChatMessage {
-        role: "user".into(),
-        content: prompt,
-    }];
-    let req = ai::provider::GenerateRequest {
-        config: &cfg,
-        system: Some(&system),
-        messages: &messages,
-        tools: None,
-        json_mode: true,
-        max_tokens: Some(16384),
+    // 视觉模型已经按同一 schema 返回了 JSON 时直接采用，不再把它当纯文本送第二次模型解析。
+    let vision_parsed = if is_image {
+        ai::extract_json::extract_json(&text)
+            .ok()
+            .filter(|value| value.get("sections").is_some_and(Value::is_array))
+    } else {
+        None
     };
-    let generated = ai::provider::generate(req)
-        .await
-        .map_err(|e| CommandError {
-            message: e.to_string(),
-        })?;
-    let mut parsed =
-        ai::extract_json::extract_json(&generated.text).map_err(|e| CommandError { message: e })?;
-    let avatar = if let Some(source) = image_source {
-        import::crop_avatar_from_box(&mut parsed, source)
+    let mut parsed = match vision_parsed {
+        Some(value) => value,
+        None => {
+            let (system, prompt) = ai::prompts::parse_resume_prompt(&text, &lang);
+            let messages = vec![ChatMessage {
+                role: "user".into(),
+                content: prompt,
+            }];
+            let req = ai::provider::GenerateRequest {
+                config: &cfg,
+                system: Some(&system),
+                messages: &messages,
+                tools: None,
+                json_mode: true,
+                max_tokens: Some(16384),
+            };
+            let generated = ai::provider::generate(req)
+                .await
+                .map_err(|e| CommandError {
+                    message: e.to_string(),
+                })?;
+            ai::extract_json::extract_json(&generated.text)
+                .map_err(|e| CommandError { message: e })?
+        }
+    };
+    let avatar = if is_image {
+        import::crop_avatar_from_box(&mut parsed, &file_data)
             .map_err(|message| CommandError { message })?
             .or(avatar)
     } else {
         avatar
     };
     import::add_avatar(&mut parsed, avatar);
+    import::strip_avatar_box(&mut parsed);
     normalize_value_fields(&mut parsed);
+    let theme = import::merge_theme(theme_config, &inferred_theme);
 
     let mut conn = db.conn.lock().map_err(|e| CommandError {
         message: e.to_string(),

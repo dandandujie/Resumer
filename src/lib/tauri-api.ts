@@ -2,6 +2,7 @@
  * Tauri 命令适配层：前端所有与 Rust 后端的交互都从这里走。
  */
 import { invoke } from '@tauri-apps/api/core';
+import { DEFAULT_THEME } from '@/lib/theme-config';
 
 // ── 用户 ──
 // 桌面端只有一个本地用户，由后端负责创建/归并；前端只缓存它的 id。
@@ -339,6 +340,8 @@ export async function aiGenerateResume(data: {
     userId,
     description: data.description,
     language: data.language,
+    // 新简历的主题基底由前端唯一默认主题给出，Rust 不保存默认值
+    themeConfig: DEFAULT_THEME,
   });
 }
 
@@ -398,6 +401,7 @@ export async function parseResumeFile(data: {
       '',
     language: data.language,
     targetResumeId: data.targetResumeId,
+    themeConfig: DEFAULT_THEME,
   });
 }
 

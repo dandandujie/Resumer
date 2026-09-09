@@ -8,6 +8,9 @@ pub mod journal;
 pub mod knowledge;
 
 use serde::Serialize;
+use serde_json::Value;
+
+use crate::ai::provider::AIConfig;
 
 #[derive(Debug, Serialize)]
 pub struct CommandError {
@@ -26,4 +29,11 @@ impl From<String> for CommandError {
     fn from(s: String) -> Self {
         CommandError { message: s }
     }
+}
+
+/// 前端传来的 AI 配置：解析失败要报出来，而不是默认成空 Key 让用户去猜 401 的原因。
+pub(crate) fn cfg_from(config: Value) -> Result<AIConfig, CommandError> {
+    serde_json::from_value(config).map_err(|error| CommandError {
+        message: format!("AI 配置无效: {error}"),
+    })
 }

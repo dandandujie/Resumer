@@ -1,8 +1,8 @@
 use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter, State};
 
-use super::CommandError;
-use crate::ai::provider::{AIConfig, ChatMessage};
+use super::{CommandError, cfg_from};
+use crate::ai::provider::ChatMessage;
 use crate::ai::{prompts, provider};
 use crate::db::AppDb;
 use crate::db::repo::{journal as journal_repo, resume as resume_repo};
@@ -100,9 +100,7 @@ pub async fn knowledge_ingest_file(
     filename: String,
 ) -> Result<knowledge::IngestResult, CommandError> {
     let root = knowledge::ensure(&app).map_err(error)?;
-    let cfg: AIConfig = serde_json::from_value(config)
-        .map_err(|error| error.to_string())
-        .map_err(error)?;
+    let cfg = cfg_from(config)?;
     let _queue = knowledge::ingest_queue().lock().await;
     knowledge::ingest_with_generator(&db, &root, &bytes, &filename, move |text| async move {
         let schema = "{title, tags, summary, entities:[{type, title, content}]}";
@@ -203,7 +201,7 @@ fn reflect_context(db: &AppDb, application_id: &str) -> Result<String, String> {
 }
 
 async fn generate_json(config: Value, system: String, prompt: String) -> Result<String, String> {
-    let cfg: AIConfig = serde_json::from_value(config).map_err(|error| error.to_string())?;
+    let cfg = cfg_from(config).map_err(|error| error.message)?;
     let request = provider::GenerateRequest {
         config: &cfg,
         system: Some(&system),
