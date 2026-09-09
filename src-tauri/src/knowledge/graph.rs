@@ -59,8 +59,8 @@ pub fn build(root: &Path) -> Result<KnowledgeGraph, String> {
         .collect::<Vec<_>>();
     let mut edges = Vec::new();
     for (path, page) in &pages {
-        for target in wikilinks(&page.body) {
-            if known.contains(target.as_str()) {
+        for target in vault::wikilinks(&page.body) {
+            if known.contains(target.as_str()) && &target != path {
                 edges.push(GraphEdge {
                     source: path.clone(),
                     target,
@@ -78,7 +78,8 @@ pub fn build(root: &Path) -> Result<KnowledgeGraph, String> {
             }
         }
         for source in &page.frontmatter.sources {
-            if let Some(source_page) = source_pages.get(source) {
+            // 每个 source 页自己也声明了 sources，跳过自环。
+            if let Some(source_page) = source_pages.get(source).filter(|origin| **origin != path) {
                 edges.push(GraphEdge {
                     source: (*source_page).clone(),
                     target: path.clone(),
@@ -88,14 +89,4 @@ pub fn build(root: &Path) -> Result<KnowledgeGraph, String> {
         }
     }
     Ok(KnowledgeGraph { nodes, edges })
-}
-
-fn wikilinks(body: &str) -> Vec<String> {
-    body.split("[[")
-        .skip(1)
-        .filter_map(|part| part.split("]]").next())
-        .map(str::trim)
-        .filter(|path| path.starts_with("wiki/") && path.ends_with(".md"))
-        .map(str::to_string)
-        .collect()
 }

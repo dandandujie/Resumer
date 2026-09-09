@@ -24,11 +24,7 @@ pub fn knowledge_list(
 #[tauri::command]
 pub fn knowledge_read(app: AppHandle, path: String) -> Result<String, CommandError> {
     let root = knowledge::ensure(&app).map_err(error)?;
-    let page = knowledge::vault::read(&root, &path).map_err(error)?;
-    Ok(knowledge::vault::serialize_page(
-        &page.frontmatter,
-        &page.body,
-    ))
+    knowledge::vault::read_raw(&root, &path).map_err(error)
 }
 
 #[tauri::command]
@@ -39,6 +35,34 @@ pub fn knowledge_write(
     content: String,
 ) -> Result<(), CommandError> {
     let root = knowledge::ensure(&app).map_err(error)?;
+    knowledge::write_page(&db, &root, &path, &content).map_err(error)
+}
+
+/// 由前端表单/实体提案新建页面：frontmatter 与时间戳由 Rust 统一生成，前端不拼 YAML。
+#[tauri::command]
+pub fn knowledge_create_page(
+    app: AppHandle,
+    db: State<'_, AppDb>,
+    path: String,
+    title: String,
+    kind: String,
+    body: String,
+    sources: Option<Vec<String>>,
+) -> Result<(), CommandError> {
+    let root = knowledge::ensure(&app).map_err(error)?;
+    if root.join(&path).exists() {
+        return Err(error(format!("页面已存在：{path}")));
+    }
+    let now = knowledge::vault::now_stamp();
+    let meta = knowledge::vault::Frontmatter {
+        title: title.trim().to_string(),
+        page_type: kind,
+        sources: sources.unwrap_or_default(),
+        created: now.clone(),
+        updated: now,
+        ..knowledge::vault::Frontmatter::default()
+    };
+    let content = knowledge::vault::serialize_page(&meta, body.trim_start());
     knowledge::write_page(&db, &root, &path, &content).map_err(error)
 }
 
@@ -107,10 +131,7 @@ pub async fn knowledge_ingest_file(
 }
 
 #[tauri::command]
-pub fn knowledge_lint(
-    app: AppHandle,
-    _config: Value,
-) -> Result<knowledge::KnowledgeLintOutput, CommandError> {
+pub fn knowledge_lint(app: AppHandle) -> Result<knowledge::KnowledgeLintOutput, CommandError> {
     let root = knowledge::ensure(&app).map_err(error)?;
     let output = knowledge::lint(&root).map_err(error)?;
     emit_proposals(&app, &output.proposals, None);
@@ -211,7 +232,7 @@ pub async fn knowledge_reflect(
     let context = reflect_context(&db, &application_id).map_err(error)?;
     let (system, prompt) = prompts::knowledge_reflect_prompt(&context);
     let raw = generate_json(config, system, prompt).await.map_err(error)?;
-    let output = knowledge::reflect_from_json(&root, &raw).map_err(error)?;
+    let output = knowledge::reflect_from_json(&db, &root, &raw).map_err(error)?;
     emit_proposals(&app, &output.proposals, Some(&application_id));
     Ok(output)
 }
@@ -268,7 +289,7 @@ pub async fn knowledge_strategy_review(
                 message: format!("策略回顾 JSON 无效: {error}"),
             })
         })?;
-    knowledge::write_strategy(&root, &output).map_err(error)?;
+    knowledge::write_strategy(&db, &root, &output).map_err(error)?;
     emit_proposals(&app, std::slice::from_ref(&output.purpose_proposal), None);
     Ok(output)
 }

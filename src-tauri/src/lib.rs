@@ -86,6 +86,7 @@ pub fn run() {
             commands::knowledge::knowledge_list,
             commands::knowledge::knowledge_read,
             commands::knowledge::knowledge_write,
+            commands::knowledge::knowledge_create_page,
             commands::knowledge::knowledge_search,
             commands::knowledge::knowledge_reindex,
             commands::knowledge::knowledge_ingest_file,

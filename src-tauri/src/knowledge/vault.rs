@@ -23,6 +23,11 @@ pub struct Page {
     pub body: String,
 }
 
+/// 页面 frontmatter 与日志统一用本地时间 `YYYY-MM-DDTHH:MM`，Obsidian 里可读、可排序。
+pub fn now_stamp() -> String {
+    chrono::Local::now().format("%Y-%m-%dT%H:%M").to_string()
+}
+
 pub fn validate_path(path: &str) -> Result<(), String> {
     let candidate = Path::new(path);
     if candidate.is_absolute() || path.is_empty() {
@@ -49,7 +54,37 @@ pub fn root_file(root: &Path, relative: &str) -> Result<PathBuf, String> {
     Ok(root.join(relative))
 }
 
+/// 提取正文里的 `[[wikilink]]`，去掉 `|别名` 与 `#锚点`，补齐 `.md`。
+/// FTS 一跳扩展、图谱、lint 只能用这一份解析，规则才不会漂移。
+pub fn wikilinks(body: &str) -> Vec<String> {
+    let mut links = Vec::new();
+    for part in body.split("[[").skip(1) {
+        let Some(raw) = part.split("]]").next() else {
+            continue;
+        };
+        let target = raw
+            .split(['|', '#'])
+            .next()
+            .unwrap_or("")
+            .trim();
+        if target.is_empty() || target.contains("..") {
+            continue;
+        }
+        let link = if target.ends_with(".md") || target.starts_with("raw/") {
+            target.to_string()
+        } else {
+            format!("{target}.md")
+        };
+        if !links.contains(&link) {
+            links.push(link);
+        }
+    }
+    links
+}
+
 pub fn parse_page(path: &str, content: &str) -> Result<Page, String> {
+    // Windows / Obsidian 写出的 CRLF 文件同样要能识别 frontmatter。
+    let content = content.replace("\r\n", "\n");
     let (frontmatter, body) = if let Some(rest) = content.strip_prefix("---\n") {
         let (raw, body) = rest
             .split_once("\n---\n")
@@ -63,6 +98,10 @@ pub fn parse_page(path: &str, content: &str) -> Result<Page, String> {
         frontmatter,
         body,
     })
+}
+
+fn has_frontmatter(content: &str) -> bool {
+    content.starts_with("---\n") || content.starts_with("---\r\n")
 }
 
 pub fn parse_frontmatter(raw: &str) -> Frontmatter {
@@ -142,7 +181,7 @@ pub fn initialize(root: &Path) -> Result<(), String> {
     write_if_missing(
         root,
         "purpose.md",
-        "# 求职目标\n\n- 目标岗位：\n- 目标城市：\n- 目标行业：\n- 薪资与硬约束：\n",
+        "# 求职目标\n\n## 目标岗位\n\n## 期望城市\n\n## 目标行业\n\n## 硬约束\n\n## 其他\n",
     )?;
     write_if_missing(
         root,
@@ -164,46 +203,46 @@ fn write_if_missing(root: &Path, relative: &str, content: &str) -> Result<(), St
     Ok(())
 }
 
+/// 种子页标题取正文第一个 `# ` 标题，没有才退回文件名。
+fn heading_title(source: &str, filename: &str) -> String {
+    source
+        .lines()
+        .find_map(|line| line.strip_prefix("# ").map(|title| title.trim().to_string()))
+        .filter(|title| !title.is_empty())
+        .unwrap_or_else(|| filename.trim_end_matches(".md").replace('-', " "))
+}
+
 fn seed_pages(root: &Path) -> Result<(), String> {
-    let seeds = [
-        ("profile-finance.md", "skill"),
-        ("profile-foreign.md", "skill"),
-        ("profile-internet-tech.md", "skill"),
-        ("profile-manufacturing.md", "skill"),
-        ("profile-product-ops.md", "skill"),
-        ("profile-soe.md", "skill"),
-        ("sop-application-form.md", "sop"),
-        ("sop-jd-tailoring.md", "sop"),
-        ("sop-resume-diagnosis.md", "sop"),
+    let seeds: [(&str, &str, &str); 9] = [
+        ("profile-finance.md", "skill", include_str!("../../skills/profile-finance.md")),
+        ("profile-foreign.md", "skill", include_str!("../../skills/profile-foreign.md")),
+        ("profile-internet-tech.md", "skill", include_str!("../../skills/profile-internet-tech.md")),
+        ("profile-manufacturing.md", "skill", include_str!("../../skills/profile-manufacturing.md")),
+        ("profile-product-ops.md", "skill", include_str!("../../skills/profile-product-ops.md")),
+        ("profile-soe.md", "skill", include_str!("../../skills/profile-soe.md")),
+        ("sop-application-form.md", "sop", include_str!("../../skills/sop-application-form.md")),
+        ("sop-jd-tailoring.md", "sop", include_str!("../../skills/sop-jd-tailoring.md")),
+        ("sop-resume-diagnosis.md", "sop", include_str!("../../skills/sop-resume-diagnosis.md")),
     ];
-    for (filename, page_type) in seeds {
-        let source = include_str!(concat!("../../skills/", "profile-finance.md"));
-        let source = match filename {
-            "profile-finance.md" => source,
-            "profile-foreign.md" => include_str!("../../skills/profile-foreign.md"),
-            "profile-internet-tech.md" => include_str!("../../skills/profile-internet-tech.md"),
-            "profile-manufacturing.md" => include_str!("../../skills/profile-manufacturing.md"),
-            "profile-product-ops.md" => include_str!("../../skills/profile-product-ops.md"),
-            "profile-soe.md" => include_str!("../../skills/profile-soe.md"),
-            "sop-application-form.md" => include_str!("../../skills/sop-application-form.md"),
-            "sop-jd-tailoring.md" => include_str!("../../skills/sop-jd-tailoring.md"),
-            _ => include_str!("../../skills/sop-resume-diagnosis.md"),
-        };
+    let now = now_stamp();
+    for (filename, page_type, source) in seeds {
         let relative = if page_type == "skill" {
             format!("wiki/skills/{filename}")
         } else {
             format!("wiki/sops/{filename}")
         };
-        if !root.join(&relative).exists() {
-            let title = filename.trim_end_matches(".md").replace('-', " ");
-            let meta = Frontmatter {
-                title,
-                page_type: page_type.to_string(),
-                ..Frontmatter::default()
-            };
-            fs::write(root.join(relative), serialize_page(&meta, source))
-                .map_err(|error| error.to_string())?;
+        if root.join(&relative).exists() {
+            continue;
         }
+        let meta = Frontmatter {
+            title: heading_title(source, filename),
+            page_type: page_type.to_string(),
+            created: now.clone(),
+            updated: now.clone(),
+            ..Frontmatter::default()
+        };
+        fs::write(root.join(relative), serialize_page(&meta, source))
+            .map_err(|error| error.to_string())?;
     }
     Ok(())
 }
@@ -214,13 +253,53 @@ pub fn read(root: &Path, relative: &str) -> Result<Page, String> {
     parse_page(relative, &content)
 }
 
+/// 原文读取：编辑器展示/保存必须用原文，否则 Obsidian 写的未知 frontmatter 键会在往返中丢失。
+pub fn read_raw(root: &Path, relative: &str) -> Result<String, String> {
+    let path = root_file(root, relative)?;
+    fs::read_to_string(path).map_err(|error| error.to_string())
+}
+
+/// 写入页面。若新内容不带 frontmatter 而旧文件带，则保留旧 frontmatter（只刷新 updated）——
+/// AI 提案与 lint 修复只给正文，不能因此把页面元信息抹掉。
 pub fn write(root: &Path, relative: &str, content: &str) -> Result<Page, String> {
     let path = root_file(root, relative)?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
-    fs::write(&path, content).map_err(|error| error.to_string())?;
-    parse_page(relative, content)
+    let is_wiki = relative.starts_with("wiki/");
+    let content = if is_wiki && !has_frontmatter(content) {
+        let mut meta = fs::read_to_string(&path)
+            .ok()
+            .and_then(|existing| parse_page(relative, &existing).ok())
+            .map(|page| page.frontmatter)
+            .unwrap_or_default();
+        if meta.created.is_empty() {
+            meta.created = now_stamp();
+        }
+        if meta.page_type.is_empty() {
+            meta.page_type = infer_type_from_path(relative).to_string();
+        }
+        meta.updated = now_stamp();
+        serialize_page(&meta, content)
+    } else {
+        content.to_string()
+    };
+    fs::write(&path, &content).map_err(|error| error.to_string())?;
+    parse_page(relative, &content)
+}
+
+/// `wiki/<目录>/x.md` 的目录名即页面类型（companies → company）。
+pub fn infer_type_from_path(relative: &str) -> &'static str {
+    match relative.split('/').nth(1) {
+        Some("skills") => "skill",
+        Some("sops") => "sop",
+        Some("companies") => "company",
+        Some("roles") => "role",
+        Some("market") => "market",
+        Some("experiences") => "experience",
+        Some("sources") => "source",
+        _ => "note",
+    }
 }
 
 pub fn list(root: &Path) -> Result<Vec<String>, String> {
@@ -255,4 +334,66 @@ fn collect_markdown(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_crlf_frontmatter() {
+        let page = parse_page(
+            "wiki/companies/a.md",
+            "---\r\ntitle: 字节跳动\r\ntype: company\r\ntags: [\"互联网\"]\r\n---\r\n正文\r\n",
+        )
+        .unwrap();
+        assert_eq!(page.frontmatter.title, "字节跳动");
+        assert_eq!(page.frontmatter.tags, vec!["互联网"]);
+        assert_eq!(page.body, "正文\n");
+    }
+
+    #[test]
+    fn extracts_wikilinks_with_alias_anchor_and_missing_extension() {
+        let links = wikilinks(
+            "见 [[wiki/companies/a.md|字节]] 与 [[wiki/roles/b#要求]]，重复 [[wiki/companies/a.md]]，坏 [[../x]]",
+        );
+        assert_eq!(links, vec!["wiki/companies/a.md", "wiki/roles/b.md"]);
+    }
+
+    #[test]
+    fn rejects_paths_outside_vault() {
+        assert!(validate_path("../etc/passwd").is_err());
+        assert!(validate_path("/tmp/x.md").is_err());
+        assert!(validate_path("notes/x.md").is_err());
+        assert!(validate_path("wiki/companies/x.md").is_ok());
+        assert!(validate_path("raw/a.pdf").is_ok());
+    }
+
+    #[test]
+    fn body_only_write_keeps_existing_frontmatter() {
+        let root = std::env::temp_dir().join(format!("resumer-vault-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("wiki/sops")).unwrap();
+        let meta = Frontmatter {
+            title: "JD 定制".into(),
+            page_type: "sop".into(),
+            tags: vec!["sop".into()],
+            ..Frontmatter::default()
+        };
+        write(&root, "wiki/sops/a.md", &serialize_page(&meta, "旧正文")).unwrap();
+        let page = write(&root, "wiki/sops/a.md", "新正文").unwrap();
+        assert_eq!(page.frontmatter.title, "JD 定制");
+        assert_eq!(page.frontmatter.tags, vec!["sop"]);
+        assert_eq!(page.body, "新正文");
+        assert!(!page.frontmatter.updated.is_empty());
+        let fresh = write(&root, "wiki/companies/new.md", "只有正文").unwrap();
+        assert_eq!(fresh.frontmatter.page_type, "company");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn seed_title_uses_first_heading() {
+        assert_eq!(heading_title("# 岗位画像：互联网技术岗\n\n正文", "profile-internet-tech.md"), "岗位画像：互联网技术岗");
+        assert_eq!(heading_title("没有标题", "sop-x.md"), "sop x");
+    }
 }

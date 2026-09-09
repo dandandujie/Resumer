@@ -7,7 +7,6 @@ use sha2::{Digest, Sha256};
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
@@ -146,31 +145,30 @@ pub fn lint(root: &Path) -> Result<KnowledgeLintOutput, String> {
     for (path, page) in &pages {
         if let Some(previous) = titles.insert(page.frontmatter.title.clone(), path.clone()) {
             issues.push(format!("重复页标题：{} 与 {}", previous, path));
+        }
+        let mut body = page.body.clone();
+        let mut dead_links = Vec::new();
+        for link in vault::wikilinks(&page.body) {
+            if known.contains(&link) {
+                inbound.insert(link);
+            } else {
+                issues.push(format!("死链：{} → {}", path, link));
+                dead_links.push(link);
+            }
+        }
+        if !dead_links.is_empty() {
+            for link in &dead_links {
+                let bare = link.trim_end_matches(".md");
+                body = body
+                    .replace(&format!("[[{link}]]"), bare)
+                    .replace(&format!("[[{bare}]]"), bare);
+            }
+            // 提案必须带 frontmatter：采纳时整页覆盖，不能顺手抹掉元信息。
             proposals.push(KnowledgeProposal {
                 path: path.clone(),
-                new_content: page.body.clone(),
-                reason: format!("与 {previous} 标题重复，请合并或改名"),
+                new_content: vault::serialize_page(&page.frontmatter, &body),
+                reason: format!("移除不存在的链接：{}", dead_links.join("、")),
             });
-        }
-        for line in page.body.lines() {
-            let mut rest = line;
-            while let Some(start) = rest.find("[[") {
-                let Some(end) = rest[start + 2..].find("]]") else {
-                    break;
-                };
-                let link = &rest[start + 2..start + 2 + end];
-                if known.contains(link) || known.contains(&format!("{link}.md")) {
-                    inbound.insert(link.to_string());
-                } else {
-                    issues.push(format!("死链：{} → {}", path, link));
-                    proposals.push(KnowledgeProposal {
-                        path: path.clone(),
-                        new_content: page.body.replace(&format!("[[{link}]]"), link),
-                        reason: format!("移除不存在的链接 [[{link}]]"),
-                    });
-                }
-                rest = &rest[start + 2 + end + 2..];
-            }
         }
     }
     for (path, _) in &pages {
@@ -190,14 +188,7 @@ pub fn summaries(root: &Path, kind: Option<&str>) -> Result<Vec<PageSummary>, St
             if kind.is_some_and(|value| value != page.frontmatter.page_type) {
                 return Ok(None);
             }
-            let summary = page
-                .body
-                .lines()
-                .find(|line| !line.trim().is_empty() && !line.starts_with('#'))
-                .unwrap_or("")
-                .chars()
-                .take(240)
-                .collect();
+            let summary = fts::summary_of(&page.body);
             Ok(Some(PageSummary {
                 path,
                 title: page.frontmatter.title,
@@ -213,50 +204,56 @@ pub fn summaries(root: &Path, kind: Option<&str>) -> Result<Vec<PageSummary>, St
 }
 
 pub fn write_page(db: &AppDb, root: &Path, path: &str, content: &str) -> Result<(), String> {
-    let page = vault::write(root, path, content)?;
-    let conn = db.conn.lock().map_err(|error| error.to_string())?;
-    fts::upsert(&conn, &page)?;
-    append_log(root, &format!("write {path}"))?;
-    index::rebuild_from_disk(root)?;
-    Ok(())
+    write_generated_page(db, root, path, content, &format!("write {path}"))
 }
 
-pub fn reflect_from_json(root: &Path, raw: &str) -> Result<ReflectOutput, String> {
+pub fn reflect_from_json(db: &AppDb, root: &Path, raw: &str) -> Result<ReflectOutput, String> {
     let output = serde_json::from_str::<ReflectOutput>(raw)
         .map_err(|error| format!("复盘 JSON 无效: {error}"))?;
-    write_reflection(root, &output)?;
+    write_reflection(db, root, &output)?;
     Ok(output)
 }
 
-pub fn write_reflection(root: &Path, output: &ReflectOutput) -> Result<(), String> {
+/// 所有自动写盘的页面都走这里：写文件 + FTS + 日志 + index.md 一次到位，
+/// 否则新页面要等下次启动重建索引后 searchKnowledge 才搜得到。
+fn write_generated_page(db: &AppDb, root: &Path, path: &str, content: &str, log: &str) -> Result<(), String> {
+    let page = vault::write(root, path, content)?;
+    let conn = db.conn.lock().map_err(|error| error.to_string())?;
+    fts::upsert(&conn, &page)?;
+    drop(conn);
+    append_log(root, log)?;
+    index::rebuild_from_disk(root)?;
+    Ok(())
+}
+
+pub fn write_reflection(db: &AppDb, root: &Path, output: &ReflectOutput) -> Result<(), String> {
     if !output.experience_page.path.starts_with("wiki/experiences/") {
         return Err("复盘经验页必须位于 wiki/experiences/".into());
     }
-    vault::write(
+    write_generated_page(
+        db,
         root,
         &output.experience_page.path,
         &output.experience_page.content,
-    )?;
-    append_log(root, &format!("reflect → {}", output.experience_page.path))?;
-    index::rebuild_from_disk(root)?;
-    Ok(())
+        &format!("reflect → {}", output.experience_page.path),
+    )
 }
 
-pub fn write_strategy(root: &Path, output: &StrategyOutput) -> Result<(), String> {
+pub fn write_strategy(db: &AppDb, root: &Path, output: &StrategyOutput) -> Result<(), String> {
     if !output.path.starts_with("wiki/market/") {
         return Err("策略回顾必须位于 wiki/market/".into());
     }
-    vault::write(root, &output.path, &output.content)?;
-    append_log(root, &format!("strategy review → {}", output.path))?;
-    index::rebuild_from_disk(root)?;
-    Ok(())
+    write_generated_page(
+        db,
+        root,
+        &output.path,
+        &output.content,
+        &format!("strategy review → {}", output.path),
+    )
 }
 
 pub fn append_log(root: &Path, message: &str) -> Result<(), String> {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|error| error.to_string())?
-        .as_secs();
+    let now = vault::now_stamp();
     let path = root.join("log.md");
     let existing = std::fs::read_to_string(&path).unwrap_or_else(|_| "# 知识库日志\n\n".into());
     std::fs::write(path, format!("{existing}- {now} {message}\n"))
@@ -334,13 +331,7 @@ pub fn ingest_with_summary(
         })
         .collect::<String>();
     let wiki_path = format!("wiki/sources/{slug}.md");
-    let now = format!(
-        "{}",
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs()
-    );
+    let now = vault::now_stamp();
     let meta = vault::Frontmatter {
         title: if source_summary.title.trim().is_empty() {
             safe_name.clone()
@@ -422,9 +413,18 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
         vault::initialize(&root).unwrap();
         let raw = r##"{"experiencePage":{"path":"wiki/experiences/acme.md","content":"# 复盘"},"proposals":[],"insights":["事实"]}"##;
-        let output = reflect_from_json(&root, raw).unwrap();
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        crate::db::migrate::run(&conn).unwrap();
+        let db = AppDb {
+            conn: std::sync::Mutex::new(conn),
+        };
+        let output = reflect_from_json(&db, &root, raw).unwrap();
         assert_eq!(output.experience_page.path, "wiki/experiences/acme.md");
         assert!(root.join("wiki/experiences/acme.md").exists());
+        // 写盘后立即可搜，不必等重启重建索引
+        let hits = fts::search(&db.conn.lock().unwrap(), "复盘", None, 5).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].page_type, "experience");
         let _ = std::fs::remove_dir_all(root);
     }
 }
