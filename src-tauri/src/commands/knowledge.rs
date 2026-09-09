@@ -8,6 +8,9 @@ use crate::db::AppDb;
 use crate::db::repo::{journal as journal_repo, resume as resume_repo};
 use crate::knowledge;
 
+/// 送给摘要模型的最大字符数（约 8–10K token）；原始资料本身不截断。
+const INGEST_TEXT_CHARS: usize = 12_000;
+
 fn error(message: String) -> CommandError {
     CommandError { message }
 }
@@ -104,8 +107,15 @@ pub async fn knowledge_ingest_file(
     let _queue = knowledge::ingest_queue().lock().await;
     knowledge::ingest_with_generator(&db, &root, &bytes, &filename, move |text| async move {
         let schema = "{title, tags, summary, entities:[{type, title, content}]}";
+        // 原文完整保存在 raw/，送模型的只截前 INGEST_TEXT_CHARS 字符：摘要不需要全文，超长会撑爆上下文。
+        let excerpt: String = text.chars().take(INGEST_TEXT_CHARS).collect();
+        let truncated = if excerpt.chars().count() < text.chars().count() {
+            "\n（资料过长，以上为节选）"
+        } else {
+            ""
+        };
         let prompt = format!(
-            "请从以下资料生成严格 JSON {schema}，entities.type 只能是 company、role 或 market。\n资料：\n{text}"
+            "请从以下资料生成严格 JSON {schema}，entities.type 只能是 company、role 或 market。\n资料：\n{excerpt}{truncated}"
         );
         let request = provider::GenerateRequest {
             config: &cfg,
