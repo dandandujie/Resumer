@@ -10,6 +10,7 @@ export interface ReflectionState {
 }
 
 export interface KnowledgeProposal {
+  id: string;
   path: string;
   content: string;
   reason: string;
@@ -280,6 +281,8 @@ interface JournalStore {
   reflections: Record<string, ReflectionState>;
   knowledgeProposals: Record<string, KnowledgeProposal[]>;
   reflectApplication: (id: string) => Promise<void>;
+  /** 提案被采纳或撤销后从列表移除；卡片自身不保存状态，避免换页后"复活"。 */
+  resolveKnowledgeProposal: (proposalId: string) => void;
 }
 
 let hydratePromise: Promise<void> | null = null;
@@ -330,6 +333,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
             knowledgeProposals: {
               ...state.knowledgeProposals,
               [key]: [...(state.knowledgeProposals[key] || []), {
+                id: String(item.proposalId || generateId()),
                 path: item.path,
                 content: item.content,
                 reason: item.reason,
@@ -468,6 +472,16 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
       logError('复盘失败', message);
     }
   },
+
+  resolveKnowledgeProposal: (proposalId) =>
+    set((state) => ({
+      knowledgeProposals: Object.fromEntries(
+        Object.entries(state.knowledgeProposals).map(([key, list]) => [
+          key,
+          list.filter((proposal) => proposal.id !== proposalId),
+        ]),
+      ),
+    })),
 
   removeMock: async (id) => {
     set((state) => ({ mocks: state.mocks.filter((m) => m.id !== id) }));

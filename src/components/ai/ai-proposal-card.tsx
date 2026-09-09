@@ -181,45 +181,80 @@ interface AIProposalCardProps {
   toolCallId: string;
 }
 
-/** Slim chat card — just a one-line summary + accept/reject buttons.
- *  The detailed diff visualization lives in the preview overlay. */
+/** 知识库提案卡：采纳 = 写盘；撤销 = 丢弃。状态由父级（store）持有时通过 onResolved 通知移除，
+ *  卡片自身只保留"刚刚发生了什么"的一次性反馈。 */
 export function KnowledgeProposalCard({
   path,
   content,
   reason,
+  onResolved,
 }: {
   path: string;
   content: string;
   reason: string;
+  onResolved?: (status: 'accepted' | 'rejected') => void;
 }) {
-  const [accepted, setAccepted] = useState(false);
-  const t = useTranslations('ai');
+  const [status, setStatus] = useState<'pending' | 'accepted' | 'rejected'>('pending');
   const [saving, setSaving] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const t = useTranslations('ai');
   const accept = async () => {
     setSaving(true);
     try {
       await api.knowledgeWrite(path, content);
-      setAccepted(true);
+      setStatus('accepted');
+      toast.success(t('knowledgeProposalAccepted'));
+      onResolved?.('accepted');
+    } catch (error) {
+      const message = String((error as Error)?.message || error);
+      logError(t('knowledgeProposalFailed'), message);
     } finally {
       setSaving(false);
     }
+  };
+  const reject = () => {
+    setStatus('rejected');
+    onResolved?.('rejected');
   };
   return (
     <div className="my-2 rounded-xl border border-[var(--whale-divider)] bg-[var(--whale-cream-soft)] px-3 py-2">
       <div className="text-[12px] font-semibold text-[var(--whale-ink)]">{t('knowledgeProposal')}</div>
       <div className="mt-1 truncate text-[11px] text-[var(--whale-ink-muted)]">{path}</div>
       <div className="mt-1 text-[11px] text-[var(--whale-ink-soft)]">{t('knowledgeProposalReason', { reason })}</div>
-      <div className="mt-2 line-clamp-3 whitespace-pre-wrap text-[11px] text-[var(--whale-ink-muted)]">{content}</div>
+      <button
+        type="button"
+        onClick={() => setExpanded((value) => !value)}
+        className={`mt-2 w-full cursor-pointer whitespace-pre-wrap text-left text-[11px] text-[var(--whale-ink-muted)] ${
+          expanded ? 'max-h-80 overflow-y-auto' : 'line-clamp-3'
+        }`}
+        aria-expanded={expanded}
+      >
+        {content}
+      </button>
       <div className="mt-2 flex justify-end gap-1">
-        {accepted ? (
+        {status === 'accepted' && (
           <span className="text-[11px] text-[var(--whale-mint-deep)]">{t('knowledgeProposalAccepted')}</span>
-        ) : (
+        )}
+        {status === 'rejected' && (
+          <span className="text-[11px] text-[var(--whale-ink-muted)]">{t('proposalRejected')}</span>
+        )}
+        {status === 'pending' && (
           <>
-            <button type="button" className="rounded-md border px-2 py-1 text-[11px]" onClick={() => setAccepted(true)}>
+            <button
+              type="button"
+              className="cursor-pointer rounded-md border border-[var(--whale-divider)] bg-[var(--whale-card)] px-2 py-1 text-[11px]"
+              onClick={reject}
+              disabled={saving}
+            >
               <Undo2 className="mr-1 inline h-3 w-3" />{t('proposalReject')}
             </button>
-            <button type="button" className="rounded-md bg-[var(--whale-ink)] px-2 py-1 text-[11px] text-white" onClick={() => void accept()} disabled={saving}>
-              <Check className="mr-1 inline h-3 w-3" />{t('proposalAccept')}
+            <button
+              type="button"
+              className="cursor-pointer rounded-md bg-[var(--whale-ink)] px-2 py-1 text-[11px] text-[var(--whale-cream)] disabled:opacity-50"
+              onClick={() => void accept()}
+              disabled={saving}
+            >
+              <Check className="mr-1 inline h-3 w-3" />{saving ? t('knowledgeProposalSaving') : t('proposalAccept')}
             </button>
           </>
         )}

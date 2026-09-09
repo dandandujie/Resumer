@@ -211,7 +211,28 @@ export async function knowledgeLint() {
   return invoke<{
     issues: string[];
     proposals: Array<{ path: string; newContent: string; reason: string }>;
-  }>('knowledge_lint', { config: getAIConfig() });
+  }>('knowledge_lint');
+}
+
+export interface KnowledgeEntity {
+  type: string;
+  title: string;
+  content: string;
+}
+
+export interface KnowledgeIngestResult {
+  source: KnowledgePageSummary;
+  entities: KnowledgeEntity[];
+}
+
+export async function knowledgeCreatePage(data: {
+  path: string;
+  title: string;
+  kind: string;
+  body: string;
+  sources?: string[];
+}) {
+  return invoke<void>('knowledge_create_page', data);
 }
 
 export interface ReflectOutput {
@@ -233,7 +254,7 @@ export async function knowledgeReindex() {
 }
 
 export async function knowledgeIngestFile(bytes: number[], filename: string) {
-  return invoke<any>('knowledge_ingest_file', { config: getAIConfig(), bytes, filename });
+  return invoke<KnowledgeIngestResult>('knowledge_ingest_file', { config: getAIConfig(), bytes, filename });
 }
 
 // ── 用户设置 ──

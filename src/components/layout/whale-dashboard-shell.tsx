@@ -10,6 +10,7 @@ import {
   Plus,
   Lock,
   BookOpenCheck,
+  Library,
 } from 'lucide-react';
 import { useLocale } from 'next-intl';
 import { Link, usePathname } from '@/i18n/routing';
@@ -60,7 +61,7 @@ function WhaleSidebar() {
   const items: { icon: typeof LayoutDashboard; label: string; onClick: () => void; active?: boolean }[] = [
     { icon: LayoutDashboard, label: t('nav'), onClick: goTo('/dashboard'), active: isDashboard },
     { icon: BookOpenCheck, label: t('journalTitle'), onClick: goTo('/insights'), active: isInsights },
-    { icon: BookOpenCheck, label: '知识库', onClick: goTo('/knowledge'), active: isKnowledge },
+    { icon: Library, label: t('knowledgeNav'), onClick: goTo('/knowledge'), active: isKnowledge },
     { icon: Settings, label: tSettings('title'), onClick: () => openModal('settings') },
   ];
 

@@ -93,6 +93,7 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool }
   const mocks = useJournalStore((s) => s.mocks);
   const reflection = useJournalStore((s) => s.reflections[app.id]);
   const proposals = useJournalStore((s) => s.knowledgeProposals[app.id] || []);
+  const resolveKnowledgeProposal = useJournalStore((s) => s.resolveKnowledgeProposal);
   const reflectApplication = useJournalStore((s) => s.reflectApplication);
   const launch = useLaunchResumeTool(onBeforeLaunchTool);
   const [jdExpanded, setJdExpanded] = useState(false);
@@ -129,8 +130,12 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool }
         <p className="rounded-md bg-red-50 p-2 text-xs text-red-700">{reflection.error}</p>
       )}
       {reflection?.status === 'done' && <ReflectionResult result={reflection.result!} />}
-      {proposals.map((proposal, index) => (
-        <KnowledgeProposalCard key={`${proposal.path}-${index}`} {...proposal} />
+      {proposals.map((proposal) => (
+        <KnowledgeProposalCard
+          key={proposal.id}
+          {...proposal}
+          onResolved={() => resolveKnowledgeProposal(proposal.id)}
+        />
       ))}
       <div className="flex items-start gap-2">
         <div className="grid flex-1 grid-cols-2 gap-2">
