@@ -407,7 +407,26 @@
       "right": "右",
       "bottom": "下",
       "left": "左"
-    }
+    },
+    "fontScheme": {
+      "songti": "宋体 + Times New Roman",
+      "heiti": "黑体 + Arial",
+      "yahei": "微软雅黑 + Calibri",
+      "kaiti": "楷体 + Times New Roman",
+      "fangsong": "仿宋 + Times New Roman",
+      "latin-arial": "Arial（英文简历）",
+      "latin-times": "Times New Roman（英文简历）",
+      "latin-calibri": "Calibri（英文简历）"
+    },
+    "fontSizeStep": {
+      "xiaowu": "小五 9pt",
+      "wuhao": "五号 10.5pt",
+      "xiaosi": "小四 12pt",
+      "sihao": "四号 14pt",
+      "custom": "自定义 {pt}pt"
+    },
+    "titleColor": "标题色",
+    "presetActive": "当前"
   },
   "jdAnalysis": {
     "title": "JD 匹配分析",

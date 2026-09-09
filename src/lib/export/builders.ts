@@ -1,10 +1,19 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { esc, buildExportThemeCSS, type ResumeWithSections } from './utils';
-import { resolveTheme } from '@/lib/theme-config';
 import { EXPORT_TAILWIND_CSS } from '@/lib/pdf/export-tailwind-css';
 import { generateQrSvg } from '@/lib/qrcode';
+import { resolveTheme } from '@/lib/theme-config';
 import { ResumePreview } from '@/components/preview/resume-preview';
+import type { QrCodeItem, Resume, ResumeSection } from '@/types/resume';
+
+function esc(text: unknown): string {
+  if (text == null) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 function isValidQrUrl(str: string): boolean {
   if (!str?.trim()) return false;
@@ -21,53 +30,42 @@ function isValidQrUrl(str: string): boolean {
   }
 }
 
-async function preGenerateQrSvgs(resume: ResumeWithSections): Promise<void> {
-  const section = resume.sections.find((s: any) => s.type === 'qr_codes');
+/** 二维码 SVG 在服务端渲染前预生成，挂在 section.content._qrSvgs 上供模板读取。 */
+async function preGenerateQrSvgs(sections: ResumeSection[]): Promise<void> {
+  const section = sections.find((s) => s.type === 'qr_codes');
   if (!section || section.visible === false) return;
-  const items = ((section.content as any).items || []).filter((q: any) =>
-    isValidQrUrl(q.url),
-  );
+  const content = section.content as { items?: QrCodeItem[]; _qrSvgs?: Record<string, string> };
   const svgs: Record<string, string> = {};
-  for (const qr of items) {
+  for (const qr of (content.items || []).filter((q) => isValidQrUrl(q.url))) {
     try {
       svgs[qr.id] = await generateQrSvg(qr.url, 80);
     } catch {
       /* 无效二维码不阻断导出 */
     }
   }
-  (section.content as any)._qrSvgs = svgs;
+  content._qrSvgs = svgs;
 }
 
-export async function generateHtml(
-  resume: ResumeWithSections,
-  forPdf = false,
-): Promise<string> {
-  const exportResume = {
+// A4 与零页边距：页边距由主题 CSS 画在纸内，纸张尺寸不声明时 Chrome 会按 Letter 打印。
+const PDF_PAGE_CSS =
+  '@page { size: A4; margin: 0; } html,body { background:white!important; padding:0!important; ' +
+  'margin:0!important; display:block!important; } .resume-export { width:100%; } ' +
+  '[data-section] { break-inside:auto!important; overflow:visible!important; } ' +
+  '[data-section] .item { break-inside:avoid!important; } h2,h3 { break-after:avoid!important; } ' +
+  'p { orphans:3; widows:3; }';
+
+export async function generateHtml(resume: Resume, forPdf = false): Promise<string> {
+  const exportResume: Resume = {
     ...resume,
-    sections: resume.sections.map((s) => ({
-      ...s,
-      content: { ...(s.content as any) },
-    })),
+    sections: (resume.sections || []).map((s) => ({ ...s, content: { ...s.content } })),
   };
-  await preGenerateQrSvgs(exportResume);
+  await preGenerateQrSvgs(exportResume.sections);
   const theme = resolveTheme(exportResume.themeConfig);
+  // 主题 CSS（含导出字体栈、页边距）由 ResumePreview 在 exportMode 下自行输出，这里不再重复一份。
   const bodyHtml = renderToStaticMarkup(
-    createElement(ResumePreview, {
-      resume: exportResume,
-      interactive: false,
-      exportMode: true,
-    }),
+    createElement(ResumePreview, { resume: exportResume, interactive: false, exportMode: true }),
   );
-  const themeCSS = buildExportThemeCSS(theme);
-  const pdfOverrides = forPdf
-    ? '@page { margin: 0; } html,body { background:white!important; padding:0!important; ' +
-      'margin:0!important; display:block!important; } .resume-export { width:100%; } ' +
-      '.resume-export > div { box-shadow:none!important; overflow:visible!important; } ' +
-      '[data-section] { break-inside:auto!important; overflow:visible!important; } ' +
-      '[data-section] .item { break-inside:avoid!important; } h2,h3 { break-after:avoid!important; } ' +
-      'p { orphans:3; widows:3; }'
-    : '';
-  const language = esc(exportResume.language || 'en');
+  const language = esc(exportResume.language || 'zh');
   const title = esc(exportResume.title);
   const avatarStyle = esc(theme.avatarStyle);
   return (
@@ -77,7 +75,8 @@ export async function generateHtml(
     `body { margin:0; display:flex; justify-content:center; padding:40px 20px; ` +
     `background:#f4f4f5; min-height:100vh; }\n` +
     `@media print { body { padding:0!important; background:white!important; } }\n` +
-    `${themeCSS}${pdfOverrides}\n` +
+    `.resume-export { width:210mm; max-width:100%; }\n` +
+    `${forPdf ? PDF_PAGE_CSS : ''}\n` +
     `.resume-export .rounded-full { border-radius:9999px!important; }\n` +
     `.resume-export[data-avatar-style="oneInch"] img[class*="object-cover"] { ` +
     `border-radius:4px!important; aspect-ratio:5/7!important; height:auto!important; }\n` +

@@ -18,7 +18,7 @@ import type {
 } from '@/types/resume';
 import { isSectionEmpty, md } from '../utils';
 import { formatDateRange } from '@/lib/resume-date';
-import { resolveTheme } from '@/lib/theme-config';
+import { resolveTheme, type DateStyle } from '@/lib/theme-config';
 import { AvatarImage } from '../avatar-image';
 import { QrCodesPreview } from '../qr-codes-preview';
 import { useEditorStore } from '@/stores/editor-store';
@@ -43,7 +43,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-function getDateRange(startDate?: string, endDate?: string | null, current = false, style: any = 'dot', lang = 'en') {
+function getDateRange(startDate?: string, endDate?: string | null, current = false, style: DateStyle = 'dot', lang = 'zh') {
   return formatDateRange(startDate, endDate, { current, style, lang });
 }
 
@@ -145,14 +145,14 @@ export function ClassicTemplate({ resume, interactive, onReorderSections }: { re
   );
 
   return (
-    <div className="mx-auto max-w-[210mm] bg-white shadow-lg">
+    <div className="mx-auto max-w-[210mm] bg-white">
       {/* Header — margin-bottom driven by the section-spacing setting (data-section)
           instead of a fixed mb-6, so the gap to the first section stays tight. */}
-      <div className="border-b-2 border-zinc-800 pb-2" data-section>
+      <div className="border-b-2 border-[var(--resume-accent-color)] pb-2" data-section>
         <div {...(personalInfo ? getSectionProps(personalInfo.id) : {})}>
           <div className="flex flex-row-reverse items-center justify-between gap-4">
             {pi.avatar && (
-              <AvatarImage src={pi.avatar} avatarStyle={resume.themeConfig?.avatarStyle} size={64} className="shrink-0" />
+              <AvatarImage src={pi.avatar} avatarStyle={theme.avatarStyle} size={64} className="shrink-0" />
             )}
             <div className="text-left">
               <h1 className="text-2xl font-bold text-[var(--resume-body-color)]">{pi.fullName || (isZh ? '姓名' : 'Your Name')}</h1>
@@ -264,17 +264,23 @@ function PreviewSection({
     );
   }
 
-  const Comp = interactive ? motion.div : 'div';
+  if (!interactive) {
+    return (
+      <div className="mb-5" data-section data-section-id={section.id}>
+        {content}
+      </div>
+    );
+  }
   return (
-    <Comp
+    <motion.div
       className="mb-5"
       data-section
       data-section-id={section.id}
-      layout={interactive ? 'position' : false}
-      transition={interactive ? { type: 'spring', stiffness: 300, damping: 30 } : undefined}
+      layout="position"
+      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
     >
       {content}
-    </Comp>
+    </motion.div>
   );
 }
 

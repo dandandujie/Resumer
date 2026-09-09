@@ -3,11 +3,14 @@ import type { ResumeSection } from '@/types/resume';
 import type { ResumeSnapshot } from '@/types/editor';
 import { MAX_UNDO_STACK } from '@/lib/constants';
 import { useResumeStore } from '@/stores/resume-store';
+import { resolveTheme } from '@/lib/theme-config';
 
-// Read the live theme so every snapshot captures the full visual state
-// (sections + theme), letting theme-only operations be undone. Read lazily to
-// avoid a static import cycle (resume-store does not import editor-store).
-const currentThemeConfig = () => useResumeStore.getState().currentResume?.themeConfig;
+// 快照里存的是解析后的完整主题：撤销时整体覆盖，旧数据的 px 边距不会混进 mm 主题里。
+// 延迟读取以避免静态导入环（resume-store 不引用 editor-store）。
+const currentThemeConfig = () => {
+  const raw = useResumeStore.getState().currentResume?.themeConfig;
+  return raw ? resolveTheme(raw) : undefined;
+};
 
 /** A queued instruction for the AI chat panel. When resumeId is set, only the
  *  editor of that resume may consume it (cross-navigation handoff, e.g. derive

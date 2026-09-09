@@ -18,7 +18,7 @@ import type {
 } from '@/types/resume';
 import { isSectionEmpty, md } from '../utils';
 import { formatDateRange } from '@/lib/resume-date';
-import { resolveTheme } from '@/lib/theme-config';
+import { resolveTheme, type DateStyle } from '@/lib/theme-config';
 import { AvatarImage } from '../avatar-image';
 import { QrCodesPreview } from '../qr-codes-preview';
 import { useEditorStore } from '@/stores/editor-store';
@@ -42,7 +42,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-function getDateRange(startDate?: string, endDate?: string | null, current = false, style: any = 'dot', lang = 'en') {
+function getDateRange(startDate?: string, endDate?: string | null, current = false, style: DateStyle = 'dot', lang = 'zh') {
   return formatDateRange(startDate, endDate, { current, style, lang });
 }
 
@@ -172,7 +172,7 @@ export function ModernTemplate({ resume, interactive, onReorderSections }: { res
   ];
 
   return (
-    <div className="mx-auto max-w-[210mm] bg-white shadow-lg">
+    <div className="mx-auto max-w-[210mm] bg-white">
       <div className="grid grid-cols-[35%_65%] gap-0">
         {/* Left Sidebar - Personal Info + Skills/Languages.
             data-zone="dark" makes all text/headings inside render white (see
@@ -185,7 +185,7 @@ export function ModernTemplate({ resume, interactive, onReorderSections }: { res
               <AvatarImage
                 src={pi.avatar}
                 size={100}
-                avatarStyle={resume.themeConfig?.avatarStyle}
+                avatarStyle={theme.avatarStyle}
                 className="mx-auto mb-4 block ring-4 ring-white/20"
               />
             )}

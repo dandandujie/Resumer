@@ -1,8 +1,9 @@
 import { isSectionEmpty } from '@/components/preview/utils';
 import {
+  PX_PER_MM,
   resolveCssFontScale,
+  resolveScreenFontStack,
   resolveThemeFontSize,
-  resolveThemeFontStack,
   resolveTheme,
 } from '@/lib/theme-config';
 import type {
@@ -44,8 +45,6 @@ const DATE_COLUMN_WIDTH = 120;
 const QR_TILE_HEIGHT = 112;
 const QR_TILE_WIDTH = 96;
 const QR_GAP = 12;
-
-const estimateDefaultTheme = resolveTheme();
 
 export interface ClassicPageEstimate {
   totalHeight: number;
@@ -508,19 +507,26 @@ function estimateQrHeight(itemCount: number, contentWidth: number) {
 }
 
 export function estimateClassicPages(pretext: PretextModule, resume: Resume): ClassicPageEstimate {
-  const theme = { ...estimateDefaultTheme, ...(resume.themeConfig || {}) };
+  const theme = resolveTheme(resume.themeConfig);
+  // 主题边距是 mm，估算画布是 px。
+  const marginPx = {
+    top: theme.margin.top * PX_PER_MM,
+    right: theme.margin.right * PX_PER_MM,
+    bottom: theme.margin.bottom * PX_PER_MM,
+    left: theme.margin.left * PX_PER_MM,
+  };
   const fontScale = resolveCssFontScale(theme.fontSize);
   const bodySize = resolveThemeFontSize(theme.fontSize);
-  const family = resolveThemeFontStack(theme.fontScheme);
+  const family = resolveScreenFontStack(theme.fontScheme);
   const bodyLineHeight = clamp(bodySize * theme.lineSpacing, bodySize);
   const h1Size = parseFloat(fontScale.h1);
   const h2Size = parseFloat(fontScale.h2);
   const h1LineHeight = clamp(h1Size * theme.lineSpacing, h1Size);
   const h2LineHeight = clamp(h2Size * theme.lineSpacing, h2Size);
-  const contentWidth = Math.max(220, A4_WIDTH - theme.margin.left - theme.margin.right);
+  const contentWidth = Math.max(220, A4_WIDTH - marginPx.left - marginPx.right);
   const measure = createMeasure(pretext);
 
-  let totalHeight = theme.margin.top + theme.margin.bottom;
+  let totalHeight = marginPx.top + marginPx.bottom;
   totalHeight += estimateHeaderHeight(
     measure,
     { ...resume, themeConfig: theme },
@@ -647,19 +653,17 @@ export function calculateOptimalFit(pretext: PretextModule, resume: Resume): The
   let optimalSize: number | null = null;
   
   const testResume = JSON.parse(JSON.stringify(resume)) as Resume;
-  
-  // themeConfig might be a JSON string from DB or undefined
-  if (typeof testResume.themeConfig === 'string') {
+  // 从 DB 读出的 themeConfig 可能仍是 JSON 字符串；解析后统一走 resolveTheme 补默认值与迁移单位。
+  const rawTheme: unknown = testResume.themeConfig;
+  const parsedTheme = ((): ThemeConfig | null => {
+    if (typeof rawTheme !== 'string') return (rawTheme as ThemeConfig | undefined) ?? null;
     try {
-      testResume.themeConfig = JSON.parse(testResume.themeConfig);
+      return JSON.parse(rawTheme) as ThemeConfig;
     } catch {
-      testResume.themeConfig = { ...estimateDefaultTheme };
+      return null;
     }
-  } else if (!testResume.themeConfig) {
-    testResume.themeConfig = { ...estimateDefaultTheme };
-  } else {
-    testResume.themeConfig = { ...estimateDefaultTheme, ...testResume.themeConfig };
-  }
+  })();
+  testResume.themeConfig = resolveTheme(parsedTheme);
 
   // First check if it fits with max font size
   testResume.themeConfig.fontSize = MAX_FONT_SIZE;

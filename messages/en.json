@@ -407,7 +407,26 @@
       "right": "Right",
       "bottom": "Bottom",
       "left": "Left"
-    }
+    },
+    "fontScheme": {
+      "songti": "SimSun + Times New Roman",
+      "heiti": "SimHei + Arial",
+      "yahei": "Microsoft YaHei + Calibri",
+      "kaiti": "KaiTi + Times New Roman",
+      "fangsong": "FangSong + Times New Roman",
+      "latin-arial": "Arial",
+      "latin-times": "Times New Roman",
+      "latin-calibri": "Calibri"
+    },
+    "fontSizeStep": {
+      "xiaowu": "9pt",
+      "wuhao": "10.5pt",
+      "xiaosi": "12pt",
+      "sihao": "14pt",
+      "custom": "Custom {pt}pt"
+    },
+    "titleColor": "Heading color",
+    "presetActive": "Current"
   },
   "jdAnalysis": {
     "title": "JD Match Analysis",

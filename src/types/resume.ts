@@ -174,6 +174,8 @@ export interface ThemeConfig {
   fontSize?: ThemeFontSize;
   lineSpacing?: number;
   margin?: { top: number; right: number; bottom: number; left: number };
+  /** 只有显式标记 mm 的边距才按 mm 读取；旧数据没有标记，按 px 迁移。 */
+  marginUnit?: 'mm';
   sectionSpacing?: number;
   dateStyle?: 'dot' | 'dash' | 'cn';
   headingStyle?: 'underline' | 'plain' | 'filled';
@@ -189,6 +191,7 @@ export interface ResolvedTheme {
   fontSize: number;
   lineSpacing: number;
   margin: { top: number; right: number; bottom: number; left: number };
+  marginUnit: 'mm';
   sectionSpacing: number;
   dateStyle: 'dot' | 'dash' | 'cn';
   headingStyle: 'underline' | 'plain' | 'filled';
