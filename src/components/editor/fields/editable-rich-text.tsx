@@ -4,6 +4,7 @@ import { useRef } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { InlineFormatButtons, formatSelection } from './inline-format-buttons';
 import { AiRewriteMenu, type AiRewriteContext } from './ai-rewrite-menu';
+import { SelectionFormatBar } from './selection-format-bar';
 
 interface EditableRichTextProps {
   label: string;
@@ -30,14 +31,17 @@ export function EditableRichText({ label, value, onChange, placeholder, rows = 3
           {aiContext && <AiRewriteMenu text={value || ''} context={{ ...aiContext, field: label }} />}
         </div>
       </div>
-      <Textarea
-        ref={inputRef}
-        value={value || ''}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder || label}
-        rows={rows}
-        className="resize-none text-sm"
-      />
+      <div className="relative">
+        <SelectionFormatBar inputRef={inputRef} onChange={onChange} />
+        <Textarea
+          ref={inputRef}
+          value={value || ''}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder || label}
+          rows={rows}
+          className="resize-none text-sm"
+        />
+      </div>
     </div>
   );
 }

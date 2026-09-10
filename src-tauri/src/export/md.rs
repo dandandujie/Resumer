@@ -1,4 +1,5 @@
 use super::date::{DateStyle, format_range};
+use super::inline::strip_attr_markers;
 use serde_json::Value;
 
 fn gstr<'a>(v: &'a Value, key: &str) -> &'a str {
@@ -42,7 +43,12 @@ fn date_range(item: &Value, style: DateStyle, lang: &str) -> String {
 }
 
 /// Generate GitHub-flavored Markdown from a resume's sections array.
+/// Markdown 保留 `**`/`*`/`__` 这类 Markdown 本身能表达的标记，颜色/字号/字体标记剥掉。
 pub fn generate_markdown(sections: &[Value], style: DateStyle, lang: &str) -> String {
+    strip_attr_markers(&generate_markdown_raw(sections, style, lang))
+}
+
+fn generate_markdown_raw(sections: &[Value], style: DateStyle, lang: &str) -> String {
     let mut out: Vec<String> = Vec::new();
 
     for section in sections {

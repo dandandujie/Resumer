@@ -302,6 +302,16 @@
         "label": "Use JD wording",
         "description": "Swap synonyms for the linked JD's exact terms"
       }
+    },
+    "selectionFormat": {
+      "label": "Selection formatting",
+      "bold": "Bold",
+      "italic": "Italic",
+      "underline": "Underline",
+      "color": "Color",
+      "size": "Size",
+      "font": "Font",
+      "clear": "Clear formatting"
     }
   },
   "ai": {

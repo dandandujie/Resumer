@@ -10,6 +10,7 @@ use docx_rs::{
 };
 use serde::Deserialize;
 use serde_json::Value;
+use std::collections::HashMap;
 use std::io::Cursor;
 use std::path::Path;
 
@@ -44,6 +45,8 @@ pub struct ResolvedTheme {
     pub avatar_style: String,
     pub info_layout: String,
     pub office_fonts: OfficeFonts,
+    /// 内联标记 `{{font=<id>}}` 用的中文字体 Office 名表（由前端字体表给出）。
+    pub cjk_font_names: HashMap<String, String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -175,8 +178,9 @@ fn styles(theme: &ResolvedTheme, fonts: &RunFonts) -> Vec<Style> {
     vec![title, heading1, heading2, normal, bullet]
 }
 
-/// Run 只承载内联标记；颜色/字号/字体全部留给样式表，用户改样式才会全局生效。
-fn run(span: &Span) -> Run {
+/// Run 只承载内联标记：粗斜下划线，以及用户对选区显式指定的颜色/字号/字体。
+/// 没有显式指定的属性留给样式表，用户在 Word 里改样式才会全局生效。
+fn run(span: &Span, theme: &ResolvedTheme) -> Run {
     let mut value = Run::new().add_text(&span.text);
     if span.bold {
         value = value.bold();
@@ -186,6 +190,23 @@ fn run(span: &Span) -> Run {
     }
     if span.underline {
         value = value.underline("single");
+    }
+    if let Some(color_value) = &span.color {
+        value = value.color(color(color_value));
+    }
+    if let Some(pt) = span.size_pt {
+        value = value.size((pt * 2.0).round().max(1.0) as usize);
+    }
+    if let Some(font) = &span.font
+        && let Some(east_asia) = theme.cjk_font_names.get(font)
+    {
+        value = value.fonts(
+            RunFonts::new()
+                .east_asia(east_asia)
+                .ascii(&theme.office_fonts.latin)
+                .hi_ansi(&theme.office_fonts.latin)
+                .hint("eastAsia"),
+        );
     }
     value
 }
@@ -197,7 +218,7 @@ fn add_spans(
     filled_heading: bool,
 ) -> Paragraph {
     for span in parse(text) {
-        let mut value = run(&span);
+        let mut value = run(&span, theme);
         if filled_heading {
             value = value
                 .shading(Shading::new().fill(color(&theme.accent_color)))
@@ -611,7 +632,8 @@ mod tests {
             "fontSize":14, "lineSpacing":1.35, "sectionSpacing":6, "marginUnit":"mm",
             "margin":{"top":18,"right":18,"bottom":18,"left":18}, "dateStyle":"dot",
             "headingStyle":"underline", "avatarStyle":"oneInch", "infoLayout":"inline",
-            "officeFonts":{"eastAsia":"宋体","latin":"Times New Roman"}
+            "officeFonts":{"eastAsia":"宋体","latin":"Times New Roman"},
+            "cjkFontNames":{"songti":"宋体","yahei":"微软雅黑"}
         });
         for (key, value) in overrides.as_object().unwrap() {
             base[key] = value.clone();
@@ -698,6 +720,57 @@ mod tests {
         for run in runs {
             assert!(run["data"]["runProperty"]["color"].is_null(), "{run}");
         }
+    }
+
+    #[test]
+    fn selection_markers_become_run_properties() {
+        let sections = vec![
+            json!({"type":"summary","visible":true,"title":"简介","content":{
+                "text":"{{color=#c00}}{{size=14}}{{font=yahei}}重点{{/font}}{{/size}}{{/color}}普通"
+            }}),
+        ];
+        let (_, json) = build(sections, &theme(json!({})), "spans");
+        let value: Value = serde_json::from_str(&json).unwrap();
+        let runs = value["document"]["children"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|child| {
+                child["data"]["children"]
+                    .as_array()
+                    .cloned()
+                    .unwrap_or_default()
+            })
+            .filter(|child| child["type"] == "run")
+            .collect::<Vec<_>>();
+        let styled = runs
+            .iter()
+            .find(|run| json_text(run).contains("重点"))
+            .expect("styled run");
+        assert_eq!(styled["data"]["runProperty"]["color"], "c00");
+        assert_eq!(styled["data"]["runProperty"]["sz"], 28);
+        assert_eq!(
+            styled["data"]["runProperty"]["fonts"]["eastAsia"],
+            "微软雅黑"
+        );
+        let plain = runs
+            .iter()
+            .find(|run| json_text(run).contains("普通"))
+            .expect("plain run");
+        assert!(plain["data"]["runProperty"]["color"].is_null());
+        assert!(!json.contains("{{color"));
+    }
+
+    fn json_text(run: &Value) -> String {
+        run["data"]["children"]
+            .as_array()
+            .map(|children| {
+                children
+                    .iter()
+                    .filter_map(|child| child["data"]["text"].as_str())
+                    .collect::<String>()
+            })
+            .unwrap_or_default()
     }
 
     #[test]

@@ -302,9 +302,11 @@ export function buildThemeCss(
       `--base-h3-size:${fs.h3}; --base-line-spacing:${theme.lineSpacing}; ` +
       `--base-section-spacing:${theme.sectionSpacing}px; --resume-body-color:${theme.bodyColor}; ` +
       `--resume-primary-color:${theme.primaryColor}; --resume-accent-color:${theme.accentColor}; }`,
-    `${scopeSelector} p, ${scopeSelector} li, ${scopeSelector} span, ${scopeSelector} td, ` +
+    // span[data-fmt] 是选区级标记生成的，它自己的字号/颜色/字体要能覆盖正文规则
+    `${scopeSelector} p, ${scopeSelector} li, ${scopeSelector} span:not([data-fmt]), ${scopeSelector} td, ` +
       `${scopeSelector} a, ${scopeSelector} div { font-size:${fs.body} !important; ` +
       `line-height:${theme.lineSpacing} !important; color:var(--resume-body-color); }`,
+    `${scopeSelector} span[data-fmt] { line-height:${theme.lineSpacing}; }`,
     `${scopeSelector} h1 { color:var(--resume-primary-color) !important; font-size:${fs.h1} !important; ` +
       `line-height:${theme.lineSpacing} !important; }`,
     `${scopeSelector} h2, ${scopeSelector} h3 { color:var(--resume-primary-color) !important; ` +

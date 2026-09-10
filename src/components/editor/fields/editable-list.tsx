@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { InlineFormatButtons, formatSelection } from './inline-format-buttons';
 import { SortableList } from '../dnd/sortable-item';
 import { AiRewriteMenu, type AiRewriteContext } from './ai-rewrite-menu';
+import { SelectionFormatBar } from './selection-format-bar';
 
 interface EditableListProps {
   label: string;
@@ -29,7 +30,8 @@ function FormattedInput({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   return (
-    <div className="flex min-w-0 items-center gap-1">
+    <div className="relative flex min-w-0 items-center gap-1">
+      <SelectionFormatBar inputRef={inputRef} onChange={onChange} />
       <Input
         ref={inputRef}
         value={value}
