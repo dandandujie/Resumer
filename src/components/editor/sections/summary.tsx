@@ -19,6 +19,7 @@ export function SummarySection({ section, onUpdate }: Props) {
       value={content.text}
       onChange={(v) => onUpdate({ text: v })}
       rows={4}
+      aiContext={{ sectionId: section.id, sectionTitle: section.title }}
     />
   );
 }

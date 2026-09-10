@@ -7,12 +7,15 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { InlineFormatButtons, formatSelection } from './inline-format-buttons';
 import { SortableList } from '../dnd/sortable-item';
+import { AiRewriteMenu, type AiRewriteContext } from './ai-rewrite-menu';
 
 interface EditableListProps {
   label: string;
   items: string[];
   onChange: (items: string[]) => void;
   placeholder?: string;
+  /** 传了就给每一行一个「AI 改写这一条」菜单；技能/技术栈这类列表不传。 */
+  aiContext?: Omit<AiRewriteContext, 'field'>;
 }
 
 function FormattedInput({
@@ -49,8 +52,10 @@ export function EditableList({
   items,
   onChange,
   placeholder,
+  aiContext,
 }: EditableListProps) {
   const t = useTranslations('common');
+  const tItems = useTranslations('editor.items');
   const values = items || [];
   const updateItem = (index: number, value: string) =>
     onChange(values.map((item, i) => (i === index ? value : item)));
@@ -81,12 +86,13 @@ export function EditableList({
               onChange={(value) => updateItem(index, value)}
               placeholder={placeholder}
             />
+            {aiContext && <AiRewriteMenu text={values[index]} context={{ ...aiContext, field: label }} />}
             <Button
               variant="ghost"
               size="icon-xs"
               className="shrink-0 text-[var(--whale-ink-muted)] hover:text-red-500"
               onClick={() => removeItem(index)}
-              aria-label="删除"
+              aria-label={tItems('removeItem')}
             >
               <X className="h-3.5 w-3.5" />
             </Button>

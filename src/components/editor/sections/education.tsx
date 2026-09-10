@@ -79,7 +79,12 @@ export function EducationSection({ section, onUpdate }: Props) {
               <EditableDate label={t('startDate')} value={item.startDate} onChange={(v) => updateItem(index, { startDate: v })} />
               <EditableDate label={t('endDate')} value={item.endDate} onChange={(v) => updateItem(index, { endDate: v })} />
             </FieldWrapper>
-            <EditableList label={t('highlights')} items={item.highlights} onChange={(v) => updateItem(index, { highlights: v })} />
+            <EditableList
+              label={t('highlights')}
+              items={item.highlights}
+              onChange={(v) => updateItem(index, { highlights: v })}
+              aiContext={{ sectionId: section.id, sectionTitle: section.title, item: item.institution }}
+            />
           </div>
         </div>
           );

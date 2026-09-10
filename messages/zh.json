@@ -267,7 +267,24 @@
       "moveUp": "上移",
       "moveDown": "下移",
       "insertAbove": "在上方插入",
-      "remove": "删除"
+      "remove": "删除",
+      "removeItem": "删除这一条"
+    },
+    "aiRewrite": {
+      "menu": "AI 改写这一条",
+      "hint": "改写结果会以提案卡出现在右侧助手，采纳后才生效",
+      "quantify": {
+        "label": "量化改写",
+        "description": "动词开头 + 方法 + 可衡量结果"
+      },
+      "star": {
+        "label": "STAR 化",
+        "description": "情境-任务-行动-结果压成 1–2 句"
+      },
+      "jd": {
+        "label": "换用 JD 原词",
+        "description": "对照关联投递的 JD 替换同义词"
+      }
     }
   },
   "ai": {

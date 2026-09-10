@@ -74,9 +74,19 @@ export function ProjectsSection({ section, onUpdate }: Props) {
               <EditableDate label={t('startDate')} value={item.startDate || ''} onChange={(v) => updateItem(index, { startDate: v })} />
               <EditableDate label={t('endDate')} value={item.endDate || ''} onChange={(v) => updateItem(index, { endDate: v })} />
             </FieldWrapper>
-            <EditableRichText label={t('description')} value={item.description} onChange={(v) => updateItem(index, { description: v })} />
+            <EditableRichText
+              label={t('description')}
+              value={item.description}
+              onChange={(v) => updateItem(index, { description: v })}
+              aiContext={{ sectionId: section.id, sectionTitle: section.title, item: item.name }}
+            />
             <EditableList label={t('technologies')} items={item.technologies} onChange={(v) => updateItem(index, { technologies: v })} />
-            <EditableList label={t('highlights')} items={item.highlights} onChange={(v) => updateItem(index, { highlights: v })} />
+            <EditableList
+              label={t('highlights')}
+              items={item.highlights}
+              onChange={(v) => updateItem(index, { highlights: v })}
+              aiContext={{ sectionId: section.id, sectionTitle: section.title, item: item.name }}
+            />
           </div>
         </div>
           );

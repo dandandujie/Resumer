@@ -26,6 +26,11 @@ export function WorkExperienceSection({ section, onUpdate }: Props) {
   const t = useTranslations('editor.fields');
   const content = section.content as WorkExperienceContent;
   const items = content.items || [];
+  const aiContext = (item: WorkExperienceItem) => ({
+    sectionId: section.id,
+    sectionTitle: section.title,
+    item: [item.company, item.position].filter(Boolean).join(' · '),
+  });
 
   const createItem = (): WorkExperienceItem => {
     const newItem: WorkExperienceItem = {
@@ -129,6 +134,7 @@ export function WorkExperienceSection({ section, onUpdate }: Props) {
                   label={t('description')}
                   value={item.description}
                   onChange={(v) => updateItem(index, { description: v })}
+                  aiContext={aiContext(item)}
                 />
                 <EditableList
                   label={t('technologies')}
@@ -139,6 +145,7 @@ export function WorkExperienceSection({ section, onUpdate }: Props) {
                   label={t('highlights')}
                   items={item.highlights}
                   onChange={(v) => updateItem(index, { highlights: v })}
+                  aiContext={aiContext(item)}
                 />
               </div>
             </div>

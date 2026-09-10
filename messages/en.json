@@ -267,7 +267,24 @@
       "moveUp": "Move up",
       "moveDown": "Move down",
       "insertAbove": "Insert above",
-      "remove": "Remove"
+      "remove": "Remove",
+      "removeItem": "Remove this item"
+    },
+    "aiRewrite": {
+      "menu": "Rewrite with AI",
+      "hint": "The rewrite shows up as a proposal in the assistant; nothing changes until you accept",
+      "quantify": {
+        "label": "Quantify",
+        "description": "Action verb + method + measurable result"
+      },
+      "star": {
+        "label": "STAR it",
+        "description": "Situation-task-action-result in 1–2 sentences"
+      },
+      "jd": {
+        "label": "Use JD wording",
+        "description": "Swap synonyms for the linked JD's exact terms"
+      }
     }
   },
   "ai": {
