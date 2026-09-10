@@ -56,22 +56,27 @@ pub fn content_hash(resume: &ResumeWithSections) -> String {
     format!("{:x}", Sha256::digest(payload.to_string().as_bytes()))
 }
 
-fn latest(
-    conn: &Connection,
-    resume_id: &str,
-) -> Result<Option<(String, String, String, String, i64)>, rusqlite::Error> {
+struct LatestVersion {
+    id: String,
+    event: String,
+    label: String,
+    content_hash: String,
+    created_at: i64,
+}
+
+fn latest(conn: &Connection, resume_id: &str) -> Result<Option<LatestVersion>, rusqlite::Error> {
     conn.query_row(
         "SELECT id, event, label, content_hash, created_at FROM resume_versions
          WHERE resume_id = ?1 ORDER BY created_at DESC, rowid DESC LIMIT 1",
         params![resume_id],
         |row| {
-            Ok((
-                row.get(0)?,
-                row.get(1)?,
-                row.get(2)?,
-                row.get(3)?,
-                row.get(4)?,
-            ))
+            Ok(LatestVersion {
+                id: row.get(0)?,
+                event: row.get(1)?,
+                label: row.get(2)?,
+                content_hash: row.get(3)?,
+                created_at: row.get(4)?,
+            })
         },
     )
     .optional()
@@ -99,20 +104,20 @@ pub fn create_snapshot(
     let previous = latest(conn, resume_id)?;
 
     if label.is_empty()
-        && let Some((prev_id, prev_event, prev_label, prev_hash, prev_created)) = &previous
+        && let Some(prev) = &previous
     {
-        if *prev_hash == hash {
+        if prev.content_hash == hash {
             return Ok(None);
         }
         let now = chrono::Utc::now().timestamp();
-        let within_window = coalesce_secs.is_some_and(|window| now - prev_created < window);
-        if prev_event == event && prev_label.is_empty() && within_window {
+        let within_window = coalesce_secs.is_some_and(|window| now - prev.created_at < window);
+        if prev.event == event && prev.label.is_empty() && within_window {
             conn.execute(
                 "UPDATE resume_versions SET snapshot = ?2, content_hash = ?3, resume_title = ?4,
                     created_at = unixepoch() WHERE id = ?1",
-                params![prev_id, snapshot, hash, current.resume.title],
+                params![prev.id, snapshot, hash, current.resume.title],
             )?;
-            return Ok(Some(prev_id.clone()));
+            return Ok(Some(prev.id.clone()));
         }
     }
 
