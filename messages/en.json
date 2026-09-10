@@ -386,6 +386,22 @@
       "native": "Model built-in",
       "tavily": "Tavily",
       "grok": "Grok"
+    },
+    "backup": {
+      "title": "Data & backup",
+      "description": "Bundle resumes, applications, the knowledge vault and AI settings into one zip; restore it on a new machine or after a mistake. The backup contains your API keys — keep it private.",
+      "create": "Export backup…",
+      "creating": "Packing…",
+      "created": "Backup saved to {path}",
+      "createFailed": "Backup failed",
+      "restore": "Restore from backup…",
+      "restoring": "Restoring…",
+      "restoreFailed": "Restore failed",
+      "restoreConfirmTitle": "Replace current data with the backup?",
+      "restoreConfirmBody": "Your resumes, applications, knowledge vault and settings will be replaced by the backup. The current data is saved to backups/ first, so you can always go back. The app restarts after restoring.",
+      "restoredTitle": "Restored — restart required",
+      "restoredBody": "Backup from {createdAt} (app version {version}). Current data was saved to: {safety}",
+      "restartNow": "Restart now"
     }
   },
   "themeEditor": {

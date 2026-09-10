@@ -48,6 +48,7 @@ import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { LocaleSwitcher } from '@/components/layout/locale-switcher';
+import { BackupPanel } from '@/components/settings/backup-panel';
 
 const AI_PROVIDERS: { value: AIProvider; label: string }[] = [
   { value: 'openai', label: 'OpenAI' },
@@ -401,6 +402,7 @@ export function SettingsDialog() {
               </div>
             )}
           </div>
+          <BackupPanel />
         </DialogHeader>
 
         {/* 左：渠道列表；右：选中渠道的配置 */}

@@ -588,6 +588,54 @@ export async function deleteMockInterview(id: string) {
   return invoke<void>('delete_mock_interview', { id });
 }
 
+// ── 备份与恢复 ──
+
+/** 前端设置都在 localStorage（AI 渠道与 Key、联网搜索、界面语言），按前缀整体打包。 */
+const LOCAL_SETTINGS_PREFIX = 'jade_';
+const LOCAL_SETTINGS_EXTRA_KEYS = ['i18nextLng'];
+
+export function collectLocalSettings(): string {
+  const entries: Record<string, string> = {};
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (!key) continue;
+    if (key.startsWith(LOCAL_SETTINGS_PREFIX) || LOCAL_SETTINGS_EXTRA_KEYS.includes(key)) {
+      entries[key] = localStorage.getItem(key) ?? '';
+    }
+  }
+  return JSON.stringify(entries);
+}
+
+export function applyLocalSettings(raw: string) {
+  const entries = JSON.parse(raw) as Record<string, string>;
+  for (const key of Object.keys(localStorage)) {
+    if (key.startsWith(LOCAL_SETTINGS_PREFIX)) localStorage.removeItem(key);
+  }
+  for (const [key, value] of Object.entries(entries)) {
+    if (key.startsWith(LOCAL_SETTINGS_PREFIX) || LOCAL_SETTINGS_EXTRA_KEYS.includes(key)) {
+      localStorage.setItem(key, value);
+    }
+  }
+}
+
+export interface RestoreResult {
+  settings: string | null;
+  safetyBackup: string;
+  manifest: { format: number; appVersion: string; createdAt: string };
+}
+
+export async function backupCreate() {
+  return invoke<string | null>('backup_create', { settings: collectLocalSettings() });
+}
+
+export async function backupRestore() {
+  return invoke<RestoreResult | null>('backup_restore', { currentSettings: collectLocalSettings() });
+}
+
+export async function appRestart() {
+  return invoke<void>('app_restart');
+}
+
 // ── 导出 ──
 
 export async function exportPdf(

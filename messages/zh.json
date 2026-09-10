@@ -386,6 +386,22 @@
       "native": "模型自带",
       "tavily": "Tavily",
       "grok": "Grok"
+    },
+    "backup": {
+      "title": "数据与备份",
+      "description": "把简历、投递记录、知识库和 AI 配置打包成一个 zip；换电脑或误删后可一键恢复。备份里包含 API Key，请妥善保管。",
+      "create": "导出备份…",
+      "creating": "正在打包…",
+      "created": "备份已保存到 {path}",
+      "createFailed": "备份失败",
+      "restore": "从备份恢复…",
+      "restoring": "正在恢复…",
+      "restoreFailed": "恢复失败",
+      "restoreConfirmTitle": "用备份覆盖当前数据？",
+      "restoreConfirmBody": "当前的简历、投递记录、知识库和设置会被备份里的内容替换。恢复前会先把现在的数据自动存到 backups/ 目录，随时可以再恢复回来。恢复完成后需要重启应用。",
+      "restoredTitle": "恢复完成，需要重启",
+      "restoredBody": "备份来自 {createdAt}（应用版本 {version}）。当前数据已另存到：{safety}",
+      "restartNow": "立即重启"
     }
   },
   "themeEditor": {

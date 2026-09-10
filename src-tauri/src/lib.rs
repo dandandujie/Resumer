@@ -29,6 +29,12 @@ pub fn run() {
                 .expect("failed to resolve app data dir");
             std::fs::create_dir_all(&app_data_dir).ok();
 
+            // 上一次「从备份恢复」留下的待替换数据库要在打开连接前换上
+            match commands::backup::apply_pending_restore(&app_data_dir) {
+                Ok(true) => log::info!("restored database from pending backup"),
+                Ok(false) => {}
+                Err(error) => log::error!("pending restore failed: {error}"),
+            }
             let db_path = app_data_dir.join("reseumer.db");
             let db = AppDb::new(&db_path).expect("failed to initialize database");
             let root =
@@ -90,6 +96,9 @@ pub fn run() {
             commands::export::export_markdown,
             commands::export::export_json,
             commands::export::export_docx,
+            commands::backup::backup_create,
+            commands::backup::backup_restore,
+            commands::backup::app_restart,
             commands::knowledge::knowledge_list,
             commands::knowledge::knowledge_read,
             commands::knowledge::knowledge_write,

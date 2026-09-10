@@ -16,7 +16,7 @@ pub struct PdfExportOptions {
     pub filename: Option<String>,
 }
 
-async fn pick_save_path(
+pub(crate) async fn pick_save_path(
     app: &tauri::AppHandle,
     default_name: &str,
     extension: &str,
