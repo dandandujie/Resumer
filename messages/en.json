@@ -277,7 +277,9 @@
       },
       "groupBasic": "Basics",
       "groupContact": "Contact",
-      "groupExtra": "Additional (common for SOE / public sector)"
+      "groupExtra": "Additional (common for SOE / public sector)",
+      "customTitle": "Title",
+      "customDate": "Date"
     },
     "items": {
       "drag": "Drag item",
@@ -285,7 +287,8 @@
       "moveDown": "Move down",
       "insertAbove": "Insert above",
       "remove": "Remove",
-      "removeItem": "Remove this item"
+      "removeItem": "Remove this item",
+      "untitled": "Untitled item"
     },
     "aiRewrite": {
       "menu": "Rewrite with AI",

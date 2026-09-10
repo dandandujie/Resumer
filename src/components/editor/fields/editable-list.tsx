@@ -3,7 +3,7 @@
 import { useRef } from 'react';
 import { Plus, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { Input } from '@/components/ui/input';
+import { AutoGrowInput } from './auto-grow-input';
 import { Button } from '@/components/ui/button';
 import { InlineFormatButtons, formatSelection } from './inline-format-buttons';
 import { SortableList } from '../dnd/sortable-item';
@@ -23,21 +23,23 @@ function FormattedInput({
   value,
   placeholder,
   onChange,
+  onEnter,
 }: {
   value: string;
   placeholder?: string;
   onChange: (value: string) => void;
+  onEnter?: () => void;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   return (
-    <div className="relative flex min-w-0 items-center gap-1">
+    <div className="relative flex min-w-0 flex-1 items-start gap-1">
       <SelectionFormatBar inputRef={inputRef} onChange={onChange} />
-      <Input
+      <AutoGrowInput
         ref={inputRef}
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        onEnter={onEnter}
         placeholder={placeholder}
-        className="h-8 min-w-0 text-sm"
       />
       <InlineFormatButtons
         onFormat={(marker) => {
@@ -58,6 +60,7 @@ export function EditableList({
 }: EditableListProps) {
   const t = useTranslations('common');
   const tItems = useTranslations('editor.items');
+  const listRef = useRef<HTMLDivElement>(null);
   const values = items || [];
   const updateItem = (index: number, value: string) =>
     onChange(values.map((item, i) => (i === index ? value : item)));
@@ -71,9 +74,17 @@ export function EditableList({
     onChange(next);
   };
   const addItem = () => onChange([...values, '']);
+  // 行内回车 = 在下一行新增一条，光标跟过去
+  const insertAfter = (index: number) => {
+    onChange([...values.slice(0, index + 1), '', ...values.slice(index + 1)]);
+    requestAnimationFrame(() => {
+      const rows = listRef.current?.querySelectorAll<HTMLTextAreaElement>('textarea');
+      rows?.[index + 1]?.focus();
+    });
+  };
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-1" ref={listRef}>
       <label className="text-xs font-medium text-[var(--whale-ink-muted)]">
         {label}
       </label>
@@ -82,10 +93,11 @@ export function EditableList({
         onMove={moveItem}
       >
         {(_, index) => (
-          <div className="flex min-w-0 items-center gap-1">
+          <div className="flex min-w-0 items-start gap-1">
             <FormattedInput
               value={values[index]}
               onChange={(value) => updateItem(index, value)}
+              onEnter={() => insertAfter(index)}
               placeholder={placeholder}
             />
             {aiContext && <AiRewriteMenu text={values[index]} context={{ ...aiContext, field: label }} />}

@@ -277,7 +277,9 @@
       },
       "groupBasic": "基本信息",
       "groupContact": "联系方式",
-      "groupExtra": "补充信息（国企/事业单位常用）"
+      "groupExtra": "补充信息（国企/事业单位常用）",
+      "customTitle": "标题",
+      "customDate": "日期"
     },
     "items": {
       "drag": "拖动条目",
@@ -285,7 +287,8 @@
       "moveDown": "下移",
       "insertAbove": "在上方插入",
       "remove": "删除",
-      "removeItem": "删除这一条"
+      "removeItem": "删除这一条",
+      "untitled": "未命名条目"
     },
     "aiRewrite": {
       "menu": "AI 改写这一条",

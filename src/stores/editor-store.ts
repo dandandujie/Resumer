@@ -30,10 +30,17 @@ export interface ToolPrefill {
   round?: string;
 }
 
+/** 右栏正在编辑的条目：预览高亮、条目卡展开、双向滚动都以它为准。itemId 为 null 表示该模块全部折叠。 */
+export interface ActiveItem {
+  sectionId: string;
+  itemId: string | null;
+}
+
 export type PendingModal = 'jd-analysis' | 'cover-letter' | 'interview' | 'version-history';
 
 interface EditorStore {
   selectedSectionId: string | null;
+  activeItem: ActiveItem | null;
   showAiChat: boolean;
   showThemeEditor: boolean;
   undoStack: ResumeSnapshot[];
@@ -48,6 +55,7 @@ interface EditorStore {
   rightPaneTab: "edit" | "ai";
 
   selectSection: (id: string | null) => void;
+  setActiveItem: (item: ActiveItem | null) => void;
   toggleAiChat: () => void;
   setShowAiChat: (show: boolean) => void;
   toggleThemeEditor: () => void;
@@ -65,6 +73,7 @@ interface EditorStore {
 
 export const useEditorStore = create<EditorStore>((set, get) => ({
   selectedSectionId: null,
+  activeItem: null,
   showAiChat: false,
   showThemeEditor: false,
   undoStack: [],
@@ -77,6 +86,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   rightPaneTab: "edit",
 
   selectSection: (id) => set({ selectedSectionId: id }),
+  setActiveItem: (item) => set({ activeItem: item }),
   toggleAiChat: () => set((s) => ({ showAiChat: !s.showAiChat })),
   setShowAiChat: (show) => set({ showAiChat: show }),
   toggleThemeEditor: () => set((s) => ({ showThemeEditor: !s.showThemeEditor })),
@@ -134,6 +144,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   reset: () =>
     set({
       selectedSectionId: null,
+      activeItem: null,
       showAiChat: false,
       showThemeEditor: false,
       undoStack: [],

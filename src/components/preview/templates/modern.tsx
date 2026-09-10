@@ -21,6 +21,7 @@ import { formatDateRange } from '@/lib/resume-date';
 import { resolveTheme, type DateStyle } from '@/lib/theme-config';
 import { AvatarImage } from '../avatar-image';
 import { QrCodesPreview } from '../qr-codes-preview';
+import { ItemBox } from '../item-box';
 import { useEditorStore } from '@/stores/editor-store';
 import { useProposalsStore } from '@/stores/proposals-store';
 import { PreviewProposalOverlay } from '../preview-proposal-overlay';
@@ -297,7 +298,7 @@ function PreviewSection({
           )}
           {section.type === 'work_experience' && (
             (content as WorkExperienceContent).items?.map((item: any) => (
-              <div key={item.id} className={compact ? "space-y-0.5" : "space-y-1"}>
+              <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive} className={compact ? "space-y-0.5" : "space-y-1"}>
                 <div className="flex items-baseline justify-between">
                   <span className="font-semibold">{item.position}</span>
                   <span className={cn("text-xs", compact ? "text-white/60" : "text-[var(--resume-body-color)]")}>{getDateRange(item.startDate, item.endDate, Boolean(item.current), theme.dateStyle, lang)}</span>
@@ -309,18 +310,18 @@ function PreviewSection({
                     {item.highlights.map((h: string, i: number) => <li key={i} dangerouslySetInnerHTML={{ __html: md(h) }} />)}
                   </ul>
                 )}
-              </div>
+              </ItemBox>
             ))
           )}
           {section.type === 'education' && (
             (content as EducationContent).items?.map((item: any) => (
-              <div key={item.id} className="space-y-0.5">
+              <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive} className="space-y-0.5">
                 <div className="flex items-baseline justify-between">
                   <span className="font-semibold text-sm">{item.degree}</span>
                   <span className={cn("text-xs", compact ? "text-white/60" : "text-[var(--resume-body-color)]")}>{getDateRange(item.startDate, item.endDate, Boolean(item.current), theme.dateStyle, lang)}</span>
                 </div>
                 <div className={cn("text-xs", compact ? "text-white/70" : "text-[var(--resume-body-color)]")}>{item.institution}{item.field && ` · ${item.field}`}</div>
-              </div>
+              </ItemBox>
             ))
           )}
           {section.type === 'skills' && (
@@ -339,7 +340,7 @@ function PreviewSection({
           )}
           {section.type === 'projects' && (
             (content as ProjectsContent).items?.map((item: any) => (
-              <div key={item.id} className="space-y-1">
+              <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive} className="space-y-1">
                 <div className="font-semibold text-sm">{item.name}</div>
                 {item.description && <div className="text-xs text-[var(--resume-body-color)]" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
                 {item.technologies && item.technologies.length > 0 && (
@@ -349,32 +350,32 @@ function PreviewSection({
                     ))}
                   </div>
                 )}
-              </div>
+              </ItemBox>
             ))
           )}
           {section.type === 'languages' && (
             (content as LanguagesContent).items?.map((item: any) => (
-              <div key={item.id} className="flex items-baseline justify-between text-xs">
+              <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive} className="flex items-baseline justify-between text-xs">
                 <span className="font-medium">{item.language}</span>
                 <span className={compact ? "text-white/60" : "text-[var(--resume-body-color)]"}>{item.proficiency}</span>
-              </div>
+              </ItemBox>
             ))
           )}
           {section.type === 'certifications' && (
             (content as CertificationsContent).items?.map((item: any) => (
-              <div key={item.id} className="space-y-0.5">
+              <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive} className="space-y-0.5">
                 <div className="font-semibold text-sm">{item.name}</div>
                 <div className={cn("text-xs", compact ? "text-white/70" : "text-[var(--resume-body-color)]")}>{item.issuer}{item.date && ` · ${item.date}`}</div>
-              </div>
+              </ItemBox>
             ))
           )}
           {section.type === 'custom' && (
             (content as CustomContent).items?.map((item: any) => (
-              <div key={item.id} className="space-y-1">
+              <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive} className="space-y-1">
                 <div className="font-semibold text-sm">{item.title}</div>
                 {item.subtitle && <div className="text-xs text-[var(--resume-body-color)]">{item.subtitle}</div>}
                 {item.description && <div className="text-sm text-[var(--resume-body-color)]" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
-              </div>
+              </ItemBox>
             ))
           )}
           {section.type === 'qr-codes' && <QrCodesPreview items={(content as any).items || []} svgs={(content as any)._qrSvgs} />}

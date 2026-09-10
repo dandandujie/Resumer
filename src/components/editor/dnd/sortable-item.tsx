@@ -28,12 +28,13 @@ export interface SortableHandleProps {
 
 interface SortableItemProps {
   id: string;
+  showHandle?: boolean;
   children:
     | React.ReactNode
     | ((handle: SortableHandleProps) => React.ReactNode);
 }
 
-export function SortableItem({ id, children }: SortableItemProps) {
+export function SortableItem({ id, showHandle = true, children }: SortableItemProps) {
   const t = useTranslations('editor.items');
   const {
     attributes,
@@ -59,15 +60,17 @@ export function SortableItem({ id, children }: SortableItemProps) {
       style={style}
       className="flex min-w-0 items-start gap-1"
     >
-      <button
-        type="button"
-        {...attributes}
-        {...listeners}
-        className="mt-1 cursor-grab touch-none rounded p-1 text-muted-foreground hover:bg-muted active:cursor-grabbing"
-        aria-label={t('drag')}
-      >
-        <GripVertical className="h-3.5 w-3.5" />
-      </button>
+      {showHandle && (
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="mt-1 cursor-grab touch-none rounded p-1 text-muted-foreground hover:bg-muted active:cursor-grabbing"
+          aria-label={t('drag')}
+        >
+          <GripVertical className="h-3.5 w-3.5" />
+        </button>
+      )}
       <div className="min-w-0 flex-1">{content}</div>
     </div>
   );
@@ -76,10 +79,12 @@ export function SortableItem({ id, children }: SortableItemProps) {
 interface SortableListProps {
   items: string[];
   onMove: (from: number, to: number) => void;
-  children: (id: string, index: number) => React.ReactNode;
+  /** 为 true 时由子组件自己放拖柄（条目卡把它放进标题栏），列表不再在左侧渲染拖柄。 */
+  ownHandle?: boolean;
+  children: (id: string, index: number, handle: SortableHandleProps) => React.ReactNode;
 }
 
-export function SortableList({ items, onMove, children }: SortableListProps) {
+export function SortableList({ items, onMove, ownHandle = false, children }: SortableListProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, {
@@ -105,8 +110,8 @@ export function SortableList({ items, onMove, children }: SortableListProps) {
     >
       <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
         {itemIds.map((id, index) => (
-          <SortableItem key={id} id={id}>
-            {children(id, index)}
+          <SortableItem key={id} id={id} showHandle={!ownHandle}>
+            {(handle: SortableHandleProps) => children(id, index, handle)}
           </SortableItem>
         ))}
       </SortableContext>

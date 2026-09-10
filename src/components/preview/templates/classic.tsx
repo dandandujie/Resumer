@@ -21,6 +21,7 @@ import { formatDateRange } from '@/lib/resume-date';
 import { resolveTheme, type DateStyle } from '@/lib/theme-config';
 import { AvatarImage } from '../avatar-image';
 import { QrCodesPreview } from '../qr-codes-preview';
+import { ItemBox } from '../item-box';
 import { useEditorStore } from '@/stores/editor-store';
 import { useProposalsStore } from '@/stores/proposals-store';
 import { PreviewProposalOverlay } from '../preview-proposal-overlay';
@@ -302,7 +303,7 @@ function SectionContent({ section, lang, interactive, theme }: { section: any; l
     return (
       <div className="space-y-3">
         {items.map((item: any) => (
-          <div key={item.id}>
+          <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive}>
             <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3">
               <div className="min-w-0">
                 <span className="text-sm font-semibold text-[var(--resume-body-color)]">{item.position}</span>
@@ -328,7 +329,7 @@ function SectionContent({ section, lang, interactive, theme }: { section: any; l
                 ))}
               </ul>
             )}
-          </div>
+          </ItemBox>
         ))}
       </div>
     );
@@ -339,7 +340,7 @@ function SectionContent({ section, lang, interactive, theme }: { section: any; l
     return (
       <div className="space-y-3">
         {items.map((item: any) => (
-          <div key={item.id}>
+          <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive}>
             <div className="flex items-baseline justify-between">
               <div>
                 <span className="text-sm font-semibold text-[var(--resume-body-color)]">
@@ -359,7 +360,7 @@ function SectionContent({ section, lang, interactive, theme }: { section: any; l
                 ))}
               </ul>
             )}
-          </div>
+          </ItemBox>
         ))}
       </div>
     );
@@ -384,7 +385,7 @@ function SectionContent({ section, lang, interactive, theme }: { section: any; l
     return (
       <div className="space-y-3">
         {items.map((item: any) => (
-          <div key={item.id}>
+          <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive}>
             <div className="flex items-baseline justify-between">
               <span className="font-semibold text-[var(--resume-body-color)] text-sm">{item.name}</span>
               {item.startDate && (
@@ -404,7 +405,7 @@ function SectionContent({ section, lang, interactive, theme }: { section: any; l
                 ))}
               </ul>
             )}
-          </div>
+          </ItemBox>
         ))}
       </div>
     );
@@ -415,14 +416,14 @@ function SectionContent({ section, lang, interactive, theme }: { section: any; l
     return (
       <div className="space-y-3">
         {items.map((item: any) => (
-          <div key={item.id}>
+          <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive}>
             <div className="flex items-baseline justify-between">
               <span className="font-semibold text-[var(--resume-body-color)] text-sm">{item.name}</span>
               <span className="text-xs text-[var(--resume-body-color)]">{item.stars?.toLocaleString()}</span>
             </div>
             {item.language && <span className="text-xs text-[var(--resume-body-color)]">{item.language}</span>}
             {item.description && <p className="mt-1 text-sm text-[var(--resume-body-color)]" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
-          </div>
+          </ItemBox>
         ))}
       </div>
     );
@@ -433,10 +434,10 @@ function SectionContent({ section, lang, interactive, theme }: { section: any; l
     return (
       <div className="space-y-1">
         {items.map((item: any) => (
-          <div key={item.id}>
+          <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive}>
             <span className="font-semibold text-[var(--resume-body-color)] text-sm">{item.name}</span>
             {(item.issuer || item.date) && <span className="text-sm text-[var(--resume-body-color)]">{item.issuer && <> — {item.issuer}</>}{item.date && <> ({item.date})</>}</span>}
-          </div>
+          </ItemBox>
         ))}
       </div>
     );
@@ -447,10 +448,10 @@ function SectionContent({ section, lang, interactive, theme }: { section: any; l
     return (
       <div className="space-y-1">
         {items.map((item: any) => (
-          <div key={item.id}>
+          <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive}>
             <span className="font-semibold text-[var(--resume-body-color)] text-sm">{item.language}</span>
             <span className="text-sm text-[var(--resume-body-color)]"> — {item.proficiency}</span>
-          </div>
+          </ItemBox>
         ))}
       </div>
     );
@@ -461,7 +462,7 @@ function SectionContent({ section, lang, interactive, theme }: { section: any; l
     return (
       <div className="space-y-2">
         {items.map((item: any) => (
-          <div key={item.id}>
+          <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive}>
             <div className="flex items-baseline justify-between">
               <div>
                 <span className="text-sm font-semibold text-[var(--resume-body-color)]">{item.title}</span>
@@ -470,7 +471,7 @@ function SectionContent({ section, lang, interactive, theme }: { section: any; l
               {item.date && <span className="text-xs text-[var(--resume-body-color)]">{item.date}</span>}
             </div>
             {item.description && <p className="mt-0.5 text-sm text-[var(--resume-body-color)]" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
-          </div>
+          </ItemBox>
         ))}
       </div>
     );
@@ -485,10 +486,10 @@ function SectionContent({ section, lang, interactive, theme }: { section: any; l
     return (
       <div className="space-y-2">
         {content.items.map((item: any) => (
-          <div key={item.id}>
+          <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive}>
             <span className="text-sm font-medium text-[var(--resume-body-color)]">{item.name || item.title || item.language}</span>
             {item.description && <p className="text-sm text-[var(--resume-body-color)]" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
-          </div>
+          </ItemBox>
         ))}
       </div>
     );

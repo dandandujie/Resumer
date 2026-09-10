@@ -3,13 +3,14 @@
 import { useTranslations } from 'next-intl';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import { EditableText } from '../fields/editable-text';
 import { EditableDate } from '../fields/editable-date';
 import { EditableList } from '../fields/editable-list';
 import { FieldWrapper } from '../fields/field-wrapper';
 import { generateId } from '@/lib/utils';
-import { SortableItemActions, SortableList } from '../dnd/sortable-item';
+import { SortableList } from '../dnd/sortable-item';
+import { ItemCard } from '../fields/item-card';
+import { useEditorStore } from '@/stores/editor-store';
 import type { ResumeSection, EducationContent, EducationItem } from '@/types/resume';
 
 interface Props {
@@ -35,8 +36,14 @@ export function EducationSection({ section, onUpdate }: Props) {
     return newItem;
   };
 
-  const addItemAt = (index = items.length) => onUpdate({ items: [...items.slice(0, index), createItem(), ...items.slice(index)] } as any);
+  const addItemAt = (index = items.length) => {
+    const created = createItem();
+    onUpdate({ items: [...items.slice(0, index), created, ...items.slice(index)] } as any);
+    // 新条目立即成为活动条目：展开、预览高亮、光标可直接进去
+    setActiveItem({ sectionId: section.id, itemId: created.id });
+  };
   const addItem = () => addItemAt();
+  const setActiveItem = useEditorStore((s) => s.setActiveItem);
   const moveItem = (from: number, to: number) => {
     if (to < 0 || to >= items.length) return;
     const updated = [...items];
@@ -55,18 +62,24 @@ export function EducationSection({ section, onUpdate }: Props) {
   };
 
   return (
-    <div className="space-y-4">
-      <SortableList items={items.map((item, index) => item.id || `edu-${index}`)} onMove={moveItem}>
-        {(_, index) => {
+    <div className="space-y-2">
+      <SortableList items={items.map((item, index) => item.id || `edu-${index}`)} onMove={moveItem} ownHandle>
+        {(_, index, handle) => {
           const item = items[index];
           return (
-        <div key={item.id || `edu-${index}`}>
-          {index > 0 && <Separator className="mb-4" />}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-muted-foreground">#{index + 1}</span>
-              <SortableItemActions index={index} count={items.length} onMove={(to) => moveItem(index, to)} onInsert={() => addItemAt(index)} onRemove={() => removeItem(index)} />
-            </div>
+            <ItemCard
+              key={item.id || `edu-${index}`}
+              sectionId={section.id}
+              itemId={item.id || `edu-${index}`}
+              index={index}
+              count={items.length}
+              title={item.institution}
+              subtitle={[item.degree, item.field].filter(Boolean).join(' · ')}
+              handle={handle}
+              onMove={(to) => moveItem(index, to)}
+              onInsert={() => addItemAt(index)}
+              onRemove={() => removeItem(index)}
+            >
             <FieldWrapper>
               <EditableText label={t('institution')} value={item.institution} onChange={(v) => updateItem(index, { institution: v })} />
               <EditableText label={t('degree')} value={item.degree} onChange={(v) => updateItem(index, { degree: v })} />
@@ -85,8 +98,7 @@ export function EducationSection({ section, onUpdate }: Props) {
               onChange={(v) => updateItem(index, { highlights: v })}
               aiContext={{ sectionId: section.id, sectionTitle: section.title, item: item.institution }}
             />
-          </div>
-        </div>
+            </ItemCard>
           );
         }}
       </SortableList>
