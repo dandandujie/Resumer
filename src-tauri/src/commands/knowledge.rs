@@ -247,6 +247,82 @@ pub async fn knowledge_reflect(
     Ok(output)
 }
 
+/// 面试准备包：与复盘共用一套事实收集，只是提示词与落点不同。写入 wiki/experiences/prep-*.md 并进 FTS。
+#[tauri::command]
+pub async fn knowledge_interview_prep(
+    app: AppHandle,
+    db: State<'_, AppDb>,
+    application_id: String,
+    config: Value,
+    language: Option<String>,
+) -> Result<knowledge::ExperiencePage, CommandError> {
+    let root = knowledge::ensure(&app).map_err(error)?;
+    let application = {
+        let conn = db.conn.lock().map_err(|e| error(e.to_string()))?;
+        journal_repo::find_application(&conn, &application_id)
+            .map_err(|e| error(e.to_string()))?
+            .ok_or_else(|| error("投递记录不存在".to_string()))?
+    };
+    let context = reflect_context(&db, &application_id).map_err(error)?;
+    let lang = language.unwrap_or_else(|| "zh".into());
+    let (system, prompt) = prompts::interview_prep_prompt(&context, &lang);
+    let cfg = cfg_from(config)?;
+    let request = provider::GenerateRequest {
+        config: &cfg,
+        system: Some(&system),
+        messages: &[ChatMessage {
+            role: "user".into(),
+            content: prompt,
+        }],
+        tools: None,
+        json_mode: false,
+        max_tokens: Some(4096),
+    };
+    let body = provider::generate(request)
+        .await
+        .map_err(|e| error(e.to_string()))?
+        .text;
+    let body = body
+        .trim()
+        .trim_start_matches("```markdown")
+        .trim_start_matches("```")
+        .trim_end_matches("```")
+        .trim();
+    if body.is_empty() {
+        return Err(error("模型没有返回准备单内容".to_string()));
+    }
+    let target = [application.company.as_str(), application.role.as_str()]
+        .iter()
+        .filter(|part| !part.trim().is_empty())
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(" · ");
+    let slug = knowledge::vault::slugify(&format!(
+        "prep-{}-{}",
+        target,
+        chrono::Local::now().format("%Y%m%d")
+    ));
+    let path = format!("wiki/experiences/{slug}.md");
+    let title = if lang == "en" {
+        format!("Interview prep: {target}")
+    } else {
+        format!("面试准备：{target}")
+    };
+    let now = knowledge::vault::now_stamp();
+    let meta = knowledge::vault::Frontmatter {
+        title,
+        page_type: "experience".into(),
+        tags: vec!["interview-prep".into()],
+        sources: vec![format!("application:{application_id}")],
+        created: now.clone(),
+        updated: now,
+        ..knowledge::vault::Frontmatter::default()
+    };
+    let content = knowledge::vault::serialize_page(&meta, &format!("{body}\n"));
+    knowledge::write_page(&db, &root, &path, &content).map_err(error)?;
+    Ok(knowledge::ExperiencePage { path, content })
+}
+
 #[tauri::command]
 pub async fn knowledge_strategy_review(
     app: AppHandle,

@@ -110,6 +110,7 @@ pub fn run() {
             commands::knowledge::knowledge_lint,
             commands::knowledge::knowledge_reflect,
             commands::knowledge::knowledge_strategy_review,
+            commands::knowledge::knowledge_interview_prep,
             commands::knowledge::knowledge_purpose,
         ])
         .run(tauri::generate_context!())

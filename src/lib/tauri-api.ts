@@ -285,6 +285,14 @@ export async function knowledgeReflect(applicationId: string) {
   return invoke<ReflectOutput>('knowledge_reflect', { applicationId, config: getAIConfig() });
 }
 
+export async function knowledgeInterviewPrep(applicationId: string, language: string) {
+  return invoke<{ path: string; content: string }>('knowledge_interview_prep', {
+    applicationId,
+    config: getAIConfig(),
+    language,
+  });
+}
+
 export async function knowledgeStrategyReview() {
   return invoke<any>('knowledge_strategy_review', { config: getAIConfig() });
 }

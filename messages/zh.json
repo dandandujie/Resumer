@@ -694,7 +694,12 @@
     "kanbanNoDate": "未填日期",
     "graphUntitledApplication": "未命名投递",
     "graphInterview": "面试",
-    "graphMockInterview": "模拟面试"
+    "graphMockInterview": "模拟面试",
+    "actionInterviewPrep": "面试准备包",
+    "interviewPrepRunning": "正在生成面试准备单…",
+    "interviewPrepDone": "准备单已生成，已存入知识库",
+    "interviewPrepFailed": "生成面试准备单失败",
+    "actionNeedsAi": "先在设置里配置模型服务"
   },
   "export": {
     "title": "导出简历",

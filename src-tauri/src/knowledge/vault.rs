@@ -28,6 +28,27 @@ pub fn now_stamp() -> String {
     chrono::Local::now().format("%Y-%m-%dT%H:%M").to_string()
 }
 
+/// 文件名只保留字母数字（含中文）与连字符；空结果退回 untitled。
+pub fn slugify(value: &str) -> String {
+    let mut slug = String::new();
+    let mut last_dash = false;
+    for character in value.trim().chars() {
+        if character.is_alphanumeric() {
+            slug.extend(character.to_lowercase());
+            last_dash = false;
+        } else if !last_dash && !slug.is_empty() {
+            slug.push('-');
+            last_dash = true;
+        }
+    }
+    let slug = slug.trim_end_matches('-').to_string();
+    if slug.is_empty() {
+        "untitled".into()
+    } else {
+        slug
+    }
+}
+
 pub fn validate_path(path: &str) -> Result<(), String> {
     let candidate = Path::new(path);
     if candidate.is_absolute() || path.is_empty() {
@@ -424,6 +445,16 @@ mod tests {
         let fresh = write(&root, "wiki/companies/new.md", "只有正文").unwrap();
         assert_eq!(fresh.frontmatter.page_type, "company");
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn slugify_keeps_cjk_and_collapses_separators() {
+        assert_eq!(
+            slugify("prep-字节跳动 · 后端-20260910"),
+            "prep-字节跳动-后端-20260910"
+        );
+        assert_eq!(slugify("  Acme Corp / Backend  "), "acme-corp-backend");
+        assert_eq!(slugify("///"), "untitled");
     }
 
     #[test]

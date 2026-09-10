@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
-import { ChevronDown, FileSearch, MessagesSquare, PenLine, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, ClipboardList, FileSearch, Loader2, MessagesSquare, PenLine, Plus, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { logError } from '@/stores/error-log-store';
+import { useKnowledgeStore } from '@/stores/knowledge-store';
+import { isAIConfigured } from '@/lib/tauri-api';
 import { useRouter } from '@/i18n/routing';
 import * as api from '@/lib/tauri-api';
 import { KnowledgeProposalCard } from '@/components/ai/ai-proposal-card';
@@ -105,6 +109,23 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool }
   };
   const [jdExpanded, setJdExpanded] = useState(false);
   const [confirmReflect, setConfirmReflect] = useState(false);
+  const [prepRunning, setPrepRunning] = useState(false);
+  const router = useRouter();
+  const requestOpenKnowledge = useKnowledgeStore((s) => s.requestOpen);
+  const runInterviewPrep = async () => {
+    setPrepRunning(true);
+    try {
+      const page = await api.knowledgeInterviewPrep(app.id, locale);
+      toast.success(t('interviewPrepDone'));
+      requestOpenKnowledge(page.path, false);
+      onBeforeLaunchTool?.();
+      router.push('/knowledge');
+    } catch (error) {
+      logError(t('interviewPrepFailed'), String((error as Error)?.message || error));
+    } finally {
+      setPrepRunning(false);
+    }
+  };
 
   const set = (patch: Partial<Application>) => update(app.id, patch);
   const saveOutcome = (result: OutcomeResult | null) => {
@@ -267,6 +288,13 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool }
             disabled={!hasResume}
             title={!hasResume ? t('actionNeedsResume') : undefined}
             onClick={() => launch(app, 'interview', nextInterview(app)?.round || latestRoundName(app))}
+          />
+          <ToolButton
+            icon={prepRunning ? Loader2 : ClipboardList}
+            label={prepRunning ? t('interviewPrepRunning') : t('actionInterviewPrep')}
+            disabled={!hasResume || prepRunning || !isAIConfigured()}
+            title={!hasResume ? t('actionNeedsResume') : !isAIConfigured() ? t('actionNeedsAi') : undefined}
+            onClick={() => void runInterviewPrep()}
           />
         </div>
       </section>

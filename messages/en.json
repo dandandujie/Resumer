@@ -694,7 +694,12 @@
     "kanbanNoDate": "No date",
     "graphUntitledApplication": "Untitled application",
     "graphInterview": "Interview",
-    "graphMockInterview": "Mock interview"
+    "graphMockInterview": "Mock interview",
+    "actionInterviewPrep": "Interview prep",
+    "interviewPrepRunning": "Generating the prep sheet…",
+    "interviewPrepDone": "Prep sheet saved to the knowledge base",
+    "interviewPrepFailed": "Failed to generate the prep sheet",
+    "actionNeedsAi": "Configure a model provider in Settings first"
   },
   "export": {
     "title": "Export Resume",

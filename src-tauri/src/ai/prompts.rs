@@ -423,3 +423,33 @@ pub fn knowledge_strategy_review_prompt(context: &str) -> (String, String) {
     );
     (system, prompt)
 }
+
+/// 面试准备单：只基于投递事实、简历与知识库，输出可直接打印的 Markdown。
+pub fn interview_prep_prompt(context: &str, language: &str) -> (String, String) {
+    let lang_rule = if language == "en" {
+        "Write in English."
+    } else {
+        "使用简体中文。"
+    };
+    let system = format!(
+        "你是资深面试教练兼目标公司的面试官。基于给定事实为候选人生成一份面试准备单。\n{}\n\n\
+        ## 铁律\n\
+        - 公司信息只能来自知识库命中与 JD；没有依据的地方写「待补充」，绝不编造公司事实、面试流程或候选人经历。\n\
+        - STAR 故事必须能在简历里找到对应经历，并标注来自哪段经历。\n\
+        - 直接输出 Markdown 正文（从二级标题开始），不要代码围栏、不要前言。\n\
+        - {}",
+        CN_RESUME_EXPERTISE, lang_rule
+    );
+    let prompt = format!(
+        "请按以下结构输出准备单：\n\
+        ## 公司与岗位速览（3–5 条事实，来源：知识库/JD）\n\
+        ## 本轮考察重点（按已知轮次；未知轮次按综合面）\n\
+        ## 可讲的 STAR 故事（3–5 个，每个 3–4 句，标注对应经历）\n\
+        ## 高频题与作答要点（技术/专业、业务/项目、行为各 3–5 题，每题一句要点）\n\
+        ## 简历上可能被追问的薄弱处与准备动作\n\
+        ## 反问面试官的 3 个问题\n\n\
+        事实：\n{}",
+        context
+    );
+    (system, prompt)
+}
