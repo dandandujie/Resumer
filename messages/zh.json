@@ -479,16 +479,6 @@
       "bottom": "下",
       "left": "左"
     },
-    "fontScheme": {
-      "songti": "宋体 + Times New Roman",
-      "heiti": "黑体 + Arial",
-      "yahei": "微软雅黑 + Calibri",
-      "kaiti": "楷体 + Times New Roman",
-      "fangsong": "仿宋 + Times New Roman",
-      "latin-arial": "Arial（英文简历）",
-      "latin-times": "Times New Roman（英文简历）",
-      "latin-calibri": "Calibri（英文简历）"
-    },
     "fontSizeStep": {
       "xiaowu": "小五 9pt",
       "wuhao": "五号 10.5pt",
@@ -497,7 +487,26 @@
       "custom": "自定义 {pt}pt"
     },
     "titleColor": "标题色",
-    "presetActive": "当前"
+    "presetActive": "当前",
+    "cjkFont": {
+      "label": "中文字体",
+      "yahei": "微软雅黑",
+      "sourcehan-sans": "思源黑体（内置）",
+      "songti": "宋体",
+      "sourcehan-serif": "思源宋体（内置）",
+      "stzhongsong": "华文中宋",
+      "heiti": "黑体",
+      "kaiti": "楷体",
+      "fangsong": "仿宋"
+    },
+    "latinFont": {
+      "label": "西文字体",
+      "calibri": "Calibri",
+      "aptos": "Aptos",
+      "times": "Times New Roman",
+      "arial": "Arial"
+    },
+    "fontHint": "系统没装的字体会退回内置的思源黑体/宋体；导出 PDF 时始终用内置字体保证一致。"
   },
   "jdAnalysis": {
     "title": "JD 匹配分析",

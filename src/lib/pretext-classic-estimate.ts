@@ -517,7 +517,7 @@ export function estimateClassicPages(pretext: PretextModule, resume: Resume): Cl
   };
   const fontScale = resolveCssFontScale(theme.fontSize);
   const bodySize = resolveThemeFontSize(theme.fontSize);
-  const family = resolveScreenFontStack(theme.fontScheme);
+  const family = resolveScreenFontStack(theme);
   const bodyLineHeight = clamp(bodySize * theme.lineSpacing, bodySize);
   const h1Size = parseFloat(fontScale.h1);
   const h2Size = parseFloat(fontScale.h2);

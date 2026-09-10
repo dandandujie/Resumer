@@ -16,7 +16,7 @@ import { useResumeStore } from '@/stores/resume-store';
 import { generateHtml } from '@/lib/export/builders';
 import * as api from '@/lib/tauri-api';
 import type { Resume } from '@/types/resume';
-import { resolveOfficeFonts, resolveTheme } from '@/lib/theme-config';
+import { cjkOfficeFontNames, resolveOfficeFonts, resolveTheme } from '@/lib/theme-config';
 import { logError } from '@/stores/error-log-store';
 import {
   FileDown,
@@ -110,7 +110,7 @@ export function ExportDialog({ open, onOpenChange, resumeId }: ExportDialogProps
         const theme = resolveTheme(resume.themeConfig);
         savedPath = await api.exportDocx(
           resumeId,
-          { ...theme, officeFonts: resolveOfficeFonts(theme.fontScheme) },
+          { ...theme, officeFonts: resolveOfficeFonts(theme), cjkFontNames: cjkOfficeFontNames() },
           filename,
         );
       } else if (selectedFormat === 'md') {

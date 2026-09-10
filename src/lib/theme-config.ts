@@ -7,95 +7,114 @@ export const MAX_PAGE_MARGIN_MM = 40;
 /** CSS 参考像素：1mm = 96 / 25.4 px，预览与页数预估都用它换算页边距。 */
 export const PX_PER_MM = 96 / 25.4;
 
+/** 中文字体 id。旧的 `latin-*` 配对方案在 resolveTheme 里迁移成 中文字体 + 西文字体 两个字段。 */
 export type FontSchemeId =
-  | 'songti'
-  | 'heiti'
   | 'yahei'
+  | 'sourcehan-sans'
+  | 'songti'
+  | 'sourcehan-serif'
+  | 'stzhongsong'
+  | 'heiti'
   | 'kaiti'
-  | 'fangsong'
-  | 'latin-arial'
-  | 'latin-times'
-  | 'latin-calibri';
+  | 'fangsong';
+export type LatinFontId = 'calibri' | 'aptos' | 'times' | 'arial';
 export type DateStyle = 'dot' | 'dash' | 'cn';
 export type HeadingStyle = 'underline' | 'plain' | 'filled';
 
+interface FontEntry {
+  /** 屏幕优先系统字体，导出优先内置字体（PDF 可嵌入、离线一致）。 */
+  screen: string;
+  export: string;
+  /** Office/WPS 认识的字体名 */
+  office: string;
+}
+
 /**
- * 字体方案表：屏幕/导出字体栈 + Office 认识的中英文字体名。
- * DOCX 导出直接把 eastAsia/latin 传给 Rust，Rust 侧不再维护第二份映射。
+ * 中文字体表。思源黑体/思源宋体就是内置的 Reseumer Hei/Song（Noto Sans/Serif SC），
+ * 预览与 PDF 完全一致；其余字体依赖系统安装，缺失时退回对应的内置字体。
+ * DOCX 导出把 office 名传给 Rust，Rust 侧不再维护第二份映射。
  */
-export const FONT_SCHEMES: Record<
-  FontSchemeId,
-  {
-    screen: string;
-    export: string;
-    eastAsia: string;
-    latin: string;
-    /** 只在英文简历里展示的纯西文方案 */
-    latinOnly?: boolean;
-  }
-> = {
+export const CJK_FONTS: Record<FontSchemeId, FontEntry> = {
+  yahei: {
+    screen: "'Microsoft YaHei', 'PingFang SC', 'Reseumer Hei'",
+    export: "'Reseumer Hei', 'Microsoft YaHei', 'PingFang SC'",
+    office: '微软雅黑',
+  },
+  'sourcehan-sans': {
+    screen: "'Reseumer Hei', 'Source Han Sans SC', 'Noto Sans CJK SC', 'Noto Sans SC'",
+    export: "'Reseumer Hei', 'Source Han Sans SC', 'Noto Sans CJK SC', 'Noto Sans SC'",
+    office: '思源黑体 CN',
+  },
   songti: {
-    screen: "'SimSun', 'Songti SC', 'Reseumer Song', serif",
-    export: "'Reseumer Song', 'SimSun', 'Songti SC', serif",
-    eastAsia: '宋体',
-    latin: 'Times New Roman',
+    screen: "'SimSun', 'Songti SC', 'Reseumer Song'",
+    export: "'Reseumer Song', 'SimSun', 'Songti SC'",
+    office: '宋体',
+  },
+  'sourcehan-serif': {
+    screen: "'Reseumer Song', 'Source Han Serif SC', 'Noto Serif CJK SC', 'Noto Serif SC'",
+    export: "'Reseumer Song', 'Source Han Serif SC', 'Noto Serif CJK SC', 'Noto Serif SC'",
+    office: '思源宋体 CN',
+  },
+  stzhongsong: {
+    screen: "'STZhongsong', 'Songti SC', 'SimSun', 'Reseumer Song'",
+    export: "'STZhongsong', 'Reseumer Song', 'Songti SC', 'SimSun'",
+    office: '华文中宋',
   },
   heiti: {
-    screen:
-      "'SimHei', 'Microsoft YaHei', 'PingFang SC', 'Reseumer Hei', sans-serif",
-    export:
-      "'Reseumer Hei', 'SimHei', 'Microsoft YaHei', 'PingFang SC', sans-serif",
-    eastAsia: '黑体',
-    latin: 'Arial',
-  },
-  yahei: {
-    screen: "'Microsoft YaHei', 'PingFang SC', 'Reseumer Hei', sans-serif",
-    export: "'Reseumer Hei', 'Microsoft YaHei', 'PingFang SC', sans-serif",
-    eastAsia: '微软雅黑',
-    latin: 'Calibri',
+    screen: "'SimHei', 'Heiti SC', 'Microsoft YaHei', 'Reseumer Hei'",
+    export: "'Reseumer Hei', 'SimHei', 'Heiti SC'",
+    office: '黑体',
   },
   kaiti: {
-    screen: "'KaiTi', 'Kaiti SC', 'Reseumer Kai', serif",
-    export: "'Reseumer Kai', 'KaiTi', 'Kaiti SC', serif",
-    eastAsia: '楷体',
-    latin: 'Times New Roman',
+    screen: "'KaiTi', 'Kaiti SC', 'Reseumer Kai'",
+    export: "'Reseumer Kai', 'KaiTi', 'Kaiti SC'",
+    office: '楷体',
   },
   fangsong: {
-    screen: "'FangSong', 'STFangsong', 'Reseumer Song', serif",
-    export: "'Reseumer Song', 'FangSong', 'STFangsong', serif",
-    eastAsia: '仿宋',
-    latin: 'Times New Roman',
-  },
-  'latin-arial': {
-    screen: "Arial, 'Reseumer Hei', sans-serif",
-    export: "'Reseumer Hei', Arial, sans-serif",
-    eastAsia: '微软雅黑',
-    latin: 'Arial',
-    latinOnly: true,
-  },
-  'latin-times': {
-    screen: "'Times New Roman', 'Reseumer Song', serif",
-    export: "'Reseumer Song', 'Times New Roman', serif",
-    eastAsia: '宋体',
-    latin: 'Times New Roman',
-    latinOnly: true,
-  },
-  'latin-calibri': {
-    screen: "Calibri, 'Reseumer Hei', sans-serif",
-    export: "'Reseumer Hei', Calibri, sans-serif",
-    eastAsia: '微软雅黑',
-    latin: 'Calibri',
-    latinOnly: true,
+    screen: "'FangSong', 'STFangsong', 'Reseumer Song'",
+    export: "'Reseumer Song', 'FangSong', 'STFangsong'",
+    office: '仿宋',
   },
 };
 
+/** 西文字体表。CSS 里放在中文字体前面：拉丁字符先命中西文字体，汉字落到中文字体。 */
+export const LATIN_FONTS: Record<LatinFontId, FontEntry> = {
+  calibri: { screen: "Calibri, Carlito", export: "Calibri, Carlito", office: 'Calibri' },
+  aptos: { screen: "Aptos, 'Segoe UI', Calibri", export: "Aptos, 'Segoe UI', Calibri", office: 'Aptos' },
+  times: { screen: "'Times New Roman', 'Liberation Serif'", export: "'Times New Roman', 'Liberation Serif'", office: 'Times New Roman' },
+  arial: { screen: "Arial, 'Liberation Sans'", export: "Arial, 'Liberation Sans'", office: 'Arial' },
+};
+
+/** 中文字体默认搭配的西文字体（黑体系配无衬线，宋体系配 Times）。 */
+export const DEFAULT_LATIN_FOR: Record<FontSchemeId, LatinFontId> = {
+  yahei: 'calibri',
+  'sourcehan-sans': 'calibri',
+  songti: 'times',
+  'sourcehan-serif': 'times',
+  stzhongsong: 'times',
+  heiti: 'arial',
+  kaiti: 'times',
+  fangsong: 'times',
+};
+
+/** 旧的中英配对方案 id → 新的两个字段 */
+const LEGACY_SCHEME_MAP: Record<string, { fontScheme: FontSchemeId; latinFont: LatinFontId }> = {
+  'latin-arial': { fontScheme: 'yahei', latinFont: 'arial' },
+  'latin-times': { fontScheme: 'songti', latinFont: 'times' },
+  'latin-calibri': { fontScheme: 'yahei', latinFont: 'calibri' },
+};
+
 export function isFontSchemeId(value: unknown): value is FontSchemeId {
-  return typeof value === 'string' && value in FONT_SCHEMES;
+  return typeof value === 'string' && value in CJK_FONTS;
+}
+export function isLatinFontId(value: unknown): value is LatinFontId {
+  return typeof value === 'string' && value in LATIN_FONTS;
 }
 
 /** 唯一默认主题。预览、导出、导入基底、预设都从这里派生。 */
 export const DEFAULT_THEME: ResolvedTheme = {
   fontScheme: 'yahei',
+  latinFont: 'calibri',
   bodyColor: '#1a1a1a',
   primaryColor: '#1a1a1a',
   accentColor: '#1a1a1a',
@@ -168,16 +187,24 @@ function resolveMargin(value: Partial<ThemeConfig>): ResolvedTheme['margin'] {
   return { top: pick('top'), right: pick('right'), bottom: pick('bottom'), left: pick('left') };
 }
 
-export function resolveTheme(raw?: Partial<ThemeConfig> | null): ResolvedTheme {
-  const value = raw || {};
+function resolveFonts(value: Partial<ThemeConfig>): { fontScheme: FontSchemeId; latinFont: LatinFontId } {
+  const legacyScheme = typeof value.fontScheme === 'string' ? LEGACY_SCHEME_MAP[value.fontScheme] : undefined;
   const legacyFamily = value.fontFamily ? LEGACY_FONT_MAP[value.fontFamily] : undefined;
   const fontScheme = isFontSchemeId(value.fontScheme)
     ? value.fontScheme
-    : legacyFamily || DEFAULT_THEME.fontScheme;
+    : legacyScheme?.fontScheme || legacyFamily || DEFAULT_THEME.fontScheme;
+  const latinFont = isLatinFontId(value.latinFont)
+    ? value.latinFont
+    : legacyScheme?.latinFont || DEFAULT_LATIN_FOR[fontScheme];
+  return { fontScheme, latinFont };
+}
+
+export function resolveTheme(raw?: Partial<ThemeConfig> | null): ResolvedTheme {
+  const value = raw || {};
   return {
     ...DEFAULT_THEME,
     ...value,
-    fontScheme,
+    ...resolveFonts(value),
     fontSize: resolveThemeFontSize(value.fontSize),
     margin: resolveMargin(value),
     marginUnit: 'mm',
@@ -193,15 +220,20 @@ export function resolveCssFontScale(fontSize?: ThemeFontSize) {
     h3: `${body}px`,
   };
 }
-export function resolveScreenFontStack(scheme: FontSchemeId) {
-  return FONT_SCHEMES[scheme].screen;
+export function resolveScreenFontStack(theme: Pick<ResolvedTheme, 'fontScheme' | 'latinFont'>) {
+  return `${LATIN_FONTS[theme.latinFont].screen}, ${CJK_FONTS[theme.fontScheme].screen}, sans-serif`;
 }
-export function resolveExportFontStack(scheme: FontSchemeId) {
-  return FONT_SCHEMES[scheme].export;
+export function resolveExportFontStack(theme: Pick<ResolvedTheme, 'fontScheme' | 'latinFont'>) {
+  return `${LATIN_FONTS[theme.latinFont].export}, ${CJK_FONTS[theme.fontScheme].export}, sans-serif`;
 }
-export function resolveOfficeFonts(scheme: FontSchemeId) {
-  const { eastAsia, latin } = FONT_SCHEMES[scheme];
-  return { eastAsia, latin };
+export function resolveOfficeFonts(theme: Pick<ResolvedTheme, 'fontScheme' | 'latinFont'>) {
+  return { eastAsia: CJK_FONTS[theme.fontScheme].office, latin: LATIN_FONTS[theme.latinFont].office };
+}
+/** 内联标记 `{{font=<id>}}` 用到的 Office 中文字体名表，随 DOCX 主题一起传给 Rust。 */
+export function cjkOfficeFontNames(): Record<FontSchemeId, string> {
+  return Object.fromEntries(
+    (Object.keys(CJK_FONTS) as FontSchemeId[]).map((id) => [id, CJK_FONTS[id].office]),
+  ) as Record<FontSchemeId, string>;
 }
 
 /**
@@ -210,10 +242,11 @@ export function resolveOfficeFonts(scheme: FontSchemeId) {
  */
 export const THEME_PRESETS: Record<string, ResolvedTheme> = {
   standard: DEFAULT_THEME,
-  'songti-classic': { ...DEFAULT_THEME, fontScheme: 'songti', lineSpacing: 1.3 },
+  'songti-classic': { ...DEFAULT_THEME, fontScheme: 'songti', latinFont: 'times', lineSpacing: 1.3 },
   compact: {
     ...DEFAULT_THEME,
-    fontScheme: 'heiti',
+    fontScheme: 'sourcehan-sans',
+    latinFont: 'arial',
     fontSize: 12,
     lineSpacing: 1.25,
     margin: { top: 14, right: 14, bottom: 14, left: 14 },
@@ -222,6 +255,7 @@ export const THEME_PRESETS: Record<string, ResolvedTheme> = {
   soe: {
     ...DEFAULT_THEME,
     fontScheme: 'songti',
+    latinFont: 'times',
     fontSize: 16,
     lineSpacing: 1.5,
     infoLayout: 'grid',
@@ -229,7 +263,8 @@ export const THEME_PRESETS: Record<string, ResolvedTheme> = {
   },
   foreign: {
     ...DEFAULT_THEME,
-    fontScheme: 'latin-arial',
+    fontScheme: 'yahei',
+    latinFont: 'arial',
     fontSize: 14.7,
     lineSpacing: 1.3,
     avatarStyle: 'circle',
@@ -259,9 +294,7 @@ export function buildThemeCss(
         ? `${scopeSelector} h2 { border-bottom: 0 !important; background: var(--resume-accent-color) !important; ` +
           `color: #fff !important; padding: 2px 6px !important; }`
         : `${scopeSelector} h2 { border-bottom: 1px solid var(--resume-accent-color) !important; }`;
-  const fontFamily = options.export
-    ? resolveExportFontStack(theme.fontScheme)
-    : resolveScreenFontStack(theme.fontScheme);
+  const fontFamily = options.export ? resolveExportFontStack(theme) : resolveScreenFontStack(theme);
   return [
     `${scopeSelector} > div { font-family: ${fontFamily} !important; line-height: ${theme.lineSpacing} !important; ` +
       `padding: ${m.top}mm ${m.right}mm ${m.bottom}mm ${m.left}mm !important; ` +

@@ -19,9 +19,11 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import {
+  CJK_FONTS,
+  DEFAULT_LATIN_FOR,
   DEFAULT_THEME,
-  FONT_SCHEMES,
   FONT_SIZE_STEPS,
+  LATIN_FONTS,
   MAX_PAGE_MARGIN_MM,
   MAX_THEME_FONT_SIZE,
   MIN_THEME_FONT_SIZE,
@@ -30,6 +32,7 @@ import {
   pxToPt,
   resolveTheme,
   type FontSchemeId,
+  type LatinFontId,
 } from '@/lib/theme-config';
 import { useResumeStore } from '@/stores/resume-store';
 import { useEditorStore } from '@/stores/editor-store';
@@ -42,7 +45,6 @@ export function FormatRibbon() {
   const updateThemeConfig = useResumeStore((state) => state.updateThemeConfig);
   const pushSnapshot = useEditorStore((state) => state.pushSnapshot);
   const theme = resolveTheme(currentResume?.themeConfig);
-  const isEnglish = currentResume?.language === 'en';
   // 滑杆拖动期间只在第一次变化时入栈一次，松手后清除标记；否则一次拖动会塞进几十条撤销记录。
   const dragging = useRef(false);
 
@@ -114,24 +116,46 @@ export function FormatRibbon() {
         </div>,
       )}
       {control(
-        `${t('fontFamily')} · ${t(`fontScheme.${theme.fontScheme}`)}`,
-        <Select
-          value={theme.fontScheme}
-          onValueChange={(value) => updateTheme({ fontScheme: value as FontSchemeId })}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(Object.keys(FONT_SCHEMES) as FontSchemeId[])
-              .filter((id) => isEnglish || !FONT_SCHEMES[id].latinOnly || id === theme.fontScheme)
-              .map((id) => (
-                <SelectItem key={id} value={id}>
-                  {t(`fontScheme.${id}`)}
-                </SelectItem>
-              ))}
-          </SelectContent>
-        </Select>,
+        `${t('fontFamily')} · ${t(`cjkFont.${theme.fontScheme}`)} + ${t(`latinFont.${theme.latinFont}`)}`,
+        <div className="space-y-2">
+          <label className="block text-xs text-muted-foreground">
+            {t('cjkFont.label')}
+            <Select
+              value={theme.fontScheme}
+              // 换中文字体时把西文字体换成它的默认搭配；用户随后仍可单独改
+              onValueChange={(value) =>
+                updateTheme({ fontScheme: value as FontSchemeId, latinFont: DEFAULT_LATIN_FOR[value as FontSchemeId] })
+              }
+            >
+              <SelectTrigger className="mt-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(CJK_FONTS) as FontSchemeId[]).map((id) => (
+                  <SelectItem key={id} value={id}>
+                    <span style={{ fontFamily: CJK_FONTS[id].screen }}>{t(`cjkFont.${id}`)}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+          <label className="block text-xs text-muted-foreground">
+            {t('latinFont.label')}
+            <Select value={theme.latinFont} onValueChange={(value) => updateTheme({ latinFont: value as LatinFontId })}>
+              <SelectTrigger className="mt-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(LATIN_FONTS) as LatinFontId[]).map((id) => (
+                  <SelectItem key={id} value={id}>
+                    <span style={{ fontFamily: LATIN_FONTS[id].screen }}>{t(`latinFont.${id}`)}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+          <p className="text-[11px] leading-snug text-muted-foreground">{t('fontHint')}</p>
+        </div>,
       )}
       {control(
         `${t('fontSizeLabel')} · ${fontSizeLabel}`,

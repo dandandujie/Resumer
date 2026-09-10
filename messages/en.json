@@ -479,16 +479,6 @@
       "bottom": "Bottom",
       "left": "Left"
     },
-    "fontScheme": {
-      "songti": "SimSun + Times New Roman",
-      "heiti": "SimHei + Arial",
-      "yahei": "Microsoft YaHei + Calibri",
-      "kaiti": "KaiTi + Times New Roman",
-      "fangsong": "FangSong + Times New Roman",
-      "latin-arial": "Arial",
-      "latin-times": "Times New Roman",
-      "latin-calibri": "Calibri"
-    },
     "fontSizeStep": {
       "xiaowu": "9pt",
       "wuhao": "10.5pt",
@@ -497,7 +487,26 @@
       "custom": "Custom {pt}pt"
     },
     "titleColor": "Heading color",
-    "presetActive": "Current"
+    "presetActive": "Current",
+    "cjkFont": {
+      "label": "CJK font",
+      "yahei": "Microsoft YaHei",
+      "sourcehan-sans": "Source Han Sans (bundled)",
+      "songti": "SimSun",
+      "sourcehan-serif": "Source Han Serif (bundled)",
+      "stzhongsong": "STZhongsong",
+      "heiti": "SimHei",
+      "kaiti": "KaiTi",
+      "fangsong": "FangSong"
+    },
+    "latinFont": {
+      "label": "Latin font",
+      "calibri": "Calibri",
+      "aptos": "Aptos",
+      "times": "Times New Roman",
+      "arial": "Arial"
+    },
+    "fontHint": "Fonts not installed fall back to the bundled Source Han faces; PDF export always embeds the bundled fonts."
   },
   "jdAnalysis": {
     "title": "JD Match Analysis",

@@ -171,6 +171,7 @@ export interface ThemeConfig {
   bodyColor?: string;
   fontFamily?: string;
   fontScheme?: import('@/lib/theme-config').FontSchemeId;
+  latinFont?: import('@/lib/theme-config').LatinFontId;
   fontSize?: ThemeFontSize;
   lineSpacing?: number;
   margin?: { top: number; right: number; bottom: number; left: number };
@@ -188,6 +189,7 @@ export interface ResolvedTheme {
   accentColor: string;
   bodyColor: string;
   fontScheme: import('@/lib/theme-config').FontSchemeId;
+  latinFont: import('@/lib/theme-config').LatinFontId;
   fontSize: number;
   lineSpacing: number;
   margin: { top: number; right: number; bottom: number; left: number };
