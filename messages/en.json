@@ -113,7 +113,22 @@
     "agendaMore": "{count} more — open Job Pipeline",
     "cardApplications": "{total} applied",
     "cardApplicationsOpen": "{total} applied · {open} open",
-    "knowledgeNav": "Knowledge"
+    "knowledgeNav": "Knowledge",
+    "onboarding": {
+      "title": "Three steps to start",
+      "subtitle": "After these, the AI knows who you are and what you are applying for.",
+      "dismiss": "Don't show again",
+      "aiTitle": "Set up a model provider",
+      "aiDesc": "Pick a channel, paste an API key and test the connection — AI features need it",
+      "aiAction": "Open settings",
+      "resumeTitle": "Prepare your first resume",
+      "resumeDesc": "Import an existing one, let the AI draft it, or start blank",
+      "resumeAction": "New resume",
+      "purposeTitle": "Write your job target",
+      "purposeDesc": "Target role / city / industry / constraints are injected into every AI conversation",
+      "purposeAction": "Fill it in",
+      "done": "Done"
+    }
   },
   "interview": {
     "title": "Mock interview",

@@ -4,7 +4,7 @@
  */
 import { useEffect, useState, useMemo } from 'react';
 import { useTranslations } from '@/i18n';
-import { Search, LayoutGrid, List, Sparkles, Upload, Plus, BookOpenCheck, ArrowUpRight } from 'lucide-react';
+import { Search, LayoutGrid, List, Sparkles, Upload, Plus, BookOpenCheck, ArrowUpRight, Check } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -26,6 +26,10 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { useResume } from '@/hooks/use-resume';
 import { useUIStore } from '@/stores/ui-store';
+import { useSettingsStore } from '@/stores/settings-store';
+import { useKnowledgeStore } from '@/stores/knowledge-store';
+import { parsePurpose } from '@/lib/knowledge-page';
+import * as api from '@/lib/tauri-api';
 import { useRouter } from '@/i18n/routing';
 import { ResumeGrid } from '@/components/dashboard/resume-grid';
 import { ResumeListItem } from '@/components/dashboard/resume-list-item';
@@ -67,13 +71,117 @@ function sortResumes(resumes: Resume[], sort: SortOption): Resume[] {
   }
 }
 
+const ONBOARDING_DISMISSED_KEY = 'jade_onboarding_dismissed';
+
+/**
+ * 首次启动引导：配置模型 → 有一份简历 → 写下求职目标。
+ * 三件都完成或用户点「不再显示」后消失；不做多步向导，只把三个流失点摆在最显眼的位置。
+ */
+function OnboardingChecklist({ hasResume }: { hasResume: boolean }) {
+  const t = useTranslations('dashboard.onboarding');
+  const router = useRouter();
+  const openModal = useUIStore((s) => s.openModal);
+  const requestOpen = useKnowledgeStore((s) => s.requestOpen);
+  const aiConfigured = useSettingsStore((s) => Boolean(s.aiApiKey.trim() && s.aiBaseURL.trim()));
+  const [purposeFilled, setPurposeFilled] = useState<boolean | null>(null);
+  const [dismissed, setDismissed] = useState(() => localStorage.getItem(ONBOARDING_DISMISSED_KEY) === '1');
+
+  useEffect(() => {
+    api
+      .knowledgePurpose()
+      .then((content) => setPurposeFilled(Object.values(parsePurpose(content)).some((value) => value.trim())))
+      .catch(() => setPurposeFilled(false));
+  }, []);
+
+  const steps = [
+    { key: 'ai', done: aiConfigured, action: () => openModal('settings') },
+    { key: 'resume', done: hasResume, action: () => openModal('create-resume') },
+    {
+      key: 'purpose',
+      done: purposeFilled === true,
+      action: () => {
+        requestOpen('purpose.md', true);
+        router.push('/knowledge');
+      },
+    },
+  ] as const;
+  if (dismissed || purposeFilled === null || steps.every((step) => step.done)) return null;
+
+  return (
+    <section
+      aria-label={t('title')}
+      className="rounded-2xl border border-[var(--whale-divider)] bg-[var(--whale-card)] p-5"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="font-display text-lg font-semibold text-[var(--whale-ink)]">{t('title')}</h2>
+          <p className="mt-1 text-[13px] text-[var(--whale-ink-muted)]">{t('subtitle')}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            localStorage.setItem(ONBOARDING_DISMISSED_KEY, '1');
+            setDismissed(true);
+          }}
+          className="shrink-0 cursor-pointer text-[11px] text-[var(--whale-ink-muted)] hover:text-[var(--whale-ink)]"
+        >
+          {t('dismiss')}
+        </button>
+      </div>
+      <ol className="mt-4 grid gap-3 sm:grid-cols-3">
+        {steps.map((step, index) => (
+          <li
+            key={step.key}
+            className={`flex flex-col gap-2 rounded-xl border p-4 ${
+              step.done
+                ? 'border-[var(--whale-mint)] bg-[var(--whale-mint)]/15'
+                : 'border-[var(--whale-divider)] bg-[var(--whale-cream-soft)]'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <span
+                className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold ${
+                  step.done ? 'bg-[var(--whale-mint-deep)] text-white' : 'bg-[var(--whale-ink)] text-[var(--whale-cream)]'
+                }`}
+              >
+                {step.done ? <Check className="h-3 w-3" /> : index + 1}
+              </span>
+              <span className="text-sm font-semibold text-[var(--whale-ink)]">{t(`${step.key}Title`)}</span>
+            </div>
+            <p className="text-[11px] leading-relaxed text-[var(--whale-ink-muted)]">{t(`${step.key}Desc`)}</p>
+            {step.done ? (
+              <span className="text-[11px] text-[var(--whale-mint-deep)]">{t('done')}</span>
+            ) : (
+              <button
+                type="button"
+                onClick={step.action}
+                className="mt-auto w-fit cursor-pointer rounded-full bg-[var(--whale-ink)] px-3 py-1 text-[11px] font-medium text-[var(--whale-cream)] hover:bg-[var(--whale-ink-soft)]"
+              >
+                {t(`${step.key}Action`)}
+              </button>
+            )}
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
 /** Compact onboarding — three concrete paths instead of a decorative hero. */
-function EmptyHero({ onCreate, onAiGenerate }: { onCreate: () => void; onAiGenerate: () => void }) {
+function EmptyHero({
+  onCreate,
+  onAiGenerate,
+  onImport,
+}: {
+  onCreate: () => void;
+  onAiGenerate: () => void;
+  onImport: () => void;
+}) {
   const t = useTranslations('dashboard');
   const paths: { icon: typeof Plus; title: string; desc: string; onClick: () => void; primary?: boolean }[] = [
     { icon: Plus, title: t('emptyPathBlank'), desc: t('emptyPathBlankDesc'), onClick: onCreate, primary: true },
     { icon: Sparkles, title: t('emptyPathAi'), desc: t('emptyPathAiDesc'), onClick: onAiGenerate },
-    { icon: Upload, title: t('emptyPathUpload'), desc: t('emptyPathUploadDesc'), onClick: onCreate },
+    { icon: Upload, title: t('emptyPathUpload'), desc: t('emptyPathUploadDesc'), onClick: onImport },
   ];
   return (
     <div className="rounded-2xl border border-[var(--whale-divider)] bg-[var(--whale-card)] p-5">
@@ -319,11 +427,14 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {!isLoading && <OnboardingChecklist hasResume={hasResumes} />}
+
         {/* Hero — only when empty */}
         {!isLoading && !hasResumes && (
           <EmptyHero
             onCreate={() => openModal('create-resume')}
             onAiGenerate={() => openModal('generate-resume')}
+            onImport={() => openModal('import')}
           />
         )}
 

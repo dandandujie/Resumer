@@ -289,6 +289,10 @@ export async function knowledgeStrategyReview() {
   return invoke<any>('knowledge_strategy_review', { config: getAIConfig() });
 }
 
+export async function knowledgePurpose() {
+  return invoke<string>('knowledge_purpose');
+}
+
 export async function knowledgeReindex() {
   return invoke<number>('knowledge_reindex');
 }

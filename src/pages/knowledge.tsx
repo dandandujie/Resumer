@@ -11,7 +11,6 @@ import { KnowledgeGraph } from '@/components/graph/knowledge-graph';
 import { KnowledgeProposalCard } from '@/components/ai/ai-proposal-card';
 import { mergeKnowledgeGraph } from '@/lib/knowledge-graph';
 import {
-  EMPTY_PURPOSE,
   PURPOSE_HEADINGS,
   WIKILINK_SCHEME,
   parsePurpose,
@@ -51,10 +50,15 @@ export default function KnowledgePage() {
     load, reindex, select, write, ingest, adoptEntity, dismissEntity, setSelectedContent,
   } = useKnowledgeStore();
   const [query, setQuery] = useState('');
-  const [editing, setEditing] = useState(false);
+  // 从仪表盘引导跳过来时直接进入编辑态；标记只消费一次
+  const [editing, setEditing] = useState(() => {
+    const pending = useKnowledgeStore.getState().pendingOpen;
+    return pending?.edit ?? false;
+  });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [purpose, setPurpose] = useState<PurposeFields>(EMPTY_PURPOSE);
+  // 表单草稿为 null 时显示文件解析结果；用户一改就变成草稿，切页/退出编辑清空
+  const [purposeDraft, setPurposeDraft] = useState<PurposeFields | null>(null);
   const [view, setView] = useState<'list' | 'graph'>('list');
   const [graph, setGraph] = useState<api.KnowledgeGraphData>({ nodes: [], edges: [] });
   const [lintIssues, setLintIssues] = useState<string[] | null>(null);
@@ -72,7 +76,9 @@ export default function KnowledgePage() {
   );
 
   useEffect(() => {
-    load().catch((error) => logError(i18n.t('knowledge.title'), errorMessage(error)));
+    load()
+      .catch((error) => logError(i18n.t('knowledge.title'), errorMessage(error)))
+      .finally(() => useKnowledgeStore.setState({ pendingOpen: null }));
     void hydrateJournal();
     void fetchResumes();
     void refreshGraph();
@@ -82,6 +88,7 @@ export default function KnowledgePage() {
   const openPage = useCallback(
     (path: string) => {
       setEditing(false);
+      setPurposeDraft(null);
       return select(path);
     },
     [select],
@@ -120,8 +127,9 @@ export default function KnowledgePage() {
     return graph.nodes.filter((node) => ids.has(node.id));
   }, [graph, selectedPath]);
 
+  const purpose = purposeDraft ?? parsePurpose(selectedContent);
   const toggleEditing = () => {
-    if (!editing && isPurpose) setPurpose(parsePurpose(selectedContent));
+    setPurposeDraft(null);
     setEditing((value) => !value);
   };
 
@@ -133,6 +141,7 @@ export default function KnowledgePage() {
     try {
       await write(selectedPath, isPurpose ? serializePurpose(purpose) : selectedContent);
       setEditing(false);
+      setPurposeDraft(null);
       toast.success(t('saved'));
     } catch (error) {
       logError(t('saveFailed'), errorMessage(error));
@@ -378,7 +387,7 @@ export default function KnowledgePage() {
                         {t(`purpose${key.charAt(0).toUpperCase()}${key.slice(1)}`)}
                         <Textarea
                           value={purpose[key]}
-                          onChange={(event) => setPurpose({ ...purpose, [key]: event.target.value })}
+                          onChange={(event) => setPurposeDraft({ ...purpose, [key]: event.target.value })}
                           className="mt-1"
                           rows={key === 'other' || key === 'constraints' ? 4 : 2}
                         />

@@ -113,7 +113,22 @@
     "agendaMore": "还有 {count} 项，进入求职动态查看",
     "cardApplications": "已投 {total}",
     "cardApplicationsOpen": "已投 {total} · {open} 进行中",
-    "knowledgeNav": "知识库"
+    "knowledgeNav": "知识库",
+    "onboarding": {
+      "title": "三步开始",
+      "subtitle": "做完这三件事，AI 才知道你是谁、要投什么。",
+      "dismiss": "不再显示",
+      "aiTitle": "配置模型服务",
+      "aiDesc": "选一个渠道填入 API Key，测试连接后 AI 功能才可用",
+      "aiAction": "去设置",
+      "resumeTitle": "准备第一份简历",
+      "resumeDesc": "导入现有简历、让 AI 生成初稿，或从空白模板开始",
+      "resumeAction": "新建简历",
+      "purposeTitle": "写下求职目标",
+      "purposeDesc": "目标岗位 / 城市 / 行业 / 硬约束会注入每一次 AI 对话",
+      "purposeAction": "去填写",
+      "done": "已完成"
+    }
   },
   "interview": {
     "title": "模拟面试",

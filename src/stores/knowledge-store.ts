@@ -12,6 +12,9 @@ interface KnowledgeStore {
   selectedContent: string;
   pendingEntities: PendingEntity[];
   loading: boolean;
+  /** 跨页跳转要打开的页面（例如仪表盘引导 → purpose.md 编辑），load 时一次性消费。 */
+  pendingOpen: { path: string; edit: boolean } | null;
+  requestOpen: (path: string, edit: boolean) => void;
   load: () => Promise<void>;
   reindex: () => Promise<number>;
   select: (path: string) => Promise<void>;
@@ -45,13 +48,21 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
   selectedContent: '',
   pendingEntities: [],
   loading: false,
+  pendingOpen: null,
+
+  requestOpen: (path, edit) => set({ pendingOpen: { path, edit } }),
 
   load: async () => {
     set({ loading: true });
     try {
       const pages = await api.knowledgeList();
       set({ pages });
-      if (!get().selectedPath && pages[0]) await get().select(pages[0].path);
+      const pending = get().pendingOpen;
+      if (pending && pages.some((page) => page.path === pending.path)) {
+        await get().select(pending.path);
+      } else if (!get().selectedPath && pages[0]) {
+        await get().select(pages[0].path);
+      }
     } finally {
       set({ loading: false });
     }
