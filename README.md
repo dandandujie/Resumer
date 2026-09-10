@@ -4,13 +4,16 @@
 
 原项目链接：<https://github.com/twwch/JadeAI>
 
-## 两个模块
+## 三个模块
 
 ### 工作台 —— 把时间花在内容上，而不是排版上
 - 多份简历并存，卡片直接展示姓名/岗位/最近经历/技能，以及这份简历已投了几家
 - 拖拽排序 + 实时 A4 预览；`classic` / `modern` 两套模板，主题（颜色、字体、间距、页边距）随时调
-- 导出 PDF（含智能一页）、DOCX、HTML、Markdown、TXT、JSON；JSON 可再导入
-- 上传 PDF / 图片简历，AI 解析为可编辑数据；或用一段描述让 AI 生成完整初稿
+- 导出 PDF（含智能一页）、DOCX（带样式表，WPS/Word 可继续编辑）、HTML、Markdown、TXT、JSON；JSON 可再导入
+- 上传 PDF / DOCX / 图片简历，AI 解析为可编辑数据并尽量保留字体、页边距与证件照；或用一段描述让 AI 生成完整初稿
+- 排版工具条：预设（标准 / 经典宋体 / 紧凑一页 / 国企 / 外企英文 / 深蓝点缀）、字体方案、字号档位、行距、页边距、标题样式、日期格式
+- 每条经历旁的 ✨：量化改写 / STAR 化 / 换用 JD 原词，结果以提案卡出现，采纳才生效
+- 版本历史：每次保存、导出、投递、采纳 AI 修改都留一版，可预览、可恢复，能找回"投给 XX 的那一版"
 
 **简历 AI 助手**（编辑器右侧）内置中国就业市场的猎头与 HR 视角：HR 初筛的视线路径、ATS 关键词命中逻辑、六类行业岗位的侧重、量化写作法则与"绝不编造数字"的红线。它能直接改简历（每处改动生成提案卡，采纳/撤销由你决定），也看得到这份简历投过哪些岗位、目标 JD 是什么。
 
@@ -23,6 +26,14 @@
 - 从任意一条投递可以直接发起 **JD 匹配分析 / 求职文案 / 模拟面试**，JD、公司、岗位、轮次自动带入，不用再复制粘贴
 - **模拟面试**以目标公司面试官的身份、基于你的简历与 JD 提问追问；说"结束"得到结构化评价，一键存档到对应投递
 - 简历删除后，投递记录仍保留（只是不再关联简历）
+- 结果落定后可「复盘并沉淀」：生成经验页与 SOP 修订提案；面试前可一键生成「面试准备包」
+
+### 知识库 —— 你的求职 Wiki，AI 随时查
+
+- 本机 `knowledge/` 目录就是一个 Obsidian vault：`purpose.md`（求职目标，注入每一次 AI 对话）、岗位画像与 SOP 种子页、公司 / 岗位 / 市场 / 经验 / 来源页
+- 上传 PDF / DOCX / Markdown 资料 → AI 生成来源页与公司 / 岗位实体提案；联网搜索结果可一键存入
+- 全文检索（SQLite FTS5）+ wikilink 一跳扩展；图谱视图把知识页、投递、面试、简历连在一起
+- AI 只能提出修改（提案卡），采纳后才写盘；在 Obsidian 里改完点「重新索引」即可同步
 
 ## 技术栈
 
@@ -31,7 +42,7 @@
 | 桌面壳 | Tauri 2（Rust） |
 | 前端 | React 19 + Vite 7 + Tailwind CSS 4 + shadcn/ui |
 | 状态 | Zustand |
-| 数据库 | SQLite（rusqlite 内嵌，5 个迁移） |
+| 数据库 | SQLite（rusqlite 内嵌，8 个迁移；FTS5 全文检索） |
 | AI 调用 | Rust `reqwest` 流式代理 OpenAI 兼容 / Anthropic / Gemini 三种协议 |
 | 导出 | 系统 Chromium 系浏览器渲染 PDF；`docx-rs`；自渲染 HTML / Markdown |
 
@@ -42,7 +53,7 @@ pnpm install
 pnpm dev        # Vite + Tauri 窗口
 ```
 
-常用命令：`pnpm build`（打包）、`pnpm build:mac` / `pnpm build:win`、`pnpm lint`、`pnpm type-check`；Rust 侧 `cd src-tauri && cargo test`。
+常用命令：`pnpm build`（打包）、`pnpm build:mac` / `pnpm build:win`、`pnpm lint`、`pnpm type-check`、`pnpm test`（前端断言脚本）；Rust 侧 `cd src-tauri && cargo test`。提交前完整验收：`pnpm type-check && pnpm lint && pnpm test && (cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test) && pnpm build:vite`（CI 跑同一组）。
 
 首次使用：设置 → AI 配置，选一个渠道（OpenAI / Anthropic / Gemini 官方，或 DeepSeek、Kimi、智谱、任意 OpenAI 格式中转）填入 API Key，「测试连接」后挑几个常用模型即可。
 
@@ -50,10 +61,11 @@ pnpm dev        # Vite + Tauri 窗口
 
 所有数据均在本机：
 
-- `app_data_dir/reseumer.db` —— 简历、投递记录、模拟面试存档、AI 对话（macOS: `~/Library/Application Support/com.reseumer.desktop/`）
+- `app_data_dir/reseumer.db` —— 简历与版本历史、投递记录、模拟面试存档、AI 对话（macOS: `~/Library/Application Support/com.reseumer.desktop/`）
+- `app_data_dir/knowledge/` —— 知识库 vault（Markdown，可用 Obsidian 打开）
 - API Key 仅存本机 localStorage，请求由桌面端直接发给你配置的模型服务商，不经过任何中间服务器
 
-卸载会带走全部数据；换设备前请用「导出 JSON」备份简历。
+卸载会带走全部数据；换设备前用「设置 → 数据与备份 → 导出备份」得到一个 zip（含数据库、知识库与 AI 配置），在新设备「从备份恢复」即可。
 
 ## 说明与限制
 
