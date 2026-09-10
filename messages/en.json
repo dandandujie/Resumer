@@ -16,7 +16,9 @@
     "close": "Close",
     "collapse": "Collapse",
     "expand": "Expand",
-    "add": "Add"
+    "add": "Add",
+    "copyDiagnostics": "Copy diagnostics",
+    "diagnosticsCopied": "Diagnostics copied — paste them to a developer or your provider"
   },
   "dashboard": {
     "nav": "Dashboard",
@@ -822,5 +824,19 @@
     "preview": "Preview",
     "selectVersion": "Pick a version on the left to preview it",
     "viewApplied": "View the resume version that was applied"
+  },
+  "errors": {
+    "hint": {
+      "auth": "Invalid or missing API key: open Settings → AI and check the key for the active channel (watch for leading/trailing spaces).",
+      "forbidden": "The provider rejected the request: usually the account cannot use this model or the region is blocked — try another channel or relay.",
+      "model_missing": "Model not found: in Settings → AI click “Fetch models” and pick one from the list instead of typing it.",
+      "rate_limit": "Rate limited: wait a minute and retry; if it keeps happening the channel has a low concurrency quota — switch model or channel.",
+      "quota": "Out of credit or quota: top up at the provider, or switch to another channel in Settings.",
+      "tools_unsupported": "This model does not support tool calling (the assistant edits your resume through tools): pick a model with function calling, or use tool-free features like JD analysis.",
+      "context_length": "The request exceeds the model’s context window: shorten the resume or JD, or use a model with a larger context.",
+      "network": "Network or Base URL problem: check whether a proxy is needed, that the Base URL ends with /v1, and that TLS is not intercepted.",
+      "server": "Temporary provider outage (5xx): retry later; switch channels if it keeps failing.",
+      "chrome_missing": "No Chrome/Edge found: install any Chromium-based browser to export PDF, or export HTML and print it from a browser."
+    }
   }
 }

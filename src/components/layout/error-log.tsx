@@ -2,14 +2,33 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { AlertOctagon, ChevronDown, ChevronUp, Trash2, X } from 'lucide-react';
-import { useErrorLogStore } from '@/stores/error-log-store';
+import { AlertOctagon, ChevronDown, ChevronUp, ClipboardCopy, Trash2, X } from 'lucide-react';
+import { toast } from 'sonner';
+import { classifyAiError, formatDiagnostics, hostOf } from '@/lib/ai-error';
+import { getAIConfig } from '@/lib/tauri-api';
+import pkg from '../../../package.json';
+import { useErrorLogStore, type ErrorLogEntry } from '@/stores/error-log-store';
 import { cn } from '@/lib/utils';
 
 function formatTime(ts: number) {
   const d = new Date(ts);
   const p = (n: number) => String(n).padStart(2, '0');
   return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+/** 诊断信息：版本、平台、当前渠道（只带主机名，不带 Key）与原始错误，一键复制给开发者或服务商。 */
+function diagnosticsFor(entry: ErrorLogEntry): string {
+  const config = getAIConfig();
+  return formatDiagnostics({
+    time: new Date(entry.time).toISOString(),
+    appVersion: pkg.version,
+    platform: navigator.platform || navigator.userAgent,
+    provider: config.provider,
+    baseUrlHost: hostOf(config.baseUrl),
+    model: config.model,
+    webSearchMode: config.webSearchMode || 'off',
+    error: [entry.title, entry.detail].filter(Boolean).join(': '),
+  });
 }
 
 /** Bottom-left dismissible error log — replaces stuck toasts. Renders nothing when empty. */
@@ -19,6 +38,12 @@ export function ErrorLog() {
   const clear = useErrorLogStore((s) => s.clear);
   const [collapsed, setCollapsed] = useState(false);
   const t = useTranslations('common');
+  const tHint = useTranslations('errors.hint');
+
+  const copyDiagnostics = async (entry: ErrorLogEntry) => {
+    await navigator.clipboard.writeText(diagnosticsFor(entry));
+    toast.success(t('diagnosticsCopied'));
+  };
 
   if (errors.length === 0) return null;
 
@@ -70,6 +95,22 @@ export function ErrorLog() {
                       {e.detail}
                     </p>
                   )}
+                  {(() => {
+                    const kind = classifyAiError(`${e.title} ${e.detail || ''}`);
+                    return kind === 'unknown' ? null : (
+                      <p className="mt-1 rounded bg-[var(--whale-mint)]/25 px-1.5 py-1 text-[11px] leading-snug text-[var(--whale-ink)]">
+                        {tHint(kind)}
+                      </p>
+                    );
+                  })()}
+                  <button
+                    type="button"
+                    onClick={() => void copyDiagnostics(e)}
+                    className="mt-1 inline-flex cursor-pointer items-center gap-1 text-[10px] text-[var(--whale-ink-muted)] hover:text-[var(--whale-ink)]"
+                  >
+                    <ClipboardCopy className="h-3 w-3" />
+                    {t('copyDiagnostics')}
+                  </button>
                 </div>
                 <button
                   type="button"

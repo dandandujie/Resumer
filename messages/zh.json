@@ -16,7 +16,9 @@
     "close": "关闭",
     "collapse": "收起",
     "expand": "展开",
-    "add": "添加"
+    "add": "添加",
+    "copyDiagnostics": "复制诊断信息",
+    "diagnosticsCopied": "诊断信息已复制，可直接粘贴给开发者或服务商"
   },
   "dashboard": {
     "nav": "工作台",
@@ -822,5 +824,19 @@
     "preview": "预览",
     "selectVersion": "选择左侧的一个版本查看预览",
     "viewApplied": "查看投递时的简历版本"
+  },
+  "errors": {
+    "hint": {
+      "auth": "API Key 无效或未填写：打开「设置 → AI 配置」检查当前渠道的 Key，粘贴时注意首尾空格。",
+      "forbidden": "服务商拒绝了这个请求：常见原因是账号无权用该模型或地区受限，换一个渠道/中转试试。",
+      "model_missing": "模型名不存在：在「设置 → AI 配置」点「获取模型列表」，从列表里选一个，而不是手填。",
+      "rate_limit": "触发限流：稍等几十秒再试；频繁出现说明该渠道并发额度低，换模型或渠道。",
+      "quota": "余额或配额不足：到服务商后台充值，或在「设置」切换到另一个渠道。",
+      "tools_unsupported": "这个模型不支持工具调用（助手改简历依赖它）：换一个支持 function calling 的模型，或只用 JD 分析/文案等不需要工具的功能。",
+      "context_length": "内容超出模型上下文：精简简历或 JD 长度，或换上下文更大的模型。",
+      "network": "网络或 Base URL 问题：检查是否需要代理、Base URL 是否以 /v1 结尾、证书是否被拦截。",
+      "server": "服务商临时故障（5xx）：稍后重试，多次失败可切换渠道。",
+      "chrome_missing": "没有找到 Chrome/Edge 等浏览器：安装任一 Chromium 系浏览器后再导出 PDF，或先导出 HTML 用浏览器打印。"
+    }
   }
 }
