@@ -4,6 +4,10 @@
   "description": "AI-powered resume builder (Tauri desktop)",
   "author": "liuchen",
   "private": true,
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "dev:vite": "vite",
     "build:vite": "pnpm build:export-css && vite build",

@@ -1,14 +1,34 @@
 // 独立临时浏览器：不接管用户会话；协议错误、页面异常与断言失败均交给调用者处理。
 import { spawn } from 'node:child_process';
-import { mkdtempSync, readFileSync, existsSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, existsSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 
 export const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function resolveChrome() {
+  if (process.env.CHROME) {
+    if (!existsSync(process.env.CHROME)) throw new Error(`CHROME 指定的浏览器不存在：${process.env.CHROME}`);
+    return process.env.CHROME;
+  }
+  const cache = process.env.PLAYWRIGHT_BROWSERS_PATH || (process.platform === 'darwin'
+    ? path.join(homedir(), 'Library/Caches/ms-playwright')
+    : process.platform === 'win32'
+      ? path.join(process.env.LOCALAPPDATA || path.join(homedir(), 'AppData/Local'), 'ms-playwright')
+      : path.join(homedir(), '.cache/ms-playwright'));
+  const platform = process.platform === 'darwin' ? `mac-${process.arch === 'arm64' ? 'arm64' : 'x64'}`
+    : process.platform === 'win32' ? 'win64' : 'linux64';
+  // 缓存版本随 Playwright 升级变化，不能把开发机的修订号写死。
+  for (const revision of existsSync(cache) ? readdirSync(cache).filter(name => /^chromium_headless_shell-\d+$/.test(name)).sort((a, b) => b.localeCompare(a, undefined, { numeric: true })) : []) {
+    const executable = path.join(cache, revision, `chrome-headless-shell-${platform}`, `chrome-headless-shell${process.platform === 'win32' ? '.exe' : ''}`);
+    if (existsSync(executable)) return executable;
+  }
+  throw new Error('未找到 Playwright Chromium headless shell，请用 CHROME 指定浏览器可执行文件。');
+}
+
 export async function launchBrowser({ width = 1440, height = 900, hideScrollbars = false } = {}) {
+  const chrome = resolveChrome();
   const profile = mkdtempSync(path.join(tmpdir(), 'resumer-browser-'));
-  const chrome = process.env.CHROME || path.join(homedir(), 'Library/Caches/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-mac-arm64/chrome-headless-shell');
   const proc = spawn(chrome, ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run', ...(hideScrollbars ? ['--hide-scrollbars'] : []), 'about:blank'], { stdio: 'ignore' });
   let spawnError;
   proc.on('error', (error) => { spawnError = error; });

@@ -7,22 +7,8 @@ import { SortableList } from '../dnd/sortable-item';
 import { FieldScopeProvider } from '../fields/field-scope';
 import { RichTextInput } from '../fields/rich-text-input';
 import { useResumeStore } from '@/stores/resume-store';
-import { extractUrlsFromResume } from '@/lib/qrcode';
+import { extractUrlsFromResume, isValidQrUrl } from '@/lib/qrcode';
 import type { ResumeSection, QrCodesContent, QrCodeItem } from '@/types/resume';
-
-function isValidUrl(str: string): boolean {
-  if (!str.trim()) return true; // empty is ok
-  try {
-    const raw = str.startsWith('http') ? str : `https://${str}`;
-    const url = new URL(raw);
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
-    // hostname must contain a dot (e.g. example.com) or be localhost/IP
-    const host = url.hostname;
-    return host === 'localhost' || /\.\w{2,}$/.test(host) || /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
-  } catch {
-    return false;
-  }
-}
 
 interface Props {
   section: ResumeSection;
@@ -79,12 +65,12 @@ export function QrCodesSection({ section, onUpdate }: Props) {
               const updated = [...items];
               updated[idx] = { ...updated[idx], url: e.target.value };
               onUpdate({ items: updated });
-              if (invalidIds.has(qr.id) && isValidUrl(e.target.value)) {
+              if (invalidIds.has(qr.id) && (!e.target.value.trim() || isValidQrUrl(e.target.value))) {
                 setInvalidIds((prev) => { const next = new Set(prev); next.delete(qr.id); return next; });
               }
             }}
             onBlur={() => {
-              if (!isValidUrl(qr.url)) {
+              if (qr.url.trim() && !isValidQrUrl(qr.url)) {
                 setInvalidIds((prev) => new Set(prev).add(qr.id));
               } else {
                 setInvalidIds((prev) => { const next = new Set(prev); next.delete(qr.id); return next; });

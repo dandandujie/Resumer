@@ -55,9 +55,10 @@
 
 ## 快速开始
 
-需要 Node.js 20+、pnpm 10 和 Rust stable，以及 [Tauri 2 对应平台的系统依赖](https://v2.tauri.app/start/prerequisites/)。字体资源、第三方许可和 DOCX 引擎补丁随仓库提供，安装依赖时会自动应用补丁。
+需要 Node.js 22.13+、pnpm 11.7.0 和 Rust stable，以及 [Tauri 2 对应平台的系统依赖](https://v2.tauri.app/start/prerequisites/)。`packageManager` 固定 pnpm 版本，本地和 CI 使用同一份补丁锁文件。字体资源、第三方许可和 DOCX 引擎补丁随仓库提供，安装依赖时会自动应用补丁。
 
 ```bash
+corepack enable
 pnpm install
 pnpm dev        # Vite + Tauri 窗口
 ```

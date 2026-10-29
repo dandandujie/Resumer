@@ -5,6 +5,7 @@ import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EditableText } from '../fields/editable-text';
 import { FieldWrapper } from '../fields/field-wrapper';
+import { createListEditor } from '@/lib/list-editor';
 import { generateId } from '@/lib/utils';
 import { SortableList } from '../dnd/sortable-item';
 import { ItemCard } from '../fields/item-card';
@@ -35,14 +36,11 @@ export function LanguagesSection({ section, onUpdate }: Props) {
     const updated = [...items]; const [item] = updated.splice(from, 1); updated.splice(to, 0, item); onUpdate({ items: updated } as any);
   };
 
-  const updateItem = (index: number, data: Partial<LanguageItem>) => {
-    const updated = items.map((item, i) => (i === index ? { ...item, ...data } : item));
-    onUpdate({ items: updated } as any);
-  };
-
-  const removeItem = (index: number) => {
-    onUpdate({ items: items.filter((_, i) => i !== index) } as any);
-  };
+  const { updateItem, removeItem } = createListEditor<LanguageItem>(
+    items,
+    (updated) => onUpdate({ items: updated }),
+    createItem,
+  );
 
   return (
     <div className="space-y-2">

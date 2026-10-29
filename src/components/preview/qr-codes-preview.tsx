@@ -3,28 +3,15 @@
 import { useEffect, useState } from 'react';
 import type { QrCodeItem } from '@/types/resume';
 import { InlineText } from './inline-text';
-import { generateQrSvg } from '@/lib/qrcode';
+import { generateQrSvg, isValidQrUrl } from '@/lib/qrcode';
 
 interface QrCodesPreviewProps {
   items: QrCodeItem[];
   svgs?: Record<string, string>;
 }
 
-function isValidUrl(str: string): boolean {
-  if (!str.trim()) return false;
-  try {
-    const raw = str.startsWith('http') ? str : `https://${str}`;
-    const url = new URL(raw);
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
-    const host = url.hostname;
-    return host === 'localhost' || /\.\w{2,}$/.test(host) || /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
-  } catch {
-    return false;
-  }
-}
-
 export function QrCodesPreview({ items, svgs: initialSvgs }: QrCodesPreviewProps) {
-  const filtered = items.filter((q) => isValidUrl(q.url));
+  const filtered = items.filter((q) => isValidQrUrl(q.url));
   const [svgs, setSvgs] = useState<Record<string, string>>(initialSvgs || {});
 
   useEffect(() => {

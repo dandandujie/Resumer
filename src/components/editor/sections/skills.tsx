@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { EditableText } from '../fields/editable-text';
 import { TagListInput } from '../fields/tag-list-input';
+import { createListEditor } from '@/lib/list-editor';
 import { generateId } from '@/lib/utils';
 import { SortableItemActions, SortableList } from '../dnd/sortable-item';
 import type { ResumeSection, SkillsContent, SkillCategory } from '@/types/resume';
@@ -36,14 +37,11 @@ export function SkillsSection({ section, onUpdate }: Props) {
     const updated = [...categories]; const [category] = updated.splice(from, 1); updated.splice(to, 0, category); onUpdate({ categories: updated } as any);
   };
 
-  const updateCategory = (index: number, data: Partial<SkillCategory>) => {
-    const updated = categories.map((cat, i) => (i === index ? { ...cat, ...data } : cat));
-    onUpdate({ categories: updated } as any);
-  };
-
-  const removeCategory = (index: number) => {
-    onUpdate({ categories: categories.filter((_, i) => i !== index) } as any);
-  };
+  const { updateItem: updateCategory, removeItem: removeCategory } = createListEditor<SkillCategory>(
+    categories,
+    (updated) => onUpdate({ categories: updated }),
+    createCategory,
+  );
 
   return (
     <div className="space-y-4">

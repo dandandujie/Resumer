@@ -9,6 +9,7 @@ import { EditableRichText } from '../fields/editable-rich-text';
 import { EditableList } from '../fields/editable-list';
 import { TagListInput } from '../fields/tag-list-input';
 import { FieldWrapper } from '../fields/field-wrapper';
+import { createListEditor } from '@/lib/list-editor';
 import { generateId } from '@/lib/utils';
 import { SortableList } from '../dnd/sortable-item';
 import { ItemCard } from '../fields/item-card';
@@ -66,16 +67,11 @@ export function WorkExperienceSection({ section, onUpdate }: Props) {
     onUpdate({ items: updated } as any);
   };
 
-  const updateItem = (index: number, data: Partial<WorkExperienceItem>) => {
-    const updated = items.map((item, i) =>
-      i === index ? { ...item, ...data } : item,
-    );
-    onUpdate({ items: updated } as any);
-  };
-
-  const removeItem = (index: number) => {
-    onUpdate({ items: items.filter((_, i) => i !== index) } as any);
-  };
+  const { updateItem, removeItem } = createListEditor<WorkExperienceItem>(
+    items,
+    (updated) => onUpdate({ items: updated }),
+    createItem,
+  );
 
   return (
     <div className="space-y-2">

@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { EXPORT_TAILWIND_CSS } from '@/lib/pdf/export-tailwind-css';
-import { generateQrSvg } from '@/lib/qrcode';
+import { generateQrSvg, isValidQrUrl } from '@/lib/qrcode';
 import { resolveTheme } from '@/lib/theme-config';
 import { ResumePreview } from '@/components/preview/resume-preview';
 import type { QrCodeItem, Resume, ResumeSection } from '@/types/resume';
@@ -13,21 +13,6 @@ function esc(text: unknown): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
-}
-
-function isValidQrUrl(str: string): boolean {
-  if (!str?.trim()) return false;
-  try {
-    const url = new URL(str.startsWith('http') ? str : `https://${str}`);
-    return (
-      ['http:', 'https:'].includes(url.protocol) &&
-      (url.hostname === 'localhost' ||
-        /\.\w{2,}$/.test(url.hostname) ||
-        /^\d{1,3}(\.\d{1,3}){3}$/.test(url.hostname))
-    );
-  } catch {
-    return false;
-  }
 }
 
 /** 二维码 SVG 在服务端渲染前预生成，挂在 section.content._qrSvgs 上供模板读取。 */

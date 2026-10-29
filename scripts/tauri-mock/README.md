@@ -7,7 +7,7 @@ MOCK_TAURI=1 pnpm dev:vite --host 127.0.0.1 --port 5174
 pnpm test:ui
 ```
 
-默认使用本机 Playwright 缓存中的 Chromium。其他环境通过 `CHROME=/绝对路径/chromium` 指定可执行文件；`BASE` 可覆盖服务器地址，`OUT` 可覆盖截图目录（默认 `/tmp/resumer-ui`）。不自动下载浏览器。
+浏览器脚本需要 Node.js 22+（使用原生 WebSocket）。默认自动查找本机 Playwright 缓存中最新的 Chromium headless shell，可用 `PLAYWRIGHT_BROWSERS_PATH` 指定缓存目录。其他环境通过 `CHROME=/绝对路径/chromium` 指定可执行文件；`BASE` 可覆盖服务器地址，`OUT` 可覆盖截图目录（默认 `/tmp/resumer-ui`）。不自动下载浏览器。
 
 测试覆盖选区格式与预览高亮、保存回读、撤销重做、中文组字、回车新增条目、标签输入、两种模板、投递搜索与看板、详情分页、知识库读写和草稿、快速切页、页面崩溃恢复，以及中英文四种窗口宽度。原生鼠标事件发送前等待动画结束并检查命中点，控件遮挡、断言失败或运行时异常都会使进程以非零状态退出。截图是补充证据。
 
