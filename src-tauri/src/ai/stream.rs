@@ -407,7 +407,7 @@ async fn stream_openai(
         saw_done,
         text_out.chars().count(),
         pending_tc.len(),
-        &last_raw_tail.chars().take(200).collect::<String>()
+        last_raw_tail.chars().take(200).collect::<String>()
     );
     // A stream that ends with no finish_reason and no [DONE] was cut upstream
     // (proxy timeout / connection drop) — tell the user instead of silence.
