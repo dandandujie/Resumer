@@ -18,6 +18,9 @@ const VALID: WebSearchMode[] = [
   'baidu',
   'tavily',
   'grok',
+  'doubao',
+  'deepseek',
+  'deepseek-api',
 ];
 
 /** Default to the model's own built-in search ("模型自带") when the user hasn't chosen. */

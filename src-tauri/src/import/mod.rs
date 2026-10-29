@@ -124,7 +124,7 @@ fn docx_reader_text(value: &Value, output: &mut String) {
     }
 }
 
-fn docx_text(xml: &str) -> String {
+pub(crate) fn docx_text(xml: &str) -> String {
     let mut output = Vec::new();
     let mut cursor = 0;
     while let Some(relative) = xml[cursor..].find("<w:tr") {
@@ -212,6 +212,7 @@ fn docx_theme(styles: &str, document: &str) -> Value {
 }
 
 pub(crate) fn parse_docx_assets(bytes: &[u8]) -> Result<ImportAssets, String> {
+    crate::db::repo::document::validate(bytes)?;
     let reader = docx_rs::read_docx(bytes).map_err(|e| format!("DOCX 读取失败: {}", e))?;
     let reader_json: Value = serde_json::from_str(&reader.json())
         .map_err(|e| format!("DOCX 文档结构读取失败: {}", e))?;
@@ -450,16 +451,35 @@ pub(crate) fn persist_import(
     let sections = parsed
         .get("sections")
         .and_then(Value::as_array)
+        .filter(|sections| !sections.is_empty())
         .cloned()
-        .unwrap_or_default();
+        .ok_or(rusqlite::Error::InvalidQuery)?;
     let tx = conn.transaction()?;
     let resume_id = if let Some(id) = target_resume_id {
-        resume_repo::find_by_id(&tx, id, user_id)?.ok_or(rusqlite::Error::QueryReturnedNoRows)?;
+        let previous = resume_repo::find_by_id(&tx, id, user_id)?
+            .ok_or(rusqlite::Error::QueryReturnedNoRows)?;
+        crate::db::repo::version::create_snapshot(
+            &tx,
+            id,
+            user_id,
+            "restore",
+            "AI 导入替换前",
+            None,
+        )?;
+        let template = if previous.resume.template == crate::db::repo::document::TEMPLATE {
+            "classic"
+        } else {
+            &previous.resume.template
+        };
         tx.execute(
             "DELETE FROM resume_sections WHERE resume_id = ?1",
             rusqlite::params![id],
         )?;
-        resume_repo::update(&tx, id, user_id, title, None, None)?;
+        resume_repo::update(&tx, id, user_id, title, Some(template), Some(theme))?;
+        tx.execute(
+            "UPDATE resume_documents SET revision=revision+1 WHERE resume_id=?1",
+            [id],
+        )?;
         id.to_string()
     } else {
         resume_repo::create(&tx, user_id, title, "classic", language, theme)?
@@ -626,5 +646,67 @@ mod import_tests {
                 .unwrap(),
             0
         );
+    }
+
+    #[test]
+    fn ai_replacement_keeps_template_and_restorable_history() {
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        crate::db::migrate::run(&conn).unwrap();
+        conn.execute("INSERT INTO users(id) VALUES ('user')", [])
+            .unwrap();
+        conn.execute_batch("PRAGMA foreign_keys=ON").unwrap();
+        let old_theme = json!({"fontScheme":"songti"});
+        let id = resume_repo::create(&conn, "user", "原简历", "modern", "zh", &old_theme).unwrap();
+        resume_repo::create_section(
+            &conn,
+            &id,
+            "summary",
+            "简介",
+            0,
+            true,
+            &json!({"text":"原内容"}),
+        )
+        .unwrap();
+        let parsed = json!({"title":"导入简历","sections":[{"type":"summary","title":"简介","content":{"text":"AI 转换的内容"}}]});
+        persist_import(
+            &mut conn,
+            "user",
+            &parsed,
+            "zh",
+            &json!({"fontScheme":"yahei"}),
+            Some(&id),
+        )
+        .unwrap();
+        let current = resume_repo::find_by_id(&conn, &id, "user")
+            .unwrap()
+            .unwrap();
+        assert_eq!(current.resume.template, "modern");
+        assert_eq!(current.sections[0].content["text"], "AI 转换的内容");
+        let versions = crate::db::repo::version::list(&conn, &id, "user").unwrap();
+        assert_eq!(versions.len(), 1);
+        let version = crate::db::repo::version::find(&conn, &versions[0].id, "user")
+            .unwrap()
+            .unwrap();
+        crate::db::repo::version::restore(&conn, &version, "user").unwrap();
+        let restored = resume_repo::find_by_id(&conn, &id, "user")
+            .unwrap()
+            .unwrap();
+        assert_eq!(restored.resume.title, "原简历");
+        assert_eq!(restored.resume.theme_config, old_theme);
+        assert_eq!(restored.sections[0].content["text"], "原内容");
+        for invalid in [
+            json!({"sections":[]}),
+            json!({}),
+            json!({"sections":[{"type":"summary","content":{"text":"ok"}}, {}]}),
+        ] {
+            assert!(
+                persist_import(&mut conn, "user", &invalid, "zh", &json!({}), Some(&id)).is_err()
+            );
+            let unchanged = resume_repo::find_by_id(&conn, &id, "user")
+                .unwrap()
+                .unwrap();
+            assert_eq!(unchanged.sections[0].content["text"], "原内容");
+            assert_eq!(unchanged.resume.title, "原简历");
+        }
     }
 }

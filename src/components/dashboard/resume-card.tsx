@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { Resume } from '@/types/resume';
+import { plainText } from '@/lib/resume-text';
 import { ResumeApplicationCount } from './resume-application-count';
 
 interface ResumeCardProps {
@@ -30,7 +31,12 @@ function ResumeContentPreview({ resume }: { resume: Resume }) {
 
   return (
     <div className="relative h-28 w-full overflow-hidden rounded-xl bg-[var(--whale-card)] ring-1 ring-[var(--whale-divider)]">
-      {isEmpty ? (
+      {resume.template === 'original-docx' ? (
+        <div className="flex h-full flex-col justify-center px-4">
+          <p className="text-sm font-semibold">DOCX</p>
+          <p className="mt-1 text-xs text-[var(--whale-ink-muted)]">{t('originalDocument')}</p>
+        </div>
+      ) : isEmpty ? (
         <div className="flex h-full flex-col items-center justify-center gap-1 px-3 text-center">
           <p className="text-xs font-medium text-[var(--whale-ink-muted)]">{t('cardEmptyTitle')}</p>
           <p className="text-[11px] text-[var(--whale-ink-muted)]/70">{t('cardEmptyHint')}</p>
@@ -40,16 +46,16 @@ function ResumeContentPreview({ resume }: { resume: Resume }) {
           {/* Identity line */}
           <div className="flex min-w-0 items-baseline gap-1.5 pr-8">
             <span className="truncate text-[13px] font-semibold text-[var(--whale-ink)]">
-              {s?.fullName || t('cardNoName')}
+              {plainText(s?.fullName || '') || t('cardNoName')}
             </span>
             {s?.jobTitle && (
-              <span className="truncate text-[11px] text-[var(--whale-ink-muted)]">{s.jobTitle}</span>
+              <span className="truncate text-[11px] text-[var(--whale-ink-muted)]">{plainText(s.jobTitle)}</span>
             )}
           </div>
           {/* Latest experience */}
           {hasExperience && (
             <p className="mt-1 truncate text-[11px] text-[var(--whale-ink-soft)]">
-              {[s?.latestCompany, s?.latestPosition].filter(Boolean).join(' · ')}
+              {[s?.latestCompany, s?.latestPosition].filter(Boolean).map(value => plainText(value!)).join(' · ')}
             </p>
           )}
           {/* Skill chips */}
@@ -57,10 +63,10 @@ function ResumeContentPreview({ resume }: { resume: Resume }) {
             <div className="mt-auto flex flex-wrap gap-1 overflow-hidden" style={{ maxHeight: 38 }}>
               {s.skills.slice(0, 4).map((skill) => (
                 <span
-                  key={skill}
+                  key={plainText(skill)}
                   className="inline-block max-w-[7rem] truncate rounded-full bg-[var(--whale-mint)]/30 px-1.5 py-0.5 text-[10px] font-medium text-[var(--whale-ink)]"
                 >
-                  {skill}
+                  {plainText(skill)}
                 </span>
               ))}
               {s.skills.length > 4 && (

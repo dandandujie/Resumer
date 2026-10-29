@@ -10,7 +10,10 @@ export type WebSearchMode =
   | 'google'
   | 'baidu'
   | 'tavily'
-  | 'grok';
+  | 'grok'
+  | 'doubao'
+  | 'deepseek'
+  | 'deepseek-api';
 
 /** 一个保存好的 API 渠道：协议 + 地址 + Key + 默认模型 + 常用模型列表。 */
 export interface AIChannel {
@@ -97,6 +100,13 @@ interface SettingsStore {
   grokApiKey: string;
   grokBaseURL: string;
   grokModel: string;
+  doubaoApiKey: string;
+  doubaoBaseURL: string;
+  doubaoModel: string;
+  deepseekApiKey: string;
+  deepseekBaseURL: string;
+  deepseekModel: string;
+  deepseekSearchURL: string;
   channels: AIChannel[];
   activeChannelId: string | null;
   // 编辑器偏好
@@ -119,6 +129,13 @@ interface SettingsStore {
   setGrokApiKey: (key: string) => void;
   setGrokBaseURL: (url: string) => void;
   setGrokModel: (model: string) => void;
+  setDoubaoApiKey: (key: string) => void;
+  setDoubaoBaseURL: (url: string) => void;
+  setDoubaoModel: (model: string) => void;
+  setDeepseekApiKey: (value: string) => void;
+  setDeepseekBaseURL: (value: string) => void;
+  setDeepseekModel: (value: string) => void;
+  setDeepseekSearchURL: (value: string) => void;
   setAutoSave: (enabled: boolean) => void;
   setAutoSaveInterval: (interval: number) => void;
   hydrate: () => Promise<void>;
@@ -130,7 +147,10 @@ const GROK_KEY_STORAGE_KEY = 'jade_grok_key';
 const GROK_BASE_URL_KEY = 'jade_grok_base_url';
 const GROK_MODEL_KEY = 'jade_grok_model';
 const GROK_DEFAULT_BASE_URL = 'https://api.x.ai/v1';
-const GROK_DEFAULT_MODEL = 'grok-4-fast';
+const GROK_DEFAULT_MODEL = 'grok-4.7';
+const DOUBAO_KEY = 'resumer_doubao_search_key';
+const DOUBAO_BASE = 'resumer_doubao_search_base';
+const DOUBAO_MODEL = 'resumer_doubao_search_model';
 const CHANNELS_KEY = 'jade_channels';
 const ACTIVE_CHANNEL_KEY = 'jade_active_channel';
 
@@ -157,6 +177,9 @@ function loadWebSearchMode(): WebSearchMode {
     'baidu',
     'tavily',
     'grok',
+    'doubao',
+    'deepseek',
+    'deepseek-api',
   ].includes(value || '')
     ? (value as WebSearchMode)
     : 'off';
@@ -356,6 +379,13 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   grokApiKey: loadLocal(GROK_KEY_STORAGE_KEY),
   grokBaseURL: loadLocal(GROK_BASE_URL_KEY, GROK_DEFAULT_BASE_URL),
   grokModel: loadLocal(GROK_MODEL_KEY, GROK_DEFAULT_MODEL),
+  doubaoApiKey: loadLocal(DOUBAO_KEY),
+  doubaoBaseURL: loadLocal(DOUBAO_BASE, 'https://ark.cn-beijing.volces.com/api/v3'),
+  doubaoModel: loadLocal(DOUBAO_MODEL),
+  deepseekApiKey: loadLocal('resumer_deepseek_search_key'),
+  deepseekBaseURL: loadLocal('resumer_deepseek_search_base', 'https://api.deepseek.com/anthropic/v1'),
+  deepseekModel: loadLocal('resumer_deepseek_search_model', 'deepseek-v4-flash'),
+  deepseekSearchURL: loadLocal('resumer_deepseek_search_api', 'https://api.deepseek.com/v1/tools'),
   autoSave: true,
   autoSaveInterval: 500,
   _hydrated: false,
@@ -455,6 +485,14 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     saveLocal(GROK_MODEL_KEY, model);
   },
 
+  setDoubaoApiKey: (key) => { set({ doubaoApiKey: key }); saveLocal(DOUBAO_KEY, key); },
+  setDoubaoBaseURL: (url) => { set({ doubaoBaseURL: url }); saveLocal(DOUBAO_BASE, url); },
+  setDoubaoModel: (model) => { set({ doubaoModel: model }); saveLocal(DOUBAO_MODEL, model); },
+
+  setDeepseekApiKey: (value) => { set({ deepseekApiKey: value }); saveLocal('resumer_deepseek_search_key', value); },
+  setDeepseekBaseURL: (value) => { set({ deepseekBaseURL: value }); saveLocal('resumer_deepseek_search_base', value); },
+  setDeepseekModel: (value) => { set({ deepseekModel: value }); saveLocal('resumer_deepseek_search_model', value); },
+  setDeepseekSearchURL: (value) => { set({ deepseekSearchURL: value }); saveLocal('resumer_deepseek_search_api', value); },
   setAutoSave: (enabled) => {
     set({ autoSave: enabled });
     syncEditorPrefs(get());

@@ -16,6 +16,9 @@ export interface KnowledgeProposal {
   reason: string;
 }
 
+/** 选择器里的空列表必须是同一个引用：`|| []` 每次都是新数组，zustand 会判定变化而无限重渲染（白屏）。 */
+export const NO_PROPOSALS: KnowledgeProposal[] = [];
+
 /* ────────────────────────────────────────────────────────────────────────────
    求职动态：以「投递」为中心的数据模型。
 
@@ -134,7 +137,7 @@ function fromRecord(record: api.ApplicationRecord): Application {
   return {
     id: record.id,
     resumeId: record.resumeId ?? null,
-    resumeVersionId: record.resumeVersionId ?? null,
+    resumeVersionId: record.resumeId ? record.resumeVersionId ?? null : null,
     company: record.company ?? '',
     role: record.role ?? '',
     channel: record.channel ?? '',
@@ -291,6 +294,17 @@ interface JournalStore {
 let hydratePromise: Promise<void> | null = null;
 let proposalListenerStarted = false;
 const persistTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const versionRequests = new Map<string, symbol>();
+const persistQueues = new Map<string, Promise<unknown>>();
+
+/** 同一投递的写入与删除串行，防止慢的旧保存覆盖新值或让已删除记录复活。 */
+function enqueuePersist<T>(id: string, action: () => Promise<T>): Promise<T> {
+  const task = (persistQueues.get(id) ?? Promise.resolve()).catch(() => {}).then(action);
+  persistQueues.set(id, task);
+  const cleanup = () => { if (persistQueues.get(id) === task) persistQueues.delete(id); };
+  void task.then(cleanup, cleanup);
+  return task;
+}
 
 /** 文本框逐字输入会高频触发更新；按投递 id 合并写库。 */
 function schedulePersist(get: () => JournalStore, id: string) {
@@ -300,9 +314,10 @@ function schedulePersist(get: () => JournalStore, id: string) {
     id,
     setTimeout(() => {
       persistTimers.delete(id);
-      const app = get().applications.find((a) => a.id === id);
-      if (!app) return;
-      api.saveApplication(toRecord(app)).catch((err) => {
+      enqueuePersist(id, async () => {
+        const app = get().applications.find((a) => a.id === id);
+        if (app) await api.saveApplication(toRecord(app));
+      }).catch((err) => {
         import('@/stores/error-log-store').then(({ logError }) => {
           logError('投递记录保存失败', String(err?.message || err));
         });
@@ -313,19 +328,27 @@ function schedulePersist(get: () => JournalStore, id: string) {
 
 /** 给投递记录留一份"当时的简历"快照并回填 resumeVersionId；简历为空则清掉关联。 */
 async function linkResumeVersion(get: () => JournalStore, id: string) {
+  const request = Symbol(id);
+  versionRequests.set(id, request);
   const app = get().applications.find((a) => a.id === id);
-  if (!app) return;
+  if (!app) { versionRequests.delete(id); return; }
   if (!app.resumeId) {
+    versionRequests.delete(id);
     get().updateApplication(id, { resumeVersionId: null });
     return;
   }
   try {
     const label = [app.company, app.role].filter(Boolean).join(' · ');
     const versionId = await api.createResumeVersion(app.resumeId, 'apply', label);
-    if (versionId) get().updateApplication(id, { resumeVersionId: versionId });
+    const current = get().applications.find((entry) => entry.id === id);
+    if (versionId && versionRequests.get(id) === request && current?.resumeId === app.resumeId) {
+      get().updateApplication(id, { resumeVersionId: versionId });
+    }
   } catch (err) {
     const { logError } = await import('@/stores/error-log-store');
-    logError('简历版本留档失败', String((err as Error)?.message || err));
+    if (versionRequests.get(id) === request) logError('简历版本留档失败', String((err as Error)?.message || err));
+  } finally {
+    if (versionRequests.get(id) === request) versionRequests.delete(id);
   }
 }
 
@@ -397,27 +420,31 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
       ...data,
     };
     set((state) => ({ applications: [draft, ...state.applications] }));
-    const saved = fromRecord(await api.saveApplication(toRecord(draft)));
-    set((state) => ({ applications: state.applications.map((a) => (a.id === saved.id ? saved : a)) }));
-    if (saved.resumeId) void linkResumeVersion(get, saved.id);
-    return saved;
+    const saved = fromRecord(await enqueuePersist(draft.id, () => api.saveApplication(toRecord(draft))));
+    // 创建等待期间仍可能编辑或删除，不能用创建快照覆盖这些操作。
+    set((state) => ({ applications: state.applications.map((a) => (a === draft ? saved : a)) }));
+    const current = get().applications.find(a => a.id === saved.id);
+    if (current?.resumeId && current.resumeId === draft.resumeId) void linkResumeVersion(get, saved.id);
+    return current ?? saved;
   },
 
   updateApplication: (id, patch) => {
     const before = get().applications.find((a) => a.id === id);
+    const resumeChanged = patch.resumeId !== undefined && patch.resumeId !== before?.resumeId;
     set((state) => ({
       applications: state.applications.map((a) =>
-        a.id === id ? { ...a, ...patch, updatedAt: Math.floor(Date.now() / 1000) } : a
+        a.id === id ? { ...a, ...patch, ...(resumeChanged ? { resumeVersionId: null } : {}), updatedAt: Math.floor(Date.now() / 1000) } : a
       ),
     }));
     schedulePersist(get, id);
     // 换了简历就重新留档"投出去的那一版"
-    if (patch.resumeId !== undefined && patch.resumeId !== before?.resumeId) {
+    if (resumeChanged) {
       void linkResumeVersion(get, id);
     }
   },
 
   deleteApplication: async (id) => {
+    versionRequests.delete(id);
     const timer = persistTimers.get(id);
     if (timer) {
       clearTimeout(timer);
@@ -427,7 +454,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
       applications: state.applications.filter((a) => a.id !== id),
       mocks: state.mocks.map((m) => (m.applicationId === id ? { ...m, applicationId: null } : m)),
     }));
-    await api.deleteApplication(id);
+    await enqueuePersist(id, () => api.deleteApplication(id));
   },
 
   addInterview: (appId, round = {}) => {

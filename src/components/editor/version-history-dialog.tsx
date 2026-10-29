@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { History, Loader2, RotateCcw } from 'lucide-react';
@@ -42,6 +42,7 @@ const EVENT_TONE: Record<string, string> = {
 };
 
 const PREVIEW_ZOOM = 0.55;
+const OriginalDocumentCanvas = lazy(() => import('./original-document-canvas').then((module) => ({ default: module.OriginalDocumentCanvas })));
 
 function formatTime(seconds: number, locale: string) {
   return new Date(seconds * 1000).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US', {
@@ -63,10 +64,13 @@ export function VersionHistoryDialog({ open, onOpenChange, resumeId, onRestored 
   const [detail, setDetail] = useState<api.ResumeVersionDetail | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  const requestedVersion = useRef<string | null>(null);
 
   const selectVersion = useCallback(
     async (id: string | null) => {
       setSelectedId(id);
+      requestedVersion.current = id;
+      setDetail(null);
       if (!id) {
         setDetail(null);
         return;
@@ -74,7 +78,7 @@ export function VersionHistoryDialog({ open, onOpenChange, resumeId, onRestored 
       try {
         const value = await api.getResumeVersion(id);
         // 用户可能已经点了别的版本，过期的结果直接丢弃
-        setDetail((current) => (current?.id === id ? current : value));
+        if (requestedVersion.current === id) setDetail(value);
       } catch (error) {
         logError(t('loadFailed'), String((error as Error)?.message || error));
       }
@@ -132,7 +136,7 @@ export function VersionHistoryDialog({ open, onOpenChange, resumeId, onRestored 
     try {
       await api.restoreResumeVersion(selectedId, t('restoreLabel', { time: formatTime(Date.now() / 1000, locale) }));
       await onRestored();
-      toast.success(t('restored'));
+      toast.success(t('restored'), { position: 'bottom-right' });
       setConfirming(false);
       onOpenChange(false);
     } catch (error) {
@@ -167,6 +171,7 @@ export function VersionHistoryDialog({ open, onOpenChange, resumeId, onRestored 
               {versions.map((version, index) => (
                 <li key={version.id}>
                   <button
+                    data-resume-version={version.id}
                     type="button"
                     onClick={() => void selectVersion(version.id)}
                     aria-current={selectedId === version.id ? 'true' : undefined}
@@ -214,7 +219,9 @@ export function VersionHistoryDialog({ open, onOpenChange, resumeId, onRestored 
               </Button>
             </div>
             <div className="min-h-0 flex-1 overflow-auto p-4">
-              {previewResume ? (
+              {previewResume?.template === 'original-docx' && detail ? (
+                <Suspense fallback={null}><OriginalDocumentCanvas key={detail.id} resumeId={resumeId} versionId={detail.id} readOnly /></Suspense>
+              ) : previewResume ? (
                 <div className="mx-auto w-[794px] origin-top bg-white shadow-md" style={{ zoom: PREVIEW_ZOOM }}>
                   <ResumePreview resume={previewResume} />
                 </div>

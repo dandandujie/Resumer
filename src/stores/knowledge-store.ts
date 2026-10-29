@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import type { PurposeFields } from '@/lib/knowledge-page';
 import * as api from '@/lib/tauri-api';
 
 /** 上传后待采纳的实体页：带上来源页路径，采纳时写进 frontmatter.sources。 */
@@ -7,6 +9,9 @@ export interface PendingEntity extends api.KnowledgeEntity {
 }
 
 interface KnowledgeStore {
+  drafts: Record<string, string | PurposeFields>;
+  setDraft: (path: string, value: string | PurposeFields) => void;
+  clearSavedDraft: (path: string, saved: string | PurposeFields | undefined) => void;
   pages: api.KnowledgePageSummary[];
   selectedPath: string | null;
   selectedContent: string;
@@ -42,7 +47,19 @@ export function entityPagePath(entity: api.KnowledgeEntity): string {
   return `wiki/${directory}/${slug}.md`;
 }
 
-export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
+// 只发布最后一次页面读取，防止快速点选时慢响应覆盖新页面。
+let selectionRequest = 0;
+
+export const useKnowledgeStore = create<KnowledgeStore>()(persist((set, get) => ({
+  drafts: {},
+  setDraft: (path, value) => set((state) => ({ drafts: { ...state.drafts, [path]: value } })),
+  clearSavedDraft: (path, saved) => set((state) => {
+    // 保存等待期间可能又输入了内容，只清除本次真正提交的版本。
+    if (state.drafts[path] !== saved) return state;
+    const drafts = { ...state.drafts };
+    delete drafts[path];
+    return { drafts };
+  }),
   pages: [],
   selectedPath: null,
   selectedContent: '',
@@ -82,14 +99,16 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
   },
 
   select: async (path) => {
+    const request = ++selectionRequest;
     const content = await api.knowledgeRead(path);
-    set({ selectedPath: path, selectedContent: content });
+    if (request === selectionRequest) set({ selectedPath: path, selectedContent: content });
   },
 
   write: async (path, content) => {
     await api.knowledgeWrite(path, content);
     // 后端可能补齐 frontmatter，回读以保证编辑器显示的就是盘上内容。
-    await get().select(path);
+    const contentOnDisk = await api.knowledgeRead(path);
+    if (get().selectedPath === path) set({ selectedContent: contentOnDisk });
     await get().load();
   },
 
@@ -120,4 +139,4 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
     set((state) => ({ pendingEntities: state.pendingEntities.filter((item) => item !== entity) })),
 
   setSelectedContent: (content) => set({ selectedContent: content }),
-}));
+}), { name: 'resumer-knowledge-drafts', partialize: (state) => ({ drafts: state.drafts }) }));

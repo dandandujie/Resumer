@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { ChevronDown, ClipboardList, FileSearch, Loader2, MessagesSquare, PenLine, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -21,6 +21,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   useJournalStore,
+  NO_PROPOSALS,
   APPLICATION_STATUSES,
   CHANNEL_PRESETS,
   INTERVIEW_FORMATS,
@@ -47,6 +48,7 @@ export interface ResumeOption {
 
 interface ApplicationEditorProps {
   app: Application;
+  initialRoundId?: string | null;
   /** 可供关联的简历；为空时不显示简历选择器（比如编辑器内只针对当前简历）。 */
   resumes?: ResumeOption[];
   /** 点击删除时回调；确认与实际删除由宿主处理。 */
@@ -85,7 +87,7 @@ function useLaunchResumeTool(onBefore?: () => void) {
   };
 }
 
-export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool }: ApplicationEditorProps) {
+export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool, initialRoundId }: ApplicationEditorProps) {
   const t = useTranslations('journal');
   const locale = useLocale();
   const update = useJournalStore((s) => s.updateApplication);
@@ -96,7 +98,7 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool }
   const removeMock = useJournalStore((s) => s.removeMock);
   const mocks = useJournalStore((s) => s.mocks);
   const reflection = useJournalStore((s) => s.reflections[app.id]);
-  const proposals = useJournalStore((s) => s.knowledgeProposals[app.id] || []);
+  const proposals = useJournalStore((s) => s.knowledgeProposals[app.id] ?? NO_PROPOSALS);
   const resolveKnowledgeProposal = useJournalStore((s) => s.resolveKnowledgeProposal);
   const reflectApplication = useJournalStore((s) => s.reflectApplication);
   const launch = useLaunchResumeTool(onBeforeLaunchTool);
@@ -108,6 +110,9 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool }
     launch(app, 'version-history');
   };
   const [jdExpanded, setJdExpanded] = useState(false);
+  const [detailTab, setDetailTab] = useState<'overview' | 'interviews' | 'outcome'>(initialRoundId ? 'interviews' : 'overview');
+  const roundTarget = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (initialRoundId) roundTarget.current?.scrollIntoView({block:'nearest'}); }, [initialRoundId]);
   const [confirmReflect, setConfirmReflect] = useState(false);
   const [prepRunning, setPrepRunning] = useState(false);
   const router = useRouter();
@@ -165,8 +170,14 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool }
           onResolved={() => resolveKnowledgeProposal(proposal.id)}
         />
       ))}
+      <div role="tablist" aria-label={t('detailsOverview')} className="sticky -top-4 z-10 flex gap-1 border-b border-[var(--whale-divider)] bg-[var(--whale-card)] py-3">
+        {(['overview', 'interviews', 'outcome'] as const).map((tab) => <button key={tab} type="button" role="tab" aria-selected={detailTab === tab} onClick={() => setDetailTab(tab)} className={`flex-1 cursor-pointer rounded-lg px-2 py-2 text-xs font-medium ${detailTab === tab ? 'bg-[var(--whale-ink)] text-[var(--whale-cream)]' : 'text-[var(--whale-ink-muted)] hover:bg-[var(--whale-cream-soft)]'}`}>
+          {t(tab === 'overview' ? 'detailsOverview' : tab === 'interviews' ? 'detailsInterviews' : 'detailsOutcome')}{tab === 'interviews' && ` · ${app.interviews.length}`}
+        </button>)}
+      </div>
+      <div hidden={detailTab !== 'overview'} className="space-y-5">
       <div className="flex items-start gap-2">
-        <div className="grid flex-1 grid-cols-2 gap-2">
+        <div className="grid min-w-0 flex-1 grid-cols-2 gap-3">
           <Field label={t('fieldCompany')}>
             <Input value={app.company} onChange={(e) => set({ company: e.target.value })} placeholder={t('fieldCompany')} />
           </Field>
@@ -187,7 +198,7 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool }
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid min-w-0 grid-cols-2 gap-3">
         {resumes && (
           <Field label={t('fieldResume')}>
             <Select
@@ -303,6 +314,8 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool }
         <Textarea rows={2} value={app.notes} onChange={(e) => set({ notes: e.target.value })} />
       </Field>
 
+      </div>
+      <div hidden={detailTab !== 'interviews'} className="space-y-5">
       {/* 面试轮次 */}
       <section className="space-y-2">
         <div className="flex items-center justify-between">
@@ -317,18 +330,20 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool }
         ) : (
           <div className="space-y-2">
             {app.interviews.map((r, i) => (
-              <RoundEditor
+              <div key={r.id} ref={r.id === initialRoundId ? roundTarget : undefined} data-interview-round={r.id} className={r.id === initialRoundId ? 'rounded-md ring-2 ring-[var(--whale-mint-deep)]/40' : undefined}><RoundEditor
                 key={r.id}
                 index={i}
                 round={r}
                 onChange={(patch) => updateInterview(app.id, r.id, patch)}
                 onRemove={() => removeInterview(app.id, r.id)}
-              />
+              /></div>
             ))}
           </div>
         )}
       </section>
 
+      </div>
+      <div hidden={detailTab !== 'outcome'} className="space-y-5">
       {/* 结果 */}
       <section className="space-y-2">
         <div className="flex items-center justify-between">
@@ -360,6 +375,8 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool }
         )}
       </section>
 
+      </div>
+      <div hidden={detailTab !== 'interviews'}>
       {/* 这条投递上做过的模拟面试 */}
       {linkedMocks.length > 0 && (
         <section className="space-y-2">
@@ -371,6 +388,7 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool }
           </div>
         </section>
       )}
+      </div>
     </div>
   );
 }
@@ -490,7 +508,7 @@ function RoundEditor({
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid min-w-0 grid-cols-2 gap-3">
         <Field label={t('fieldScheduledAt')}>
           <Input
             type="datetime-local"

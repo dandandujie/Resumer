@@ -7,6 +7,7 @@ import { EditableText } from '../fields/editable-text';
 import { EditableDate } from '../fields/editable-date';
 import { EditableRichText } from '../fields/editable-rich-text';
 import { EditableList } from '../fields/editable-list';
+import { TagListInput } from '../fields/tag-list-input';
 import { FieldWrapper } from '../fields/field-wrapper';
 import { generateId } from '@/lib/utils';
 import { SortableList } from '../dnd/sortable-item';
@@ -93,31 +94,37 @@ export function WorkExperienceSection({ section, onUpdate }: Props) {
               index={index}
               count={items.length}
               title={[item.company, item.position].filter(Boolean).join(' · ')}
-              subtitle={item.startDate}
+              subtitle={[item.location, item.startDate].filter(Boolean).join(' · ')}
               handle={handle}
               onMove={(to) => moveItem(index, to)}
               onInsert={() => addItemAt(index)}
               onRemove={() => removeItem(index)}
             >
                 <FieldWrapper>
-                  <EditableText
+                  <EditableText field="company"
                     label={t('company')}
                     value={item.company}
                     onChange={(v) => updateItem(index, { company: v })}
                   />
-                  <EditableText
+                  <EditableText field="location"
+                    label={t('workLocation')}
+                    placeholder={t('workLocationPlaceholder')}
+                    value={item.location || ''}
+                    onChange={(v) => updateItem(index, { location: v })}
+                  />
+                </FieldWrapper>
+                <EditableText field="position"
                     label={t('position')}
                     value={item.position}
                     onChange={(v) => updateItem(index, { position: v })}
                   />
-                </FieldWrapper>
                 <FieldWrapper>
-                  <EditableDate
+                  <EditableDate field="startDate"
                     label={t('startDate')}
                     value={item.startDate}
                     onChange={(v) => updateItem(index, { startDate: v })}
                   />
-                  <EditableDate
+                  <EditableDate field="endDate"
                     label={t('endDate')}
                     value={item.endDate || ''}
                     current={item.current}
@@ -133,18 +140,18 @@ export function WorkExperienceSection({ section, onUpdate }: Props) {
                     }
                   />
                 </FieldWrapper>
-                <EditableRichText
+                <EditableRichText field="description"
                   label={t('description')}
                   value={item.description}
                   onChange={(v) => updateItem(index, { description: v })}
                   aiContext={aiContext(item)}
                 />
-                <EditableList
+                <TagListInput field="technologies"
                   label={t('technologies')}
                   items={item.technologies || []}
                   onChange={(v) => updateItem(index, { technologies: v })}
                 />
-                <EditableList
+                <EditableList field="highlights"
                   label={t('highlights')}
                   items={item.highlights}
                   onChange={(v) => updateItem(index, { highlights: v })}

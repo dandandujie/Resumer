@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Archive, DatabaseBackup, Loader2, RotateCcw } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -23,7 +24,7 @@ function errorMessage(error: unknown) {
 }
 
 /** 设置里的「数据与备份」区块：导出 zip / 从 zip 恢复（恢复后强制重启）。 */
-export function BackupPanel() {
+export function BackupPanel({ className }: { className?: string }) {
   const t = useTranslations('settings.backup');
   const tCommon = useTranslations('common');
   const [creating, setCreating] = useState(false);
@@ -59,7 +60,7 @@ export function BackupPanel() {
   };
 
   return (
-    <div className="mx-6 mt-3 space-y-2 rounded-lg border border-border bg-muted/40 p-3">
+    <div className={cn("space-y-2 rounded-lg border border-border bg-muted/40 p-3", className)}>
       <div className="flex items-center gap-2 text-sm font-medium">
         <DatabaseBackup className="h-4 w-4" />
         {t('title')}

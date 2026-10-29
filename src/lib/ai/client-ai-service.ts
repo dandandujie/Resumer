@@ -72,8 +72,6 @@ export async function translateResume(params: TranslateParams) {
           ...fresh,
           sections: (fresh as any).sections || [],
           themeConfig: (fresh as any).themeConfig || {},
-          createdAt: new Date((fresh as any).createdAt * 1000),
-          updatedAt: new Date((fresh as any).updatedAt * 1000),
         } as any);
       }
     }

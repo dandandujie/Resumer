@@ -17,10 +17,11 @@ import type {
   GitHubContent,
 } from '@/types/resume';
 import { isSectionEmpty, md } from '../utils';
-import { formatDateRange } from '@/lib/resume-date';
+import { formatDateRange, formatMonth } from '@/lib/resume-date';
 import { resolveTheme, type DateStyle } from '@/lib/theme-config';
 import { AvatarImage } from '../avatar-image';
 import { QrCodesPreview } from '../qr-codes-preview';
+import { InlineText } from '../inline-text';
 import { ItemBox } from '../item-box';
 import { useEditorStore } from '@/stores/editor-store';
 import { useProposalsStore } from '@/stores/proposals-store';
@@ -45,7 +46,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 
 function getDateRange(startDate?: string, endDate?: string | null, current = false, style: DateStyle = 'dot', lang = 'zh') {
-  return formatDateRange(startDate, endDate, { current, style, lang });
+  return <InlineText>{formatDateRange(startDate, endDate, { current, style, lang })}</InlineText>;
 }
 
 function EmptySectionPlaceholder({ lang }: { lang?: string }) {
@@ -149,31 +150,34 @@ export function ClassicTemplate({ resume, interactive, onReorderSections }: { re
     <div className="mx-auto max-w-[210mm] bg-white">
       {/* Header — margin-bottom driven by the section-spacing setting (data-section)
           instead of a fixed mb-6, so the gap to the first section stays tight. */}
-      <div className="border-b-2 border-[var(--resume-accent-color)] pb-2" data-section>
+      <div className="border-b-2 border-[var(--resume-accent-color)] pb-2" data-section data-section-id={personalInfo?.id}>
         <div {...(personalInfo ? getSectionProps(personalInfo.id) : {})}>
-          <div className="flex flex-row-reverse items-center justify-between gap-4">
+          <div className="flex items-center justify-center gap-4" data-personal-heading>
             {pi.avatar && (
               <AvatarImage src={pi.avatar} avatarStyle={theme.avatarStyle} size={64} className="shrink-0" />
             )}
-            <div className="text-left">
-              <h1 className="text-2xl font-bold text-[var(--resume-body-color)]">{pi.fullName || (isZh ? '姓名' : 'Your Name')}</h1>
-              {pi.jobTitle && <p className="mt-1 text-lg text-[var(--resume-body-color)]">{pi.jobTitle}</p>}
+            <div className="text-center">
+              <h1 className="text-2xl font-bold text-[var(--resume-body-color)]" data-field="fullName"><InlineText>{pi.fullName || (isZh ? '姓名' : 'Your Name')}</InlineText></h1>
+              {pi.jobTitle && <p className="mt-1 text-lg text-[var(--resume-body-color)]" data-field="jobTitle"><InlineText>{pi.jobTitle}</InlineText></p>}
             </div>
           </div>
-          <div className={cn('mt-2 flex flex-wrap gap-3 text-sm text-[var(--resume-body-color)]', theme.infoLayout === 'grid' ? 'grid grid-cols-2' : 'items-center')}>
-            {pi.age && <span>{pi.age}</span>}
-            {pi.politicalStatus && <span>{pi.politicalStatus}</span>}
-            {pi.gender && <span>{pi.gender}</span>}
-            {pi.ethnicity && <span>{pi.ethnicity}</span>}
-            {pi.hometown && <span>{pi.hometown}</span>}
-            {pi.maritalStatus && <span>{pi.maritalStatus}</span>}
-            {pi.yearsOfExperience && <span>{pi.yearsOfExperience}</span>}
-            {pi.educationLevel && <span>{pi.educationLevel}</span>}
-            {pi.email && <span>{pi.email}</span>}
-            {pi.phone && <span>{pi.phone}</span>}
-            {pi.wechat && <span>{pi.wechat}</span>}
-            {pi.location && <span>{pi.location}</span>}
-            {pi.website && <span>{pi.website}</span>}
+          <div className={cn('mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1 text-center text-sm text-[var(--resume-body-color)]', theme.infoLayout === 'grid' ? 'grid grid-cols-2' : 'items-center')}>
+            {pi.age && <span data-field="age"><InlineText>{pi.age}</InlineText></span>}
+            {pi.politicalStatus && <span data-field="politicalStatus"><InlineText>{pi.politicalStatus}</InlineText></span>}
+            {pi.gender && <span data-field="gender"><InlineText>{pi.gender}</InlineText></span>}
+            {pi.ethnicity && <span data-field="ethnicity"><InlineText>{pi.ethnicity}</InlineText></span>}
+            {pi.hometown && <span data-field="hometown"><InlineText>{pi.hometown}</InlineText></span>}
+            {pi.maritalStatus && <span data-field="maritalStatus"><InlineText>{pi.maritalStatus}</InlineText></span>}
+            {pi.yearsOfExperience && <span data-field="yearsOfExperience"><InlineText>{pi.yearsOfExperience}</InlineText></span>}
+            {pi.educationLevel && <span data-field="educationLevel"><InlineText>{pi.educationLevel}</InlineText></span>}
+            {pi.email && <span data-field="email"><InlineText>{pi.email}</InlineText></span>}
+            {pi.phone && <span data-field="phone"><InlineText>{pi.phone}</InlineText></span>}
+            {pi.wechat && <span data-field="wechat"><InlineText>{pi.wechat}</InlineText></span>}
+            {pi.location && <span data-field="location"><InlineText>{pi.location}</InlineText></span>}
+            {pi.website && <span data-field="website"><InlineText>{pi.website}</InlineText></span>}
+            {pi.linkedin && <InlineText field="linkedin">{pi.linkedin}</InlineText>}
+            {pi.github && <InlineText field="github">{pi.github}</InlineText>}
+            {pi.customLinks?.map((link, index) => <span key={index}><InlineText field={`customLinks.${index}.label`}>{link.label}</InlineText>{link.label && ': '}<InlineText field={`customLinks.${index}.url`}>{link.url}</InlineText></span>)}
           </div>
         </div>
       </div>
@@ -295,7 +299,7 @@ function SectionContent({ section, lang, interactive, theme }: { section: any; l
   }
 
   if (section.type === 'summary') {
-    return <p className="text-sm text-[var(--resume-body-color)] leading-relaxed" dangerouslySetInnerHTML={{ __html: md((content as SummaryContent).text) }} />;
+    return <p className="text-sm text-[var(--resume-body-color)] leading-relaxed" data-field="text" dangerouslySetInnerHTML={{ __html: md((content as SummaryContent).text) }} />;
   }
 
   if (section.type === 'work_experience') {
@@ -306,26 +310,28 @@ function SectionContent({ section, lang, interactive, theme }: { section: any; l
           <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive}>
             <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3">
               <div className="min-w-0">
-                <span className="text-sm font-semibold text-[var(--resume-body-color)]">{item.position}</span>
+                <span className="text-sm font-semibold text-[var(--resume-body-color)]" data-field="position"><InlineText>{item.position}</InlineText></span>
               </div>
               <div className="min-w-0 text-center">
-                {item.company && <span className="text-sm font-semibold text-[var(--resume-body-color)]">{item.company}</span>}
-                {item.location && <div className="text-xs text-[var(--resume-body-color)]">{item.location}</div>}
+                <span className="inline-flex flex-wrap items-baseline justify-center gap-x-1.5">
+                {item.company && <span className="text-sm font-semibold text-[var(--resume-body-color)]" data-field="company"><InlineText field="company">{item.company}</InlineText></span>}
+                {item.location && <span className="text-xs text-[var(--resume-body-color)]" data-field="location"><InlineText>{item.location}</InlineText></span>}
+                </span>
               </div>
               <div className="min-w-0 text-right">
-                <span className="text-xs font-semibold text-[var(--resume-body-color)]">
+                <span className="text-xs font-semibold text-[var(--resume-body-color)]" data-field="startDate endDate">
                   {getDateRange(item.startDate, item.endDate, item.current, theme.dateStyle, lang)}
                 </span>
               </div>
             </div>
-            {item.description && <p className="mt-1 text-sm text-[var(--resume-body-color)]" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
+            {item.description && <p className="mt-1 text-sm text-[var(--resume-body-color)]" data-field="description" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
             {item.technologies?.length > 0 && (
-              <p className="mt-0.5 text-xs font-medium text-[var(--resume-body-color)]"><span className="font-semibold text-[var(--resume-body-color)]">{lang === 'zh' ? '技术栈' : 'Tech'}:</span> {item.technologies.join(', ')}</p>
+              <p className="mt-0.5 text-xs font-medium text-[var(--resume-body-color)]" data-field="technologies"><span className="font-semibold text-[var(--resume-body-color)]">{lang === 'zh' ? '技术栈' : 'Tech'}:</span> {item.technologies.map((tech: string, i: number) => <span key={i}>{i > 0 && ', '}<InlineText field={`technologies.${i}`}>{tech}</InlineText></span>)}</p>
             )}
             {item.highlights?.length > 0 && (
               <ul className="mt-1 list-disc pl-4">
                 {item.highlights.map((h: string, i: number) => (
-                  <li key={i} className="text-sm text-[var(--resume-body-color)]" dangerouslySetInnerHTML={{ __html: md(h) }} />
+                  <li key={i} className="text-sm text-[var(--resume-body-color)]" data-field={`highlights.${i}`} dangerouslySetInnerHTML={{ __html: md(h) }} />
                 ))}
               </ul>
             )}
@@ -343,20 +349,20 @@ function SectionContent({ section, lang, interactive, theme }: { section: any; l
           <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive}>
             <div className="flex items-baseline justify-between">
               <div>
-                <span className="text-sm font-semibold text-[var(--resume-body-color)]">
-                  {[item.institution, item.field, item.degree].filter(Boolean).join(' - ')}
+                <span className="text-sm font-semibold text-[var(--resume-body-color)]" >
+                  {(['institution', 'field', 'degree'] as const).filter((key) => item[key]).map((key, i) => <span key={key}>{i > 0 && ' - '}<InlineText field={key}>{item[key]}</InlineText></span>)}
                 </span>
-                {item.location && <span className="text-sm text-[var(--resume-body-color)]"> , {item.location}</span>}
+                {item.location && <span className="text-sm text-[var(--resume-body-color)]"> , <InlineText field="location">{item.location}</InlineText></span>}
               </div>
-              <span className="text-xs font-semibold text-[var(--resume-body-color)]">
+              <span className="text-xs font-semibold text-[var(--resume-body-color)]" data-field="startDate endDate">
                 {getDateRange(item.startDate, item.endDate, Boolean(item.current), theme.dateStyle, lang)}
               </span>
             </div>
-            {item.gpa && <p className="text-sm text-[var(--resume-body-color)]">GPA: {item.gpa}</p>}
+            {item.gpa && <p className="text-sm text-[var(--resume-body-color)]" >GPA: <InlineText field="gpa">{item.gpa}</InlineText></p>}
             {item.highlights?.length > 0 && (
               <ul className="mt-1 list-disc pl-4">
                 {item.highlights.map((h: string, i: number) => (
-                  <li key={i} className="text-sm text-[var(--resume-body-color)]" dangerouslySetInnerHTML={{ __html: md(h) }} />
+                  <li key={i} className="text-sm text-[var(--resume-body-color)]" data-field={`highlights.${i}`} dangerouslySetInnerHTML={{ __html: md(h) }} />
                 ))}
               </ul>
             )}
@@ -371,9 +377,9 @@ function SectionContent({ section, lang, interactive, theme }: { section: any; l
     return (
       <div className="space-y-1">
         {categories.map((cat: any) => (
-          <div key={cat.id} className="flex text-sm">
-            <span className="font-medium text-[var(--resume-body-color)] w-28 shrink-0">{cat.name}:</span>
-            <span className="text-[var(--resume-body-color)]">{cat.skills?.join(', ')}</span>
+          <div key={cat.id} className="flex text-sm" data-item-id={cat.id}>
+            <span className="font-medium text-[var(--resume-body-color)] w-28 shrink-0" data-field="name"><InlineText>{cat.name}</InlineText>:</span>
+            <span className="text-[var(--resume-body-color)]" data-field="skills">{cat.skills?.map((skill: string, i: number) => <span key={i}>{i > 0 && ', '}<InlineText field={`skills.${i}`}>{skill}</InlineText></span>)}</span>
           </div>
         ))}
       </div>
@@ -387,21 +393,22 @@ function SectionContent({ section, lang, interactive, theme }: { section: any; l
         {items.map((item: any) => (
           <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive}>
             <div className="flex items-baseline justify-between">
-              <span className="font-semibold text-[var(--resume-body-color)] text-sm">{item.name}</span>
+              <span className="font-semibold text-[var(--resume-body-color)] text-sm" data-field="name"><InlineText>{item.name}</InlineText></span>
               {item.startDate && (
-                <span className="text-xs font-semibold text-[var(--resume-body-color)]">
+                <span className="text-xs font-semibold text-[var(--resume-body-color)]" data-field="startDate endDate">
                   {getDateRange(item.startDate, item.endDate, Boolean(item.current), theme.dateStyle, lang)}
                 </span>
               )}
             </div>
-            {item.description && <p className="mt-1 text-sm text-[var(--resume-body-color)]" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
+            {item.url && <div className="text-xs"><InlineText field="url">{item.url}</InlineText></div>}
+            {item.description && <p className="mt-1 text-sm text-[var(--resume-body-color)]" data-field="description" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
             {item.technologies?.length > 0 && (
-              <p className="mt-0.5 text-xs font-medium text-[var(--resume-body-color)]"><span className="font-semibold text-[var(--resume-body-color)]">{lang === 'zh' ? '技术栈' : 'Tech'}:</span> {item.technologies.join(', ')}</p>
+              <p className="mt-0.5 text-xs font-medium text-[var(--resume-body-color)]" data-field="technologies"><span className="font-semibold text-[var(--resume-body-color)]">{lang === 'zh' ? '技术栈' : 'Tech'}:</span> {item.technologies.map((tech: string, i: number) => <span key={i}>{i > 0 && ', '}<InlineText field={`technologies.${i}`}>{tech}</InlineText></span>)}</p>
             )}
             {item.highlights?.length > 0 && (
               <ul className="mt-1 list-disc pl-4">
                 {item.highlights.map((h: string, i: number) => (
-                  <li key={i} className="text-sm text-[var(--resume-body-color)]" dangerouslySetInnerHTML={{ __html: md(h) }} />
+                  <li key={i} className="text-sm text-[var(--resume-body-color)]" data-field={`highlights.${i}`} dangerouslySetInnerHTML={{ __html: md(h) }} />
                 ))}
               </ul>
             )}
@@ -418,11 +425,12 @@ function SectionContent({ section, lang, interactive, theme }: { section: any; l
         {items.map((item: any) => (
           <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive}>
             <div className="flex items-baseline justify-between">
-              <span className="font-semibold text-[var(--resume-body-color)] text-sm">{item.name}</span>
+              <span className="font-semibold text-[var(--resume-body-color)] text-sm" data-field="name"><InlineText>{item.name}</InlineText></span>
               <span className="text-xs text-[var(--resume-body-color)]">{item.stars?.toLocaleString()}</span>
             </div>
-            {item.language && <span className="text-xs text-[var(--resume-body-color)]">{item.language}</span>}
-            {item.description && <p className="mt-1 text-sm text-[var(--resume-body-color)]" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
+            {item.language && <span className="text-xs text-[var(--resume-body-color)]"><InlineText>{item.language}</InlineText></span>}
+            {item.repoUrl && <div className="text-xs"><InlineText field="repoUrl">{item.repoUrl}</InlineText></div>}
+            {item.description && <p className="mt-1 text-sm text-[var(--resume-body-color)]" data-field="description" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
           </ItemBox>
         ))}
       </div>
@@ -435,8 +443,9 @@ function SectionContent({ section, lang, interactive, theme }: { section: any; l
       <div className="space-y-1">
         {items.map((item: any) => (
           <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive}>
-            <span className="font-semibold text-[var(--resume-body-color)] text-sm">{item.name}</span>
-            {(item.issuer || item.date) && <span className="text-sm text-[var(--resume-body-color)]">{item.issuer && <> — {item.issuer}</>}{item.date && <> ({item.date})</>}</span>}
+            <span className="font-semibold text-[var(--resume-body-color)] text-sm" data-field="name"><InlineText>{item.name}</InlineText></span>
+            {(item.issuer || item.date) && <span className="text-sm text-[var(--resume-body-color)]" >{item.issuer && <> — <InlineText field="issuer">{item.issuer}</InlineText></>}{item.date && <> (<InlineText field="date">{formatMonth(item.date, theme.dateStyle, lang)}</InlineText>)</>}</span>}
+            {item.url && <div className="text-xs"><InlineText field="url">{item.url}</InlineText></div>}
           </ItemBox>
         ))}
       </div>
@@ -449,8 +458,9 @@ function SectionContent({ section, lang, interactive, theme }: { section: any; l
       <div className="space-y-1">
         {items.map((item: any) => (
           <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive}>
-            <span className="font-semibold text-[var(--resume-body-color)] text-sm">{item.language}</span>
-            <span className="text-sm text-[var(--resume-body-color)]"> — {item.proficiency}</span>
+            <span className="font-semibold text-[var(--resume-body-color)] text-sm" data-field="language"><InlineText>{item.language}</InlineText></span>
+            <span className="text-sm text-[var(--resume-body-color)]" > — <InlineText field="proficiency">{item.proficiency}</InlineText></span>
+            {item.description && <div className="text-xs"><InlineText field="description">{item.description}</InlineText></div>}
           </ItemBox>
         ))}
       </div>
@@ -465,12 +475,12 @@ function SectionContent({ section, lang, interactive, theme }: { section: any; l
           <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive}>
             <div className="flex items-baseline justify-between">
               <div>
-                <span className="text-sm font-semibold text-[var(--resume-body-color)]">{item.title}</span>
-                {item.subtitle && <span className="text-sm text-[var(--resume-body-color)]"> — {item.subtitle}</span>}
+                <span className="text-sm font-semibold text-[var(--resume-body-color)]" data-field="title"><InlineText>{item.title}</InlineText></span>
+                {item.subtitle && <span className="text-sm text-[var(--resume-body-color)]" > — <InlineText field="subtitle">{item.subtitle}</InlineText></span>}
               </div>
-              {item.date && <span className="text-xs text-[var(--resume-body-color)]">{item.date}</span>}
+              {item.date && <span className="text-xs text-[var(--resume-body-color)]" data-field="date"><InlineText field="date">{formatMonth(item.date, theme.dateStyle, lang)}</InlineText></span>}
             </div>
-            {item.description && <p className="mt-0.5 text-sm text-[var(--resume-body-color)]" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
+            {item.description && <p className="mt-0.5 text-sm text-[var(--resume-body-color)]" data-field="description" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
           </ItemBox>
         ))}
       </div>
@@ -488,7 +498,7 @@ function SectionContent({ section, lang, interactive, theme }: { section: any; l
         {content.items.map((item: any) => (
           <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive}>
             <span className="text-sm font-medium text-[var(--resume-body-color)]">{item.name || item.title || item.language}</span>
-            {item.description && <p className="text-sm text-[var(--resume-body-color)]" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
+            {item.description && <p className="text-sm text-[var(--resume-body-color)]" data-field="description" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
           </ItemBox>
         ))}
       </div>

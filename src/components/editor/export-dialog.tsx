@@ -1,5 +1,6 @@
 'use client';
 
+import { resolveExportOfficeFonts } from '@/lib/export/fonts';
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import {
@@ -14,9 +15,10 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useResumeStore } from '@/stores/resume-store';
 import { generateHtml } from '@/lib/export/builders';
+import { generateQrImages } from '@/lib/qrcode';
 import * as api from '@/lib/tauri-api';
 import type { Resume } from '@/types/resume';
-import { cjkOfficeFontNames, resolveOfficeFonts, resolveTheme } from '@/lib/theme-config';
+import { resolveTheme } from '@/lib/theme-config';
 import { logError } from '@/stores/error-log-store';
 import {
   FileDown,
@@ -110,7 +112,7 @@ export function ExportDialog({ open, onOpenChange, resumeId }: ExportDialogProps
         const theme = resolveTheme(resume.themeConfig);
         savedPath = await api.exportDocx(
           resumeId,
-          { ...theme, officeFonts: resolveOfficeFonts(theme), cjkFontNames: cjkOfficeFontNames() },
+          { ...theme, ...await resolveExportOfficeFonts(theme), qrImages: await generateQrImages(resume.sections) },
           filename,
         );
       } else if (selectedFormat === 'md') {

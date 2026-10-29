@@ -65,10 +65,10 @@ export function CustomSection({ section, onUpdate }: Props) {
               onRemove={() => removeItem(index)}
             >
               <FieldWrapper>
-                <EditableText label={t('customTitle')} value={item.title} onChange={(v) => updateItem(index, { title: v })} />
-                <EditableText label={t('customDate')} value={item.date || ''} onChange={(v) => updateItem(index, { date: v })} />
+                <EditableText field="title" label={t('customTitle')} value={item.title} onChange={(v) => updateItem(index, { title: v })} />
+                <EditableText field="date" label={t('customDate')} value={item.date || ''} onChange={(v) => updateItem(index, { date: v })} />
               </FieldWrapper>
-              <EditableRichText
+              <EditableRichText field="description"
                 label={t('description')}
                 value={item.description}
                 onChange={(v) => updateItem(index, { description: v })}

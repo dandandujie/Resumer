@@ -1,5 +1,5 @@
-use super::date::{DateStyle, format_range};
-use super::inline::strip_attr_markers;
+use super::date::{DateStyle, format_month, format_range};
+use super::inline::{strip, strip_attr_markers};
 use serde_json::Value;
 
 fn gstr<'a>(v: &'a Value, key: &str) -> &'a str {
@@ -95,7 +95,9 @@ fn generate_markdown_raw(sections: &[Value], style: DateStyle, lang: &str) -> St
                     out.push(info_parts.join(" · "));
                 }
 
-                let contact_keys = ["email", "phone", "wechat", "location", "website"];
+                let contact_keys = [
+                    "email", "phone", "wechat", "location", "linkedin", "github", "website",
+                ];
                 let contact_parts: Vec<String> = contact_keys
                     .iter()
                     .filter_map(|k| {
@@ -109,6 +111,9 @@ fn generate_markdown_raw(sections: &[Value], style: DateStyle, lang: &str) -> St
                     .collect();
                 if !contact_parts.is_empty() {
                     out.push(contact_parts.join(" · "));
+                }
+                for link in garr(&content, "customLinks") {
+                    out.push(format!("{}: {}", gstr(link, "label"), gstr(link, "url")));
                 }
                 out.push(String::new());
             }
@@ -203,9 +208,13 @@ fn generate_markdown_raw(sections: &[Value], style: DateStyle, lang: &str) -> St
                     let name = gstr(item, "name");
                     let url = gstr(item, "url");
                     if !url.is_empty() {
-                        out.push(format!("### [{}]({})", name, url));
+                        out.push(format!("### {}\n{}", name, strip(url)));
                     } else {
                         out.push(format!("### {}", name));
+                    }
+                    let dates = date_range(item, style, lang);
+                    if !dates.is_empty() {
+                        out.push(dates);
                     }
                     let desc = gstr(item, "description");
                     if !desc.is_empty() {
@@ -226,10 +235,14 @@ fn generate_markdown_raw(sections: &[Value], style: DateStyle, lang: &str) -> St
             "certifications" => {
                 out.push(format!("## {}", title));
                 for item in garr(&content, "items") {
+                    let url = gstr(item, "url");
+                    if !url.is_empty() {
+                        out.push(url.into());
+                    }
                     let name = gstr(item, "name");
                     let issuer = gstr(item, "issuer");
-                    let date = gstr(item, "date");
-                    let extra: Vec<String> = [issuer, date]
+                    let date = format_month(gstr(item, "date"), style, lang);
+                    let extra: Vec<String> = [issuer, &date]
                         .into_iter()
                         .filter(|s| !s.is_empty())
                         .map(String::from)
@@ -245,10 +258,41 @@ fn generate_markdown_raw(sections: &[Value], style: DateStyle, lang: &str) -> St
             "languages" => {
                 out.push(format!("## {}", title));
                 for item in garr(&content, "items") {
+                    let description = gstr(item, "description");
+                    if !description.is_empty() {
+                        out.push(description.into());
+                    }
                     out.push(format!(
                         "- **{}:** {}",
                         gstr(item, "language"),
                         gstr(item, "proficiency")
+                    ));
+                }
+                out.push(String::new());
+            }
+            "github" => {
+                out.push(format!("## {}", title));
+                for item in garr(&content, "items") {
+                    out.push(format!("### {}", gstr(item, "name")));
+                    for key in ["repoUrl", "language", "description"] {
+                        let value = gstr(item, key);
+                        if !value.is_empty() {
+                            out.push(value.into());
+                        }
+                    }
+                    if let Some(stars) = item.get("stars").and_then(Value::as_u64) {
+                        out.push(format!("★ {}", stars));
+                    }
+                    out.push(String::new());
+                }
+            }
+            "qr_codes" => {
+                out.push(format!("## {}", title));
+                for item in garr(&content, "items") {
+                    out.push(format!(
+                        "- {}: {}",
+                        gstr(item, "label"),
+                        strip(gstr(item, "url"))
                     ));
                 }
                 out.push(String::new());
@@ -263,7 +307,7 @@ fn generate_markdown_raw(sections: &[Value], style: DateStyle, lang: &str) -> St
                         head.push_str(&format!(" — {}", subtitle));
                     }
                     out.push(head);
-                    let date = gstr(item, "date");
+                    let date = format_month(gstr(item, "date"), style, lang);
                     if !date.is_empty() {
                         out.push(format!("*{}*", date));
                     }

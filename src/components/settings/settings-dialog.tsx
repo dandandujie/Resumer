@@ -13,12 +13,12 @@ import {
   PlugZap,
   CheckCircle2,
   AlertCircle,
-  Globe,
   Plus,
   X,
   PenLine,
 } from 'lucide-react';
 import * as tauriApi from '@/lib/tauri-api';
+import { classifyAiError } from '@/lib/ai-error';
 import {
   Dialog,
   DialogContent,
@@ -27,6 +27,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -48,6 +49,7 @@ import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { LocaleSwitcher } from '@/components/layout/locale-switcher';
+import { SearchSettings } from '@/components/settings/search-settings';
 import { BackupPanel } from '@/components/settings/backup-panel';
 
 const AI_PROVIDERS: { value: AIProvider; label: string }[] = [
@@ -73,6 +75,7 @@ interface AiConnectionTestResult {
 
 export function SettingsDialog() {
   const t = useTranslations('settings');
+  const tErrorHint = useTranslations('errors.hint');
   const tCommon = useTranslations('common');
   const { activeModal, closeModal } = useUIStore();
   const {
@@ -85,11 +88,6 @@ export function SettingsDialog() {
     grokApiKey,
     grokBaseURL,
     grokModel,
-    setWebSearchMode,
-    setTavilyApiKey,
-    setGrokApiKey,
-    setGrokBaseURL,
-    setGrokModel,
     channels,
     activeChannelId,
     selectChannel,
@@ -326,21 +324,28 @@ export function SettingsDialog() {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && closeModal()}>
-      <DialogContent className="sm:max-w-[760px] p-0 gap-0">
-        <DialogHeader className="border-b border-border px-6 pb-4 pt-6">
+      <DialogContent className="flex h-[min(760px,calc(100dvh-32px))] max-h-[calc(100dvh-32px)] flex-col overflow-hidden p-0 gap-0 sm:max-w-[820px]">
+        <DialogHeader className="shrink-0 border-b border-border px-6 py-5 pr-12">
           <DialogTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5 text-muted-foreground" />
-            {t('ai.title')}
+            {t('title')}
           </DialogTitle>
-          <DialogDescription>{t('ai.description')}</DialogDescription>
-          <div className="flex flex-wrap items-center gap-4 px-6 pb-4 text-sm">
-            <LocaleSwitcher />
+          <DialogDescription>{t('panelDescription')}</DialogDescription>
+        </DialogHeader>
+        <Tabs defaultValue="general" className="min-h-0 flex-1 gap-0">
+          <TabsList className="mx-5 my-3 grid h-auto w-auto shrink-0 grid-cols-2 group-data-[orientation=horizontal]/tabs:h-auto">
+            <TabsTrigger value="general">{t('general')}</TabsTrigger>
+            <TabsTrigger value="ai">{t('ai.channelsTab')}</TabsTrigger>
+          </TabsList>
+          <TabsContent value="general" className="min-h-0 flex-1 space-y-6 overflow-y-auto p-5 sm:p-6">
+          <section className="flex flex-wrap items-center gap-x-6 gap-y-4 rounded-xl border p-4 text-sm" aria-label={t('general')}>
+            <div className="flex items-center gap-4"><span>{t('language')}</span><LocaleSwitcher /></div>
             <label className="flex items-center gap-2">
               <span>{t('editorTab.autoSave')}</span>
               <Switch checked={autoSave} onCheckedChange={setAutoSave} />
             </label>
             <label className="flex items-center gap-2">
-              <span>{t('editorTab.autoSaveInterval')}</span>
+              <span>{t('editorTab.autoSaveInterval')}</span><output className="min-w-10 tabular-nums">{(autoSaveInterval / 1000).toFixed(1)} s</output>
               <Slider
                 className="w-24"
                 value={[autoSaveInterval]}
@@ -351,65 +356,16 @@ export function SettingsDialog() {
                 disabled={!autoSave}
               />
             </label>
-          </div>
-          <div className="mx-6 space-y-2 rounded-lg border border-border bg-muted/40 p-3">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Globe className="h-4 w-4" />
-              {t('webSearch.title')}
-            </div>
-            <Select
-              value={webSearchMode}
-              onValueChange={(value) =>
-                setWebSearchMode(value as typeof webSearchMode)
-              }
-            >
-              <SelectTrigger className="w-full sm:w-64">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="off">{t('webSearch.off')}</SelectItem>
-                <SelectItem value="native">{t('webSearch.native')}</SelectItem>
-                <SelectItem value="tavily">{t('webSearch.tavily')}</SelectItem>
-                <SelectItem value="grok">{t('webSearch.grok')}</SelectItem>
-              </SelectContent>
-            </Select>
-            {webSearchMode === 'tavily' && (
-              <Input
-                type="password"
-                value={tavilyApiKey}
-                onChange={(event) => setTavilyApiKey(event.target.value)}
-                placeholder="tvly-..."
-              />
-            )}
-            {webSearchMode === 'grok' && (
-              <div className="grid gap-2 sm:grid-cols-3">
-                <Input
-                  value={grokBaseURL}
-                  onChange={(event) => setGrokBaseURL(event.target.value)}
-                  placeholder="https://api.x.ai/v1"
-                />
-                <Input
-                  value={grokModel}
-                  onChange={(event) => setGrokModel(event.target.value)}
-                  placeholder="grok-4-fast"
-                />
-                <Input
-                  type="password"
-                  value={grokApiKey}
-                  onChange={(event) => setGrokApiKey(event.target.value)}
-                  placeholder="xai-..."
-                />
-              </div>
-            )}
-          </div>
-          <BackupPanel />
-        </DialogHeader>
+          </section>
+          <SearchSettings />
+          <BackupPanel className="m-0 border-t pt-5" />
+          </TabsContent>
 
         {/* 左：渠道列表；右：选中渠道的配置 */}
-        <div>
-          <div className="flex h-[64vh]">
+        <TabsContent value="ai" className="min-h-0 flex-1 overflow-hidden">
+          <div className="flex h-full min-h-0 max-sm:flex-col">
             {/* Left: channel rail */}
-            <div className="flex w-44 shrink-0 flex-col border-r border-border">
+            <div className="flex w-48 shrink-0 flex-col border-r border-border max-sm:max-h-36 max-sm:w-full max-sm:border-b max-sm:border-r-0">
               <div className="min-h-0 flex-1 overflow-y-auto p-2">
                 <div className="space-y-0.5">
                   {channels.map((ch) => {
@@ -457,7 +413,7 @@ export function SettingsDialog() {
                                 setRenameDraft(ch.name);
                                 setRenamingChannelId(ch.id);
                               }}
-                              className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 hover:text-foreground group-hover:opacity-100"
+                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
                               aria-label={t('ai.channelRename')}
                             >
                               <PenLine className="h-3 w-3" />
@@ -468,7 +424,7 @@ export function SettingsDialog() {
                                 e.stopPropagation();
                                 deleteChannel(ch.id);
                               }}
-                              className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
+                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-destructive"
                               aria-label={t('ai.channelDelete')}
                             >
                               <X className="h-3 w-3" />
@@ -495,7 +451,7 @@ export function SettingsDialog() {
             </div>
 
             {/* Right: config for the active channel */}
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
+            <div className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto p-5">
               {!activeChannel ? (
                 <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">
                   {t('ai.channelNone')}
@@ -729,7 +685,7 @@ export function SettingsDialog() {
 
                   {/* Model picker — searchable multi-select in its own modal */}
                   <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
-                    <DialogContent className="gap-0 p-0 sm:max-w-[420px]">
+                    <DialogContent className="flex max-h-[calc(100dvh-32px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[420px]">
                       <DialogHeader className="px-5 pb-2 pt-5">
                         <DialogTitle>{t('ai.modelPickerTitle')}</DialogTitle>
                         <DialogDescription>
@@ -744,7 +700,7 @@ export function SettingsDialog() {
                           className="h-8 border-0 p-0 shadow-none focus-visible:ring-0"
                         />
                       </div>
-                      <div className="max-h-[50vh] space-y-0.5 overflow-y-auto p-2">
+                      <div className="min-h-0 max-h-[50vh] space-y-0.5 overflow-y-auto p-2">
                         {pickerFilteredModels.length === 0 ? (
                           <p className="py-6 text-center text-xs text-muted-foreground">
                             {t('ai.noModelsFound')}
@@ -883,6 +839,11 @@ export function SettingsDialog() {
                           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                         )}
                         <span className="leading-relaxed break-all">
+                          {connectionState === 'error' && (
+                            <span className="mb-1 block font-medium">
+                              {tErrorHint(classifyAiError(connectionMessage))}
+                            </span>
+                          )}
                           {connectionMessage}
                         </span>
                       </div>
@@ -892,6 +853,11 @@ export function SettingsDialog() {
               )}
             </div>
           </div>
+        </TabsContent>
+        </Tabs>
+        <div className="flex shrink-0 items-center justify-between border-t px-6 py-3">
+          <span className="text-xs text-muted-foreground">{t('savedLocally')}</span>
+          <Button onClick={closeModal}>{tCommon('done')}</Button>
         </div>
       </DialogContent>
     </Dialog>

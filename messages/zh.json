@@ -18,7 +18,11 @@
     "expand": "展开",
     "add": "添加",
     "copyDiagnostics": "复制诊断信息",
-    "diagnosticsCopied": "诊断信息已复制，可直接粘贴给开发者或服务商"
+    "diagnosticsCopied": "诊断信息已复制，可直接粘贴给开发者或服务商",
+    "pageCrashed": "页面出错了（其它页面不受影响）",
+    "retry": "重试",
+    "backHome": "返回工作台",
+    "done": "完成"
   },
   "dashboard": {
     "nav": "工作台",
@@ -44,7 +48,7 @@
     "viewGrid": "网格视图",
     "viewList": "列表视图",
     "aiGenerate": "AI 生成",
-    "importJson": "导入 JSON",
+    "importJson": "导入文件",
     "workspace": "工作台",
     "localBadge": "本地",
     "localSubtitle": "私密设计",
@@ -128,7 +132,8 @@
       "purposeDesc": "目标岗位 / 城市 / 行业 / 硬约束会注入每一次 AI 对话",
       "purposeAction": "去填写",
       "done": "已完成"
-    }
+    },
+    "originalDocument": "保留原文档排版，直接编辑"
   },
   "interview": {
     "title": "模拟面试",
@@ -191,14 +196,24 @@
       "history": "版本历史",
       "smartFit": "智能排版",
       "smartFitTitle": "一键智能单页",
-      "smartFitError": "智能排版失败"
+      "smartFitError": "智能排版失败",
+      "back": "返回工作台"
     },
     "aiPolish": "AI 润色",
     "invalidSectionContent": "该模块数据异常，请使用 AI 重新生成内容",
     "sidebar": {
       "sections": "简历模块",
       "addSection": "添加模块",
-      "dragHint": "拖拽模块以调整顺序"
+      "dragHint": "拖拽模块以调整顺序",
+      "hint": "拖动手柄或点击箭头排序；个人信息固定在顶部。",
+      "drag": "拖动排序：{title}",
+      "rename": "重命名",
+      "moveUp": "上移：{title}",
+      "moveDown": "下移：{title}",
+      "remove": "删除模块：{title}",
+      "removeLabel": "删除",
+      "hide": "在简历中隐藏",
+      "show": "在简历中显示"
     },
     "sections": {
       "personalInfo": "个人信息",
@@ -279,7 +294,17 @@
       "groupContact": "联系方式",
       "groupExtra": "补充信息（国企/事业单位常用）",
       "customTitle": "标题",
-      "customDate": "日期"
+      "customDate": "日期",
+      "current": "至今",
+      "customLinks": "其它链接",
+      "linkLabel": "链接名称",
+      "linkUrl": "链接地址",
+      "addLink": "添加链接",
+      "removeLink": "删除链接",
+      "linkedin": "领英",
+      "githubProfile": "GitHub 主页",
+      "workLocation": "工作地点",
+      "workLocationPlaceholder": "例如：上海 / 远程"
     },
     "items": {
       "drag": "拖动条目",
@@ -314,7 +339,32 @@
       "color": "颜色",
       "size": "字号",
       "font": "字体",
-      "clear": "清除格式"
+      "clear": "清除格式",
+      "fontDefault": "字体",
+      "sizeDefault": "字号",
+      "themeDefault": "跟随主题",
+      "customColor": "自定义颜色…",
+      "barLabel": "文字格式",
+      "barHint": "点进正文、选中文字后设置字体字号颜色；不选文字则作用于接下来输入的字",
+      "sizeNames": {
+        "s9": "小五",
+        "s10": "",
+        "s10_5": "五号",
+        "s11": "",
+        "s12": "小四",
+        "s14": "四号",
+        "s15": "小三",
+        "s16": "三号",
+        "s18": "小二"
+      },
+      "barHintShort": "选中文字即可设置",
+      "customSize": "自定义字号 (pt)",
+      "spacing": "间距",
+      "characterSpacing": "字符间距 (pt)",
+      "paragraph": "段落",
+      "paragraphBefore": "段前（pt）",
+      "paragraphAfter": "段后（pt）",
+      "paragraphLine": "行距（倍）"
     }
   },
   "ai": {
@@ -409,7 +459,8 @@
       "connectionSuccess": "连接成功，共获取到 {count} 个可用模型。",
       "connectionSuccessModelMissing": "连接成功，共获取到 {count} 个模型，但当前默认模型不在列表中。",
       "connectionFailedGeneric": "连接失败，请检查网络、API 地址和密钥。",
-      "description": "保存几个 API 渠道，对话框里一键切换。Key 只存本机。"
+      "description": "保存几个 API 渠道，对话框里一键切换。Key 只存本机。",
+      "channelsTab": "AI 渠道"
     },
     "appearance": {
       "title": "外观",
@@ -432,7 +483,30 @@
       "off": "关闭",
       "native": "模型自带",
       "tavily": "Tavily",
-      "grok": "Grok"
+      "grok": "Grok",
+      "description": "所有服务的配置始终显示，选择一项作为当前搜索方式。",
+      "active": "当前使用",
+      "offHint": "关闭独立联网搜索。",
+      "nativeHint": "使用当前 AI 渠道自带的搜索工具，是否可用取决于服务商和模型。",
+      "publicHint": "无需 API Key。通过公开网页获取结果，可能受限流或页面变化影响。",
+      "baidu": "百度",
+      "tavilyHint": "独立搜索 API，返回来源和摘要。",
+      "grokHint": "调用 xAI 联网搜索并返回带来源的回答。",
+      "baseUrl": "API 地址",
+      "model": "搜索模型",
+      "doubao": "豆包 · 火山方舟",
+      "doubaoHint": "使用火山方舟 Responses API 的联网搜索工具。请填写支持联网搜索的豆包模型或推理接入点。",
+      "doubaoModelPlaceholder": "支持联网搜索的模型 ID 或 ep-…",
+      "deepseekHint": "通过官方 Harness 使用的 Messages API 调用原生搜索，返回结构化来源。",
+      "officialDocs": "查看官方文档",
+      "deepseekApiHint": "直接调用官方 Search API 检索，无需额外模型轮次。需要账号具备此接口权限。",
+      "test": "测试服务",
+      "testing": "测试中…",
+      "testService": "测试：{name}",
+      "testSuccess": "服务响应正常，返回 {count} 条来源。",
+      "basicHint": "模型自带方式取决于当前渠道支持；DuckDuckGo、Bing、Google、百度无需 Key，通过公开网页检索，可能受限流影响。",
+      "deepseekNative": "DeepSeek · 原生搜索",
+      "deepseekDirect": "DeepSeek · 直接检索"
     },
     "backup": {
       "title": "数据与备份",
@@ -449,19 +523,17 @@
       "restoredTitle": "恢复完成，需要重启",
       "restoredBody": "备份来自 {createdAt}（应用版本 {version}）。当前数据已另存到：{safety}",
       "restartNow": "立即重启"
-    }
+    },
+    "general": "通用设置",
+    "panelDescription": "集中管理应用偏好、联网搜索、备份和 AI 渠道。",
+    "savedLocally": "修改自动保存在本机"
   },
   "themeEditor": {
     "title": "样式编辑",
     "reset": "重置主题",
     "presets": "预设主题",
     "preset": {
-      "standard": "标准",
-      "songti-classic": "经典宋体",
-      "compact": "紧凑一页",
-      "soe": "国企/事业单位",
-      "foreign": "外企英文",
-      "accent-blue": "深蓝点缀"
+      "standard": "标准"
     },
     "avatarCircle": "圆形",
     "avatarOneInch": "1寸照",
@@ -504,9 +576,9 @@
     "cjkFont": {
       "label": "中文字体",
       "yahei": "微软雅黑",
-      "sourcehan-sans": "思源黑体（内置）",
+      "sourcehan-sans": "Noto Sans SC（内置）",
       "songti": "宋体",
-      "sourcehan-serif": "思源宋体（内置）",
+      "sourcehan-serif": "Noto Serif CJK SC（内置）",
       "stzhongsong": "华文中宋",
       "heiti": "黑体",
       "kaiti": "楷体",
@@ -519,7 +591,24 @@
       "times": "Times New Roman",
       "arial": "Arial"
     },
-    "fontHint": "系统没装的字体会退回内置的思源黑体/宋体；导出 PDF 时始终用内置字体保证一致。"
+    "fontHint": "预览与 PDF 使用相同的字体顺序；系统字体缺失时使用内置字体。DOCX 在其他设备上的显示取决于字体可用性。",
+    "panelHint": "修改后即时更新左侧预览；可通过工具栏撤销。",
+    "custom": {
+      "add": "将当前样式存为预设",
+      "name": "预设名称",
+      "placeholder": "例如：我的求职简历",
+      "hint": "保存当前字体、字号、间距、颜色等样式，可在其他简历中复用。",
+      "duplicate": "名称已存在，请换一个名称。",
+      "saved": "预设已保存",
+      "saveFailed": "保存失败，请重试",
+      "saving": "保存中…",
+      "delete": "删除预设「{name}」",
+      "deleteHint": "删除后不会改变已应用该预设的简历样式。",
+      "deleteFailed": "删除失败，请重试",
+      "loading": "正在读取自定义预设…",
+      "loadFailed": "自定义预设读取失败。",
+      "retry": "重试"
+    }
   },
   "jdAnalysis": {
     "title": "JD 匹配分析",
@@ -721,7 +810,18 @@
     "interviewPrepRunning": "正在生成面试准备单…",
     "interviewPrepDone": "准备单已生成，已存入知识库",
     "interviewPrepFailed": "生成面试准备单失败",
-    "actionNeedsAi": "先在设置里配置模型服务"
+    "actionNeedsAi": "先在设置里配置模型服务",
+    "metricTotal": "每一次尝试，都有记录",
+    "metricActive": "关注正在推进的机会",
+    "metricOffer": "走到终点的好消息",
+    "metricFollowUp": "给等待中的机会一个回应",
+    "applicationsHeading": "我的投递",
+    "viewLabel": "投递视图",
+    "detailsOverview": "投递信息",
+    "detailsInterviews": "面试记录",
+    "detailsOutcome": "结果与复盘",
+    "kanbanHint": "拖动卡片更新进度 · 横向滚动查看全部阶段",
+    "kanbanFollowUp": "跟进 {date}"
   },
   "export": {
     "title": "导出简历",
@@ -754,15 +854,16 @@
     "importing": "导入中...",
     "success": "导入成功！",
     "error": "导入失败，请重试。",
-    "invalidFormat": "文件格式无效，请选择包含 sections 数据的有效 JSON 文件。",
+    "invalidFormat": "文件格式无效。请选择支持的文件；JSON 须包含 sections 数据。",
     "importBtn": "导入",
     "cancel": "取消",
-    "unifiedDescription": "支持 JSON、PDF、DOCX 和图片，导入后会生成结构化简历内容",
+    "unifiedDescription": "DOCX、PDF 和图片由 AI 分析并转换为 Resumer 简历；JSON 恢复简历数据、模板与排版设置。",
     "selectAnyFile": "点击选择或拖拽文件到此处",
     "supportedFiles": "JSON / PDF / DOCX / PNG / JPG / WebP",
-    "fileTooLarge": "文件不能超过 20 MB",
+    "fileTooLarge": "文件不能超过 {max} MB",
     "newResume": "新建简历",
-    "replaceCurrent": "替换当前内容（保留主题与模板）"
+    "replaceCurrent": "替换当前简历（保留历史版本）",
+    "aiImport": "AI 分析文件，转换为 Resumer 简历，可继续编辑和排版"
   },
   "coverLetter": {
     "title": "求职文案",
@@ -838,7 +939,13 @@
     "typeNote": "笔记",
     "typeRoot": "根页面",
     "openInsights": "在求职动态中查看",
-    "linkMissing": "页面不存在：{path}"
+    "linkMissing": "页面不存在：{path}",
+    "libraryCount": "个人资料库 · {count} 篇",
+    "workspaceHint": "把经历、面试与行业资料，整理成下一次求职的底气。",
+    "viewLabel": "知识库视图",
+    "browsePages": "文档目录",
+    "maintenance": "资料库维护",
+    "draftPending": "有未保存的草稿，点击编辑可继续。"
   },
   "versionHistory": {
     "title": "版本历史",
@@ -880,5 +987,31 @@
       "server": "服务商临时故障（5xx）：稍后重试，多次失败可切换渠道。",
       "chrome_missing": "没有找到 Chrome/Edge 等浏览器：安装任一 Chromium 系浏览器后再导出 PDF，或先导出 HTML 用浏览器打印。"
     }
+  },
+  "originalDocument": {
+    "mode": "原文档编辑",
+    "loading": "正在打开",
+    "load-error": "打开失败",
+    "saved": "已保存到本机",
+    "dirty": "有未保存修改",
+    "saving": "正在保存",
+    "error": "保存失败，请重试",
+    "back": "返回工作台",
+    "save": "保存",
+    "history": "历史版本",
+    "spacing": "选区与段落",
+    "before": "段前",
+    "after": "段后",
+    "letter": "字距",
+    "applySpacing": "应用间距",
+    "spacingApplied": "间距已更新",
+    "invalidSpacing": "段前段后须在 0～200 pt，字距须在 -2～10 pt",
+    "selectText": "请先选择需要调整字距的文字",
+    "selectParagraph": "请先将光标放入段落",
+    "journal": "投递记录",
+    "rescueCopy": "另存当前副本",
+    "retry": "重新打开",
+    "line": "行距",
+    "invalidLine": "行距须在 0.5～5 倍之间"
   }
 }

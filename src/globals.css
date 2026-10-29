@@ -461,3 +461,19 @@ select,
 .ai-markdown summary:hover {
   color: var(--whale-mint-deep);
 }
+
+/* ──────────────────────────────────────────────────────────────
+   编辑 ↔ 预览联动：右栏正在编辑的字段在预览里描薄荷色框，
+   选中的字用 CSS Custom Highlight 标底色（不改预览 DOM，导出不受影响）
+   ────────────────────────────────────────────────────────────── */
+[data-editing] {
+  outline: 1.5px solid rgba(18, 169, 142, 0.75);
+  outline-offset: 2px;
+  border-radius: 2px;
+  background-color: rgba(168, 232, 216, 0.22);
+  transition: background-color 120ms ease;
+}
+
+::highlight(resume-editing-selection) {
+  background-color: rgba(18, 169, 142, 0.34);
+}

@@ -90,6 +90,14 @@ pub async fn ai_test_connection(
 }
 
 #[tauri::command]
+pub async fn ai_test_search(config: Value) -> Result<Value, CommandError> {
+    let cfg = cfg_from(config)?;
+    crate::ai::search::web_search(&cfg, "DeepSeek 官方 API 文档")
+        .await
+        .map_err(|message| CommandError { message })
+}
+
+#[tauri::command]
 pub async fn ai_grammar_check(
     db: State<'_, AppDb>,
     config: Value,
@@ -726,11 +734,11 @@ async fn generate_vision(
                 .json(&body)
                 .send()
                 .await
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| e.without_url().to_string())?;
             if !res.status().is_success() {
                 let status = res.status();
                 let txt = res.text().await.unwrap_or_default();
-                return Err(format!("{} {}", status, txt));
+                return Err(ai::provider::api_error(status, &txt, cfg).to_string());
             }
             let data: Value = res.json().await.map_err(|e| e.to_string())?;
             let text = data
@@ -772,11 +780,11 @@ async fn generate_vision(
                 .json(&body)
                 .send()
                 .await
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| e.without_url().to_string())?;
             if !res.status().is_success() {
                 let status = res.status();
                 let txt = res.text().await.unwrap_or_default();
-                return Err(format!("{} {}", status, txt));
+                return Err(ai::provider::api_error(status, &txt, cfg).to_string());
             }
             let data: Value = res.json().await.map_err(|e| e.to_string())?;
             let text = data
@@ -810,11 +818,11 @@ async fn generate_vision(
                 .json(&body)
                 .send()
                 .await
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| e.without_url().to_string())?;
             if !res.status().is_success() {
                 let status = res.status();
                 let txt = res.text().await.unwrap_or_default();
-                return Err(format!("{} {}", status, txt));
+                return Err(ai::provider::api_error(status, &txt, cfg).to_string());
             }
             let data: Value = res.json().await.map_err(|e| e.to_string())?;
             let text = data

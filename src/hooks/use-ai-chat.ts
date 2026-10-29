@@ -134,8 +134,6 @@ export function useAIChat({ resumeId, sessionId, initialMessages, selectedModel 
           ...data,
           sections: (data as any).sections || [],
           themeConfig: (data as any).themeConfig || {},
-          createdAt: new Date((data as any).createdAt * 1000),
-          updatedAt: new Date((data as any).updatedAt * 1000),
         } as any);
       }
     } catch (err) {

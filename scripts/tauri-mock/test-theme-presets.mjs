@@ -1,0 +1,46 @@
+// 自定义预设：实际点击、数据库接口、刷新、跨简历、失败保留及删除边界。
+import assert from 'node:assert/strict';
+import { launchBrowser, delay } from './browser.mjs';
+const b=await launchBrowser({width:1200,height:800});
+const {evaluate,click,waitFor,send,key}=b;
+const base=process.env.BASE || 'http://127.0.0.1:5174';
+let checks=0;
+const check=async(expression,message)=>{assert.equal(await evaluate(expression),true,message);checks++;};
+const font=()=>evaluate(`(async()=> (await window.__appModule('/src/stores/resume-store.ts')).useResumeStore.getState().currentResume.themeConfig.fontSize)()`);
+const openStyle=async()=>{await click('[role=tab][id$="-trigger-style"]');await waitFor(`(async()=> (await window.__appModule('/src/stores/theme-presets-store.ts')).useThemePresetsStore.getState().loaded)()`);};
+try {
+ await b.navigate(base+'/zh/editor/r-demo');
+ await check("!!window.__TAURI_INTERNALS__ && document.documentElement.outerHTML.includes('Tauri 假后端')",'使用隔离存储');
+ await check(`(()=>{const i=document.querySelector('[data-item-id="we-1"]'),c=i.querySelector('[data-field="company"]').getBoundingClientRect(),l=i.querySelector('[data-field="location"]').getBoundingClientRect();return l.left>=c.right && l.top<c.bottom && l.bottom>c.top})()`,'地点显示在公司右侧同一行');
+ await openStyle();
+ await check("[...document.querySelectorAll('[role=region] section:first-of-type button')].map(b=>b.textContent).join(',')==='标准,将当前样式存为预设'",'仅标准内置预设');
+ await click('text:小四 12pt');
+ await click('text:将当前样式存为预设');
+ await check("[...document.querySelectorAll('form button')].find(e=>e.textContent==='保存').disabled",'空名称不能保存');
+ await click('input[placeholder="例如：我的求职简历"]'); await send('Input.insertText',{text:'标准'});
+ await check("[...document.querySelectorAll('form button')].find(e=>e.textContent==='保存').disabled",'不能覆盖标准');
+ await key('Meta+a'); await send('Input.insertText',{text:'我的投递样式'}); await click('text:保存');
+ await waitFor("!document.querySelector('input[placeholder=\"例如：我的求职简历\"]')");
+ await check(`(async()=>{const a=await window.__appModule('/src/lib/tauri-api.ts');const s=await a.getSettings();return s.customThemePresets[0].name==='我的投递样式' && s.customThemePresets[0].theme.fontSize===16 && s.autoSave===true})()`,'保存主题快照且不覆盖其他设置');
+ await click('text:标准'); assert.equal(await font(),14); checks++;
+ await click('text:我的投递样式'); assert.equal(await font(),16); checks++;
+ await click('button[title="撤销"]'); assert.equal(await font(),14); checks++;
+ await click('text:将当前样式存为预设');await click('input[placeholder="例如：我的求职简历"]');await send('Input.insertText',{text:' 我的投递样式 '});
+ await check("[...document.querySelectorAll('form button')].find(e=>e.textContent==='保存').disabled",'忽略首尾空格拒绝重名');
+ await key('Meta+a'); await send('Input.insertText',{text:'失败测试'});
+ await evaluate(`window.__settingsInvoke=window.__TAURI_INTERNALS__.invoke;window.__TAURI_INTERNALS__.invoke=(cmd,args)=>cmd==='update_settings'?Promise.reject(new Error('模拟写入失败')):window.__settingsInvoke(cmd,args)`);
+ await click('text:保存');await delay(200);
+ await check(`(async()=>{const s=(await window.__appModule('/src/stores/theme-presets-store.ts')).useThemePresetsStore.getState();return s.presets.length===1 && document.querySelector('input[placeholder="例如：我的求职简历"]').value==='失败测试'})()`,'写入失败不产生虚假预设且保留名称');
+ await evaluate('window.__TAURI_INTERNALS__.invoke=window.__settingsInvoke');await click('text:取消');
+ await b.navigate(base+'/zh/editor/r-demo-2');await openStyle();
+ await click('text:我的投递样式');assert.equal(await font(),16,'刷新并换简历后仍可使用');checks++;
+ await click('[aria-label="删除预设「我的投递样式」"]');await click('text:取消');
+ await check(`(async()=> (await window.__appModule('/src/stores/theme-presets-store.ts')).useThemePresetsStore.getState().presets.length===1)()`,'取消删除保留预设');
+ await click('[aria-label="删除预设「我的投递样式」"]');await click('[role=alertdialog] button:last-child');
+ await waitFor(`(async()=> (await window.__appModule('/src/stores/theme-presets-store.ts')).useThemePresetsStore.getState().presets.length===0)()`);
+ assert.equal(await font(),16,'删除不改变已应用的简历');checks++;
+ await b.navigate(base+'/zh/editor/r-demo');await openStyle();
+ await check(`(async()=> (await window.__appModule('/src/stores/theme-presets-store.ts')).useThemePresetsStore.getState().presets.length===0)()`,'删除结果刷新后保留');
+ assert.deepEqual(b.errors,[]);
+ console.log(`Theme presets: ${checks} checks passed`);
+} finally {await b.close();}

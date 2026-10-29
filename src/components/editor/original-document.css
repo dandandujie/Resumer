@@ -1,0 +1,8 @@
+.original-document {
+  color: #171717;
+  text-align: initial;
+}
+.original-document .docx-toolbar {
+  border-bottom: 1px solid var(--whale-divider);
+  background: white;
+}

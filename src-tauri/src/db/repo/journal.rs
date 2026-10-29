@@ -132,6 +132,21 @@ pub fn save_application(
     conn: &Connection,
     app: &Application,
 ) -> Result<Application, rusqlite::Error> {
+    // 前端请求顺序之外，仓储也守住“版本必须属于所选简历”的关系。
+    if let Some(version_id) = &app.resume_version_id {
+        let owner: Option<String> = conn
+            .query_row(
+                "SELECT resume_id FROM resume_versions WHERE id = ?1",
+                [version_id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if owner.is_none() || owner != app.resume_id {
+            return Err(rusqlite::Error::InvalidParameterName(
+                "简历版本不属于当前关联简历".into(),
+            ));
+        }
+    }
     let interviews = serde_json::to_string(&app.interviews).unwrap_or_else(|_| "[]".into());
     let outcome = app
         .outcome
@@ -406,6 +421,31 @@ mod tests {
         assert_eq!(updated.status, "offer");
         assert_eq!(updated.outcome.unwrap()["result"], "offer");
         assert_eq!(list_applications(&conn).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn version_relationship_is_checked_before_persisting() {
+        let conn = setup();
+        let first =
+            super::super::resume::create(&conn, "u1", "A", "classic", "zh", &json!({})).unwrap();
+        let second =
+            super::super::resume::create(&conn, "u1", "B", "modern", "zh", &json!({})).unwrap();
+        let version =
+            super::super::version::create_snapshot(&conn, &first, "u1", "apply", "投递", None)
+                .unwrap()
+                .unwrap();
+        let mut app = sample("linked", Some(&first));
+        app.resume_version_id = Some(version.clone());
+        save_application(&conn, &app).unwrap();
+        app.resume_id = Some(second);
+        assert!(save_application(&conn, &app).is_err());
+        let saved = find_application(&conn, "linked").unwrap().unwrap();
+        assert_eq!(saved.resume_id, Some(first));
+        assert_eq!(saved.resume_version_id, Some(version));
+        app.resume_id = None;
+        assert!(save_application(&conn, &app).is_err());
+        app.resume_version_id = None;
+        assert!(save_application(&conn, &app).is_ok());
     }
 
     #[test]

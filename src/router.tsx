@@ -7,6 +7,7 @@ import { startWindowDrag } from '@/lib/window-drag';
 
 // Layouts
 import { WhaleDashboardShell } from '@/components/layout/whale-dashboard-shell';
+import { BoundedOutlet, PageErrorBoundary } from '@/components/layout/page-error-boundary';
 
 // Pages (lazy imports not needed for desktop app)
 import DashboardPage from '@/pages/dashboard';
@@ -46,7 +47,7 @@ function EditorLayout() {
           if (event.button === 0) startWindowDrag();
         }}
       />
-      <Outlet />
+      <BoundedOutlet />
     </div>
   );
 }
@@ -74,7 +75,7 @@ export function AppRouter() {
         </Route>
 
         {/* Preview */}
-        <Route path="preview/:id" element={<PreviewPage />} />
+        <Route path="preview/:id" element={<PageErrorBoundary><PreviewPage /></PageErrorBoundary>} />
       </Route>
 
       {/* Catch-all */}

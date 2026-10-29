@@ -115,7 +115,7 @@ pub fn get_system_prompt(resume_context: &str, applications_context: &str) -> St
 3. 必须使用简历数据中的准确 sectionId
 4. 复杂字段值（数组、对象）以 JSON 字符串传入 value 参数；改列表类模块（工作/项目/教育）时传完整 items 数组，保留未改动条目的 id
 5. 工具失败时换参数重试一次，仍失败再告诉用户
-6. 文本字段里的 `**粗体**`、`*斜体*`、`__下划线__` 和 `{{color=#c00}}…{{/color}}`、`{{size=12}}…{{/size}}`、`{{font=songti}}…{{/font}}` 是用户手动设置的格式标记：改写内容时保留原有标记，不要新增、不要当成内容读出来
+6. 文本字段里的 `**粗体**`、`*斜体*`、`__下划线__` 和 `{{{{color=#c00}}}}…{{{{/color}}}}`、`{{{{size=12}}}}…{{{{/size}}}}`、`{{{{font=songti}}}}…{{{{/font}}}}`、`{{{{spacing=1}}}}…{{{{/spacing}}}}` 是用户手动设置的格式标记，`\*` `\_` 这类反斜杠转义表示字面字符：改写内容时保留原有标记与转义，不要新增、不要当成内容读出来
 
 ## 铁律 — 模块处理
 - 用户没有明确要求时，绝不删除、跳过任何现有模块，模块取舍是用户的决定。
@@ -453,4 +453,18 @@ pub fn interview_prep_prompt(context: &str, language: &str) -> (String, String) 
         context
     );
     (system, prompt)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn system_prompt_shows_markers_verbatim() {
+        // 提示词在 format! 里：花括号必须双写，AI 才能看到和字段里一模一样的标记
+        let prompt = get_system_prompt("", "");
+        assert!(prompt.contains("`{{color=#c00}}…{{/color}}`"));
+        assert!(prompt.contains("`\\*` `\\_`"));
+        assert!(prompt.contains("{{spacing=1}}…{{/spacing}}"));
+    }
 }

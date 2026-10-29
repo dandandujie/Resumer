@@ -39,6 +39,7 @@ lopdf = "0.34"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 docx-rs = "0.4"
 zip = "0.6"
+quick-xml = "0.38.4"
 mime_guess = "2"
 which = "6"
 

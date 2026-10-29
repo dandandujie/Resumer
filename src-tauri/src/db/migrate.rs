@@ -9,6 +9,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/006_knowledge.sql"),
     include_str!("../../migrations/007_knowledge_raw_sha256.sql"),
     include_str!("../../migrations/008_resume_versions_labels.sql"),
+    include_str!("../../migrations/009_original_documents.sql"),
 ];
 
 pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {

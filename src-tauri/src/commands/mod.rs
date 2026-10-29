@@ -1,6 +1,7 @@
 pub mod ai;
 pub mod backup;
 pub mod chat;
+pub mod document;
 pub mod export;
 pub mod interview;
 pub mod journal;

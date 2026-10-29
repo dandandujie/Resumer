@@ -1,6 +1,6 @@
-import { useDroppable, useDraggable, DndContext, type DragEndEvent } from '@dnd-kit/core';
-import { useTranslations } from 'next-intl';
-import { APPLICATION_STATUSES, type Application, type ApplicationStatus } from '@/stores/journal-store';
+import { useDroppable, useDraggable, DndContext, PointerSensor, KeyboardSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { useLocale, useTranslations } from 'next-intl';
+import { APPLICATION_STATUSES, nextInterview, isOverdue, type Application, type ApplicationStatus } from '@/stores/journal-store';
 import { STATUS_KEY, statusTone } from '@/components/journal/journal-labels';
 
 interface ApplicationKanbanProps {
@@ -41,6 +41,8 @@ function Card({
   onOpen: (id: string) => void;
 }) {
   const t = useTranslations('journal');
+  const locale = useLocale();
+  const next = nextInterview(application);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: application.id });
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
   return (
@@ -48,6 +50,7 @@ function Card({
       ref={setNodeRef}
       style={style}
       type="button"
+      data-kanban-app={application.id}
       {...listeners}
       {...attributes}
       onClick={() => onOpen(application.id)}
@@ -58,11 +61,16 @@ function Card({
       <span className={`mt-2 inline-flex rounded-full px-1.5 py-0.5 text-[10px] ${statusTone(application.status)}`}>
         {application.appliedDate || t('kanbanNoDate')}
       </span>
+      {next ? <span className="mt-2 block border-t border-[var(--whale-divider)] pt-2 text-[11px] leading-relaxed text-amber-800">
+        <span className="block font-medium">{next.round || t('stageInterview')} · {new Intl.DateTimeFormat(locale, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(next.scheduledAt!))}</span>
+        {next.location && <span className="block break-words">{next.location}</span>}
+      </span> : application.nextFollowUp && <span className={`mt-2 block border-t border-[var(--whale-divider)] pt-2 text-[11px] ${isOverdue(application) ? 'text-red-600' : 'text-[var(--whale-ink-muted)]'}`}>{t('kanbanFollowUp', { date: application.nextFollowUp })}</span>}
     </button>
   );
 }
 
 export function ApplicationKanban({ applications, onStatusChange, onOpen }: ApplicationKanbanProps) {
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor));
   const handleDragEnd = (event: DragEndEvent) => {
     const target = event.over?.id;
     if (!target || !APPLICATION_STATUSES.includes(target as ApplicationStatus)) return;
@@ -70,8 +78,8 @@ export function ApplicationKanban({ applications, onStatusChange, onOpen }: Appl
     if (application && application.status !== target) onStatusChange(application.id, target as ApplicationStatus);
   };
   return (
-    <DndContext onDragEnd={handleDragEnd}>
-      <div className="grid min-w-[980px] grid-cols-7 gap-3">
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <div className="grid grid-cols-[repeat(7,230px)] gap-3">
         {APPLICATION_STATUSES.map((status) => (
           <Column
             key={status}

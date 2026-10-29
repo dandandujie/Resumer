@@ -64,10 +64,11 @@ export function CertificationsSection({ section, onUpdate }: Props) {
               onRemove={() => removeItem(index)}
             >
               <FieldWrapper>
-                <EditableText label={t('certName')} value={item.name} onChange={(v) => updateItem(index, { name: v })} />
-                <EditableText label={t('issuer')} value={item.issuer} onChange={(v) => updateItem(index, { issuer: v })} />
+                <EditableText field="name" label={t('certName')} value={item.name} onChange={(v) => updateItem(index, { name: v })} />
+                <EditableText field="issuer" label={t('issuer')} value={item.issuer} onChange={(v) => updateItem(index, { issuer: v })} />
               </FieldWrapper>
-              <EditableText label={t('certDate')} value={item.date} onChange={(v) => updateItem(index, { date: v })} />
+              <EditableText field="date" label={t('certDate')} value={item.date} onChange={(v) => updateItem(index, { date: v })} />
+              <EditableText field="url" label={t('linkUrl')} value={item.url || ''} onChange={(v) => updateItem(index, { url: v })} />
             </ItemCard>
           );
         }}

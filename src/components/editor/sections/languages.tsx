@@ -64,10 +64,10 @@ export function LanguagesSection({ section, onUpdate }: Props) {
               onRemove={() => removeItem(index)}
             >
               <FieldWrapper>
-                <EditableText label={t('language')} value={item.language} onChange={(v) => updateItem(index, { language: v })} />
-                <EditableText label={t('proficiency')} value={item.proficiency} onChange={(v) => updateItem(index, { proficiency: v })} />
+                <EditableText field="language" label={t('language')} value={item.language} onChange={(v) => updateItem(index, { language: v })} />
+                <EditableText field="proficiency" label={t('proficiency')} value={item.proficiency} onChange={(v) => updateItem(index, { proficiency: v })} />
               </FieldWrapper>
-              <EditableText label={t('description')} value={(item as any).description || ''} onChange={(v) => updateItem(index, { description: v } as any)} />
+              <EditableText field="description" label={t('description')} value={(item as any).description || ''} onChange={(v) => updateItem(index, { description: v } as any)} />
             </ItemCard>
           );
         }}

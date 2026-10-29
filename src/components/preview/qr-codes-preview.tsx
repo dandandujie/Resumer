@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { QrCodeItem } from '@/types/resume';
+import { InlineText } from './inline-text';
 import { generateQrSvg } from '@/lib/qrcode';
 
 interface QrCodesPreviewProps {
@@ -58,10 +59,10 @@ export function QrCodesPreview({ items, svgs: initialSvgs }: QrCodesPreviewProps
         const svg = svgs[qr.id];
         if (!svg) return null;
         return (
-          <div key={qr.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', width: 96 }}>
+          <div key={qr.id} data-item-id={qr.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', width: 96 }}>
             <div style={{ width: 80, height: 80 }} dangerouslySetInnerHTML={{ __html: svg }} />
             {qr.label && (
-              <span style={{ fontSize: '10px', color: '#6b7280', lineHeight: 1.2, textAlign: 'center', wordBreak: 'break-all', maxWidth: 96 }}>{qr.label}</span>
+              <span style={{ fontSize: '10px', color: '#6b7280', lineHeight: 1.2, textAlign: 'center', wordBreak: 'break-all', maxWidth: 96 }}><InlineText field="label">{qr.label}</InlineText></span>
             )}
           </div>
         );

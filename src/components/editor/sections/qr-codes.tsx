@@ -3,6 +3,9 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { X, Sparkles, Plus } from 'lucide-react';
+import { SortableList } from '../dnd/sortable-item';
+import { FieldScopeProvider } from '../fields/field-scope';
+import { RichTextInput } from '../fields/rich-text-input';
 import { useResumeStore } from '@/stores/resume-store';
 import { extractUrlsFromResume } from '@/lib/qrcode';
 import type { ResumeSection, QrCodesContent, QrCodeItem } from '@/types/resume';
@@ -56,21 +59,19 @@ export function QrCodesSection({ section, onUpdate }: Props) {
         </button>
       </div>
 
-      {items.map((qr, idx) => (
+      <SortableList items={items.map(item => item.id)} onMove={(from,to) => {
+        const next=[...items]; const [item]=next.splice(from,1); next.splice(to,0,item); onUpdate({items:next});
+      }}>
+      {(_, idx) => { const qr=items[idx]; return (
+        <FieldScopeProvider sectionId={section.id} itemId={qr.id}>
         <div key={qr.id} className="flex items-center gap-1.5">
+          <div className="w-28 shrink-0">
+            <RichTextInput value={qr.label} field="label" ariaLabel={t('qrLabel')} placeholder={t('qrLabel')} collapseOnBlur
+              onChange={label => onUpdate({items:items.map((item,i)=>i===idx ? {...item,label} : item)})} />
+          </div>
           <input
             type="text"
-            value={qr.label}
-            placeholder={t('qrLabel')}
-            onChange={(e) => {
-              const updated = [...items];
-              updated[idx] = { ...updated[idx], label: e.target.value };
-              onUpdate({ items: updated });
-            }}
-            className="h-7 w-20 shrink-0 rounded border border-border bg-transparent px-2 text-xs outline-none focus:border-[var(--whale-ink-soft)]"
-          />
-          <input
-            type="text"
+            aria-label={t('qrUrl')}
             value={qr.url}
             placeholder={t('qrUrl')}
             title={invalidIds.has(qr.id) ? t('qrUrlInvalid') : undefined}
@@ -93,6 +94,7 @@ export function QrCodesSection({ section, onUpdate }: Props) {
           />
           <button
             type="button"
+            aria-label={t('removeLink')}
             onClick={() => {
               const updated = items.filter((_, i) => i !== idx);
               onUpdate({ items: updated });
@@ -102,7 +104,9 @@ export function QrCodesSection({ section, onUpdate }: Props) {
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
-      ))}
+        </FieldScopeProvider>
+      ); }}
+      </SortableList>
 
       <button
         type="button"

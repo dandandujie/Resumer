@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { logError } from '@/stores/error-log-store';
 import { useEditor } from '@/hooks/use-editor';
@@ -9,7 +9,7 @@ import { EditorRightPane } from '@/components/editor/editor-right-pane';
 import { EditorPreviewPanel } from '@/components/editor/editor-preview-panel';
 import { EditorMobileTabBar } from '@/components/editor/editor-mobile-tab-bar';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { List } from "lucide-react";
+import { useTranslations } from 'next-intl';
 import { SettingsDialog } from '@/components/settings/settings-dialog';
 import { JdAnalysisDialog } from '@/components/editor/jd-analysis-dialog';
 import { TranslateDialog } from '@/components/editor/translate-dialog';
@@ -26,8 +26,10 @@ import { useSettingsStore } from '@/stores/settings-store';
 import { useJournalStore } from '@/stores/journal-store';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+const OriginalDocumentEditor = lazy(() => import('@/components/editor/original-document-editor'));
 
 export default function EditorPage() {
+  const t = useTranslations('editor');
   const { id } = useParams<{ id: string }>();
   const { resume, sections, updateSection, addSection, removeSection, reorderSections, loadResume } = useEditor(id!);
   const isMobile = useIsMobile();
@@ -59,6 +61,7 @@ export default function EditorPage() {
   // Keyboard shortcuts: Cmd/Ctrl+S save, Cmd/Ctrl+Z undo, Cmd/Ctrl+Shift+Z redo.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (useResumeStore.getState().currentResume?.template === 'original-docx') return;
       if (!(e.metaKey || e.ctrlKey)) return;
       const key = e.key.toLowerCase();
       if (key === 's') {
@@ -100,7 +103,7 @@ export default function EditorPage() {
     return () => window.removeEventListener('unhandledrejection', handler);
   }, []);
 
-  if (!resume) {
+  if (!resume || resume.id !== id) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="space-y-4 w-64">
@@ -112,35 +115,35 @@ export default function EditorPage() {
     );
   }
 
+  if (resume.template === 'original-docx') {
+    return <Suspense fallback={<div className="p-20">正在打开原文档…</div>}><OriginalDocumentEditor resume={resume} onRestored={loadResume} /></Suspense>;
+  }
+
   return (
     <div className="flex h-screen min-w-0 flex-col">
       <EditorToolbar />
-      <EditorMobileTabBar />
+      <EditorMobileTabBar onOpenSections={() => setSidebarOpen(true)} />
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         <div className="hidden md:block">
-          <EditorSidebar sections={sections} onAddSection={addSection} onReorderSections={reorderSections} />
+          <EditorSidebar sections={sections} onAddSection={addSection} onRemoveSection={removeSection} onReorderSections={reorderSections} />
         </div>
 
-        <div className={cn("min-w-0 flex-1 overflow-hidden md:flex-[6]", isMobile && mobileActiveTab !== "preview" && "hidden")}>
+        <div className={cn("min-w-0 flex-1 overflow-hidden", isMobile && mobileActiveTab !== "preview" && "hidden")}>
           <EditorPreviewPanel />
         </div>
 
-        <div className={cn("min-w-0 flex-1 overflow-hidden md:flex-[4]", isMobile && mobileActiveTab !== "edit" && "hidden")}>
+        <div className={cn("min-w-0 flex-1 overflow-hidden md:w-[38%] md:min-w-[340px] md:max-w-[520px] md:flex-none", isMobile && mobileActiveTab !== "edit" && "hidden")}>
           <EditorRightPane resumeId={id!} sections={sections} onUpdateSection={updateSection} onRemoveSection={removeSection} />
         </div>
       </div>
 
-      <button onClick={() => setSidebarOpen(true)} className="fixed bottom-20 left-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--whale-ink)] text-[var(--whale-cream)] shadow-lg transition-transform hover:scale-105 active:scale-95 md:hidden" aria-label="Open sections">
-        <List className="h-5 w-5" />
-      </button>
-
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
         <SheetContent side="left" className="w-72 border-r border-[var(--whale-divider)] bg-[var(--whale-sidebar)] p-0">
           <SheetHeader className="border-b border-[var(--whale-divider)] px-4 py-3">
-            <SheetTitle className="text-sm font-semibold text-[var(--whale-ink)]">Sections</SheetTitle>
+            <SheetTitle className="text-sm font-semibold text-[var(--whale-ink)]">{t('sidebar.sections')}</SheetTitle>
           </SheetHeader>
-          <EditorSidebar sections={sections} onAddSection={(s) => { addSection(s); setSidebarOpen(false); }} onReorderSections={reorderSections} />
+          <EditorSidebar onSectionSelect={() => { setSidebarOpen(false); useEditorStore.getState().setMobileActiveTab('edit'); }} sections={sections} onAddSection={(s) => { addSection(s); setSidebarOpen(false); }} onRemoveSection={removeSection} onReorderSections={reorderSections} />
         </SheetContent>
       </Sheet>
 

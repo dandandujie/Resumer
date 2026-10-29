@@ -4,3 +4,12 @@ packages:
 allowBuilds:
   esbuild: true
   msw: false
+
+minimumReleaseAgeExclude:
+  - '@docx-editor.dev/core@2.24.0'
+  - '@docx-editor.dev/i18n@2.24.0'
+  - '@docx-editor.dev/react@2.24.0'
+  - '@docx-editor.dev/fonts@2.24.0'
+
+patchedDependencies:
+  '@docx-editor.dev/core@2.24.0': patches/@docx-editor.dev__core@2.24.0.patch

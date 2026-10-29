@@ -18,6 +18,7 @@ import { LanguagesSection } from './sections/languages';
 import { CustomSection } from './sections/custom-section';
 import { GitHubSection } from './sections/github';
 import { QrCodesSection } from './sections/qr-codes';
+import { FieldScopeProvider } from './fields/field-scope';
 
 interface SectionWrapperProps {
   section: ResumeSection;
@@ -75,7 +76,7 @@ export function SectionWrapper({ section, onUpdate, onRemove }: SectionWrapperPr
       } ${!section.visible ? 'opacity-50' : ''}`}
       onClick={() => selectSection(section.id)}
     >
-      <div className="flex flex-row items-center justify-between border-b border-border px-3 py-2.5 md:px-4">
+      <div className="flex flex-row flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2.5 md:px-4">
         <div className="flex items-center gap-2">
           {isRenaming ? (
             <input
@@ -118,6 +119,8 @@ export function SectionWrapper({ section, onUpdate, onRemove }: SectionWrapperPr
             variant="ghost"
             size="sm"
             className="h-7 w-7 cursor-pointer p-0"
+            title={section.visible ? t('sidebar.hide') : t('sidebar.show')}
+            aria-label={section.visible ? t('sidebar.hide') : t('sidebar.show')}
             onClick={(e) => {
               e.stopPropagation();
               toggleSectionVisibility(section.id);
@@ -129,9 +132,11 @@ export function SectionWrapper({ section, onUpdate, onRemove }: SectionWrapperPr
               <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
             )}
           </Button>
-          <Button
+          {section.type !== 'personal_info' && <Button
             variant="ghost"
             size="sm"
+            title={t('sidebar.remove', { title: section.title })}
+            aria-label={t('sidebar.remove', { title: section.title })}
             className="h-7 w-7 cursor-pointer p-0 text-muted-foreground hover:text-red-500"
             onClick={(e) => {
               e.stopPropagation();
@@ -139,14 +144,16 @@ export function SectionWrapper({ section, onUpdate, onRemove }: SectionWrapperPr
             }}
           >
             <X className="h-3.5 w-3.5" />
-          </Button>
+          </Button>}
         </div>
       </div>
       <div className="px-4 pb-4 pt-3">
         {!section.content || typeof section.content !== 'object' ? (
           <p className="text-sm text-red-400">{t('invalidSectionContent')}</p>
         ) : SectionComponent ? (
-          <SectionComponent section={section} onUpdate={onUpdate} />
+          <FieldScopeProvider sectionId={section.id} itemId={null}>
+            <SectionComponent section={section} onUpdate={onUpdate} />
+          </FieldScopeProvider>
         ) : (
           <p className="text-sm text-muted-foreground">Unknown section type: {section.type}</p>
         )}

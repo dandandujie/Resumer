@@ -4,14 +4,14 @@ import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { RichTextInput } from './rich-text-input';
 import { Switch } from '@/components/ui/switch';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { normalizeMonth } from '@/lib/resume-date';
+import { normalizeMonth, restyleDate } from '@/lib/resume-date';
 
 interface EditableDateProps {
   label: string;
@@ -20,6 +20,8 @@ interface EditableDateProps {
   current?: boolean;
   allowCurrent?: boolean;
   onCurrentChange?: (current: boolean) => void;
+  /** 字段路径，用于和预览联动 */
+  field?: string;
 }
 const MONTHS = [
   '01',
@@ -43,6 +45,7 @@ export function EditableDate({
   current = false,
   allowCurrent = false,
   onCurrentChange,
+  field,
 }: EditableDateProps) {
   const t = useTranslations('editor.fields');
   const [open, setOpen] = useState(false);
@@ -52,22 +55,24 @@ export function EditableDate({
     () => Number(year) || new Date().getFullYear(),
   );
   // 识别不了的写法（如 `2023`、`Summer 2022`）原样保留，绝不清空用户输入。
-  const commit = (next: string) => onChange(normalizeMonth(next) || next.trim());
+  const commit = (next: string) => onChange(restyleDate(value, normalizeMonth(next) || next.trim()));
 
   return (
-    <div className="space-y-1">
-      <label className="text-xs font-medium text-[var(--whale-ink-muted)]">
+    <div className="min-w-0 space-y-1.5">
+      <span className="block text-xs font-medium text-[var(--whale-ink-muted)]">
         {label}
-      </label>
+      </span>
       <div className="flex gap-1">
-        <Input
-          disabled={current}
-          value={current ? '' : value}
-          placeholder="YYYY.MM"
-          onChange={(e) => onChange(e.target.value)}
-          onBlur={(e) => commit(e.target.value)}
-          className="h-8 min-w-0 text-sm"
-        />
+        <div className="min-w-0 flex-1">
+          {current ? <div className="px-3 py-2 text-sm text-muted-foreground">{t('current')}</div> : <RichTextInput
+            value={value}
+            onChange={onChange}
+            placeholder="YYYY.MM"
+            ariaLabel={label}
+            field={field}
+            className="min-w-0 tabular-nums"
+          />}
+        </div>
         <Popover
           open={open}
           onOpenChange={(next) => {
@@ -76,7 +81,7 @@ export function EditableDate({
           }}
         >
           <PopoverTrigger asChild>
-            <Button variant="outline" size="icon" className="h-8 w-8 shrink-0">
+            <Button variant="outline" size="icon" className="h-9 w-9 shrink-0 cursor-pointer" aria-label={label}>
               <CalendarDays className="h-3.5 w-3.5" />
             </Button>
           </PopoverTrigger>
@@ -139,7 +144,7 @@ export function EditableDate({
         </Popover>
       </div>
       {allowCurrent && (
-        <label className="flex items-center gap-2 text-xs text-[var(--whale-ink-muted)]">
+        <label className="flex cursor-pointer items-center gap-2 pt-0.5 text-xs text-[var(--whale-ink-muted)]">
           <Switch checked={current} onCheckedChange={onCurrentChange} />
           {t('current')}
         </label>

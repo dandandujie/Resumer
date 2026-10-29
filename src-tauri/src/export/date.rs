@@ -61,7 +61,8 @@ fn parse_month_number(value: &str) -> Option<u32> {
 
 /// 把各种月份写法归一化为 `YYYY-MM`；识别不了返回空串（调用方决定是否保留原值）。
 pub fn normalize_month(input: &str) -> String {
-    let value = input.trim();
+    let plain = super::inline::strip(input);
+    let value = plain.trim();
     if value.is_empty() {
         return String::new();
     }
@@ -123,6 +124,10 @@ pub fn normalize_month(input: &str) -> String {
 /// 显示用：能归一化的按 style 输出，否则原样返回（例如 `2023`、`至今`）。
 pub fn format_month(input: &str, style: DateStyle, lang: &str) -> String {
     let raw = input.trim();
+    let plain = super::inline::strip(raw);
+    if plain != raw {
+        return restyle_date(raw, &format_month(&plain, style, lang));
+    }
     let value = normalize_month(raw);
     if value.is_empty() {
         return raw.to_string();
@@ -159,7 +164,11 @@ pub fn normalize_value_fields(value: &mut serde_json::Value) {
             for (key, child) in map.iter_mut() {
                 if matches!(key.as_str(), "startDate" | "endDate" | "date") {
                     if let Some(raw) = child.as_str() {
-                        let normalized = normalize_month(raw);
+                        let normalized = if super::inline::strip(raw) != raw {
+                            raw.to_string()
+                        } else {
+                            normalize_month(raw)
+                        };
                         let kept = if normalized.is_empty() {
                             raw.trim().to_string()
                         } else {
@@ -177,9 +186,109 @@ pub fn normalize_value_fields(value: &mut serde_json::Value) {
     }
 }
 
+/// 按年份/月分量映射字符样式，与前端 restyleDate 一致。
+fn restyle_date(source: &str, rendered: &str) -> String {
+    let chars: Vec<_> = super::inline::parse(source)
+        .into_iter()
+        .flat_map(|span| {
+            span.text
+                .chars()
+                .map(|ch| {
+                    let mut next = span.clone();
+                    next.text = ch.to_string();
+                    next
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    let plain: String = chars.iter().map(|s| s.text.as_str()).collect();
+    if plain == rendered {
+        return source.to_string();
+    }
+    let year = |text: &str| {
+        text.as_bytes()
+            .windows(4)
+            .position(|w| w.iter().all(u8::is_ascii_digit))
+    };
+    let (Some(sy), Some(ty)) = (year(&plain), year(rendered)) else {
+        let mut span = chars.first().cloned().unwrap_or_default();
+        span.text = rendered.to_string();
+        return super::inline::serialize(&[span]);
+    };
+    // 这里的索引使用字符单位；中文月份分隔符不能按 UTF-8 字节偏移套样式。
+    let sy = plain[..sy].chars().count();
+    let ty = rendered[..ty].chars().count();
+    let source_chars: Vec<_> = plain.chars().collect();
+    let target_chars: Vec<_> = rendered.chars().collect();
+    let month = |cs: &[char], y: usize| {
+        cs.iter()
+            .enumerate()
+            .skip(y + 4)
+            .find(|(_, c)| c.is_ascii_alphanumeric())
+            .or_else(|| {
+                cs.iter()
+                    .enumerate()
+                    .find(|(_, c)| c.is_ascii_alphanumeric())
+            })
+            .map(|(i, _)| i)
+            .unwrap_or(0)
+    };
+    let sm = month(&source_chars, sy);
+    let tm = month(&target_chars, ty);
+    let digits = source_chars
+        .iter()
+        .skip(sm)
+        .take_while(|c| c.is_ascii_digit())
+        .count()
+        .max(1);
+    let spans: Vec<_> = target_chars
+        .into_iter()
+        .enumerate()
+        .map(|(i, ch)| {
+            let at = if i >= tm && !(ty..ty + 4).contains(&i) {
+                sm + (i - tm).min(digits - 1)
+            } else {
+                sy + i.saturating_sub(ty).min(3)
+            };
+            let mut span = chars
+                .get(at.min(chars.len().saturating_sub(1)))
+                .cloned()
+                .unwrap_or_default();
+            span.text = ch.to_string();
+            span
+        })
+        .collect();
+    super::inline::serialize(&spans)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rich_dates_keep_semantics_and_local_styles() {
+        let input = "**2026**-{{color=#c00}}09{{/color}}";
+        assert_eq!(normalize_month(input), "2026-09");
+        for (style, expected) in [
+            (DateStyle::Dot, "2026.09"),
+            (DateStyle::Dash, "2026-09"),
+            (DateStyle::Cn, "2026年9月"),
+        ] {
+            let value = format_month(input, style, "zh");
+            assert_eq!(super::super::inline::strip(&value), expected);
+            let runs = super::super::inline::parse(&value);
+            assert!(runs[0].bold);
+            assert_eq!(runs.last().unwrap().color.as_deref(), Some("#c00"));
+        }
+        let mut value = serde_json::json!({"date":input});
+        normalize_value_fields(&mut value);
+        assert_eq!(value["date"], input);
+        assert_eq!(
+            super::super::inline::strip(&format_month("**July** 2026", DateStyle::Cn, "zh")),
+            "2026年7月"
+        );
+    }
+
     use serde_json::json;
 
     // 与 scripts/test-resume-date.ts 的 NORMALIZE_CASES 逐条相同。

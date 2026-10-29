@@ -8,6 +8,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { RichTextInput } from './rich-text-input';
+import { parseInline, plainText, replaceText, serializeInline } from '@/lib/resume-text';
 
 interface EditableSelectProps {
   label: string;
@@ -15,16 +17,22 @@ interface EditableSelectProps {
   onChange: (value: string) => void;
   options: { label: string; value: string }[];
   placeholder?: string;
+  /** 字段路径，用于和预览联动 */
+  field?: string;
 }
 
-export function EditableSelect({ label, value, onChange, options, placeholder }: EditableSelectProps) {
+export function EditableSelect({ label, value, onChange, options, placeholder, field }: EditableSelectProps) {
   return (
-    <div className="space-y-1">
-      <label className="text-xs font-medium text-[var(--whale-ink-muted)]">{label}</label>
-      <div className="relative">
-        <Select value={value || ''} onValueChange={onChange}>
-          <SelectTrigger size="sm" className="w-full text-sm">
-            <SelectValue placeholder={placeholder || label} />
+    <div className="min-w-0 space-y-1.5">
+      <span className="block text-xs font-medium text-[var(--whale-ink-muted)]">{label}</span>
+      <div className="relative flex items-start gap-1">
+        <RichTextInput value={value || ''} onChange={onChange} field={field} ariaLabel={label} placeholder={placeholder || label} collapseOnBlur />
+        <Select value={plainText(value || '')} onValueChange={(next) => onChange(serializeInline(replaceText(parseInline(value || ''), 0, plainText(value || '').length, next)))}>
+          <SelectTrigger
+            aria-label={label}
+            className="h-9 w-9 shrink-0 justify-center bg-[var(--whale-card)] px-2 text-sm"
+          >
+            <span className="sr-only"><SelectValue placeholder={placeholder || label} /></span>
           </SelectTrigger>
           <SelectContent>
             {options.map((opt) => (
@@ -38,7 +46,8 @@ export function EditableSelect({ label, value, onChange, options, placeholder }:
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onChange(''); }}
-            className="absolute top-1/2 right-7 -translate-y-1/2 rounded p-0.5 text-[var(--whale-ink-muted)] transition-colors hover:text-[var(--whale-ink)]"
+            aria-label={`${label} ×`}
+            className="mt-2 cursor-pointer rounded p-0.5 text-[var(--whale-ink-muted)] transition-colors hover:text-[var(--whale-ink)]"
           >
             <X className="h-3 w-3" />
           </button>

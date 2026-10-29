@@ -12,10 +12,13 @@ pub struct Span {
     pub color: Option<String>,
     pub size_pt: Option<f64>,
     pub font: Option<String>,
+    pub spacing_pt: Option<f64>,
+    pub paragraph: Option<String>,
 }
 
 const MIN_SIZE_PT: f64 = 6.0;
 const MAX_SIZE_PT: f64 = 40.0;
+const ESCAPABLE: &str = "\\*_`{";
 
 #[derive(Default, Clone)]
 struct State {
@@ -26,6 +29,8 @@ struct State {
     colors: Vec<String>,
     sizes: Vec<f64>,
     fonts: Vec<String>,
+    spacings: Vec<f64>,
+    paragraphs: Vec<String>,
 }
 
 impl State {
@@ -39,8 +44,31 @@ impl State {
             color: self.colors.last().cloned(),
             size_pt: self.sizes.last().copied(),
             font: self.fonts.last().cloned(),
+            spacing_pt: self.spacings.last().copied(),
+            paragraph: self.paragraphs.last().cloned(),
         }
     }
+}
+
+/// 空项继承主题；段前段后 0–72pt，行距 0.5–4 倍。
+pub fn paragraph_values(value: &str) -> Option<[Option<f64>; 3]> {
+    let parts: Vec<_> = value.split(',').collect();
+    if parts.len() != 3 || parts.iter().all(|p| p.is_empty()) {
+        return None;
+    }
+    let mut out = [None; 3];
+    for (i, part) in parts.iter().enumerate() {
+        if part.is_empty() {
+            continue;
+        }
+        let number = part.parse::<f64>().ok()?;
+        let range = if i == 2 { 0.5..=4.0 } else { 0.0..=72.0 };
+        if !range.contains(&number) {
+            return None;
+        }
+        out[i] = Some(number);
+    }
+    Some(out)
 }
 
 fn valid_color(value: &str) -> Option<String> {
@@ -56,10 +84,12 @@ fn parse_attr_token(rest: &str) -> Option<(bool, &str, &str, usize)> {
     let body = &inner[..end];
     let consumed = 2 + end + 2;
     if let Some(key) = body.strip_prefix('/') {
-        return matches!(key, "color" | "size" | "font").then_some((true, key, "", consumed));
+        return matches!(key, "color" | "size" | "font" | "spacing" | "paragraph")
+            .then_some((true, key, "", consumed));
     }
     let (key, value) = body.split_once('=')?;
-    matches!(key, "color" | "size" | "font").then_some((false, key, value, consumed))
+    matches!(key, "color" | "size" | "font" | "spacing" | "paragraph")
+        .then_some((false, key, value, consumed))
 }
 
 pub fn parse(input: &str) -> Vec<Span> {
@@ -77,6 +107,16 @@ pub fn parse(input: &str) -> Vec<Span> {
     while index < input.len() {
         let rest = &input[index..];
 
+        // `\` 转义其后的标记字符（编辑器把正文里的 * _ ` 等写成转义，避免被当成标记）
+        if let Some(escaped) = rest.strip_prefix('\\')
+            && let Some(next) = escaped.chars().next()
+            && ESCAPABLE.contains(next)
+        {
+            text.push(next);
+            index += 1 + next.len_utf8();
+            continue;
+        }
+
         if rest.starts_with("{{")
             && let Some((closing, key, value, consumed)) = parse_attr_token(rest)
         {
@@ -85,6 +125,8 @@ pub fn parse(input: &str) -> Vec<Span> {
                 let stack_len = match key {
                     "color" => state.colors.len(),
                     "size" => state.sizes.len(),
+                    "spacing" => state.spacings.len(),
+                    "paragraph" => state.paragraphs.len(),
                     _ => state.fonts.len(),
                 };
                 if stack_len == 0 {
@@ -97,6 +139,12 @@ pub fn parse(input: &str) -> Vec<Span> {
                         }
                         "size" => {
                             state.sizes.pop();
+                        }
+                        "paragraph" => {
+                            state.paragraphs.pop();
+                        }
+                        "spacing" => {
+                            state.spacings.pop();
                         }
                         _ => {
                             state.fonts.pop();
@@ -112,10 +160,16 @@ pub fn parse(input: &str) -> Vec<Span> {
                 .parse::<f64>()
                 .ok()
                 .filter(|pt| (MIN_SIZE_PT..=MAX_SIZE_PT).contains(pt));
+            let parsed_spacing = value
+                .parse::<f64>()
+                .ok()
+                .filter(|pt| (-2.0..=10.0).contains(pt));
             let applies = has_close
                 && match key {
                     "color" => valid_color(value).is_some(),
                     "size" => parsed_size.is_some(),
+                    "spacing" => parsed_spacing.is_some(),
+                    "paragraph" => paragraph_values(value).is_some(),
                     _ => !value.trim().is_empty(),
                 };
             if !applies {
@@ -127,6 +181,8 @@ pub fn parse(input: &str) -> Vec<Span> {
             match key {
                 "color" => state.colors.push(valid_color(value).unwrap_or_default()),
                 "size" => state.sizes.push(parsed_size.unwrap_or(0.0)),
+                "spacing" => state.spacings.push(parsed_spacing.unwrap_or(0.0)),
+                "paragraph" => state.paragraphs.push(value.to_string()),
                 _ => state.fonts.push(value.trim().to_string()),
             }
             index += consumed;
@@ -171,6 +227,70 @@ pub fn parse(input: &str) -> Vec<Span> {
     spans
 }
 
+/// 内核样式片段写回标记；日期显示转换使用同一份样式，不将格式退化成纯文本。
+pub fn serialize(spans: &[Span]) -> String {
+    fn transition(a: &Span, b: &Span) -> String {
+        let toggles = [
+            (a.bold, b.bold, "**"),
+            (a.italic, b.italic, "*"),
+            (a.underline, b.underline, "__"),
+            (a.code, b.code, "`"),
+        ];
+        let mut out = String::new();
+        for (from, to, marker) in toggles {
+            if from && !to {
+                out.push_str(marker);
+            }
+        }
+        let attrs = [
+            ("paragraph", a.paragraph.clone(), b.paragraph.clone()),
+            ("color", a.color.clone(), b.color.clone()),
+            (
+                "size",
+                a.size_pt.map(|v| v.to_string()),
+                b.size_pt.map(|v| v.to_string()),
+            ),
+            ("font", a.font.clone(), b.font.clone()),
+            (
+                "spacing",
+                a.spacing_pt.map(|v| v.to_string()),
+                b.spacing_pt.map(|v| v.to_string()),
+            ),
+        ];
+        for (key, from, to) in attrs {
+            if from != to {
+                if from.is_some() {
+                    out.push_str(&format!("{{{{/{key}}}}}"));
+                }
+                if let Some(value) = to {
+                    out.push_str(&format!("{{{{{key}={value}}}}}"));
+                }
+            }
+        }
+        for (from, to, marker) in toggles {
+            if !from && to {
+                out.push_str(marker);
+            }
+        }
+        out
+    }
+    let mut out = String::new();
+    let empty = Span::default();
+    let mut previous = &empty;
+    for span in spans.iter().filter(|s| !s.text.is_empty()) {
+        out.push_str(&transition(previous, span));
+        for ch in span.text.chars() {
+            if ESCAPABLE.contains(ch) {
+                out.push('\\');
+            }
+            out.push(ch);
+        }
+        previous = span;
+    }
+    out.push_str(&transition(previous, &empty));
+    out
+}
+
 /// 纯文本：去掉全部标记。
 pub fn strip(input: &str) -> String {
     parse(input).into_iter().map(|span| span.text).collect()
@@ -182,6 +302,16 @@ pub fn strip_attr_markers(input: &str) -> String {
     let mut index = 0;
     while index < input.len() {
         let rest = &input[index..];
+        // 转义序列原样保留（Markdown 同样用反斜杠转义），且被转义的 `{` 不能当属性标记剥掉
+        if let Some(escaped) = rest.strip_prefix('\\')
+            && let Some(next) = escaped.chars().next()
+            && ESCAPABLE.contains(next)
+        {
+            out.push('\\');
+            out.push(next);
+            index += 1 + next.len_utf8();
+            continue;
+        }
         if rest.starts_with("{{")
             && let Some((_, _, _, consumed)) = parse_attr_token(rest)
         {
@@ -249,5 +379,28 @@ mod tests {
             strip_attr_markers("{{size=12}}**a**{{/size}} *b*"),
             "**a** *b*"
         );
+        assert_eq!(
+            strip_attr_markers("\\{{color=#c00}}字面量 \\*"),
+            "\\{{color=#c00}}字面量 \\*"
+        );
+    }
+
+    #[test]
+    fn backslash_escapes_marker_characters() {
+        assert_eq!(
+            strip("5\\*8 \\_\\_init\\_\\_ \\`x\\` a\\\\b \\{{color=#c00}}"),
+            "5*8 __init__ `x` a\\b {{color=#c00}}"
+        );
+        // 不在转义表里的字符前的反斜杠原样保留
+        assert_eq!(strip("C:\\path"), "C:\\path");
+        // 与前端序列化器的输出对齐：粗斜交叠、属性先关后开
+        let spans = parse("*a***b**");
+        assert_eq!(spans.len(), 2);
+        assert!(spans[0].italic && !spans[0].bold && spans[0].text == "a");
+        assert!(spans[1].bold && !spans[1].italic && spans[1].text == "b");
+        let spans = parse("{{color=#c00}}负责{{/color}}**核心**模块");
+        assert_eq!(spans[0].color.as_deref(), Some("#c00"));
+        assert!(spans[1].bold && spans[1].color.is_none());
+        assert_eq!(spans[2], plain("模块"));
     }
 }

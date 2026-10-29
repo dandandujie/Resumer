@@ -7,6 +7,7 @@ import { EditableText } from '../fields/editable-text';
 import { EditableDate } from '../fields/editable-date';
 import { EditableRichText } from '../fields/editable-rich-text';
 import { EditableList } from '../fields/editable-list';
+import { TagListInput } from '../fields/tag-list-input';
 import { FieldWrapper } from '../fields/field-wrapper';
 import { generateId } from '@/lib/utils';
 import { SortableList } from '../dnd/sortable-item';
@@ -80,21 +81,21 @@ export function ProjectsSection({ section, onUpdate }: Props) {
               onRemove={() => removeItem(index)}
             >
             <FieldWrapper>
-              <EditableText label={t('projectName')} value={item.name} onChange={(v) => updateItem(index, { name: v })} />
-              <EditableText label={t('website')} value={item.url || ''} onChange={(v) => updateItem(index, { url: v })} />
+              <EditableText field="name" label={t('projectName')} value={item.name} onChange={(v) => updateItem(index, { name: v })} />
+              <EditableText field="url" label={t('website')} value={item.url || ''} onChange={(v) => updateItem(index, { url: v })} />
             </FieldWrapper>
             <FieldWrapper>
-              <EditableDate label={t('startDate')} value={item.startDate || ''} onChange={(v) => updateItem(index, { startDate: v })} />
-              <EditableDate label={t('endDate')} value={item.endDate || ''} onChange={(v) => updateItem(index, { endDate: v })} />
+              <EditableDate field="startDate" label={t('startDate')} value={item.startDate || ''} onChange={(v) => updateItem(index, { startDate: v })} />
+              <EditableDate field="endDate" label={t('endDate')} value={item.endDate || ''} onChange={(v) => updateItem(index, { endDate: v })} />
             </FieldWrapper>
-            <EditableRichText
+            <EditableRichText field="description"
               label={t('description')}
               value={item.description}
               onChange={(v) => updateItem(index, { description: v })}
               aiContext={{ sectionId: section.id, sectionTitle: section.title, item: item.name }}
             />
-            <EditableList label={t('technologies')} items={item.technologies} onChange={(v) => updateItem(index, { technologies: v })} />
-            <EditableList
+            <TagListInput field="technologies" label={t('technologies')} items={item.technologies} onChange={(v) => updateItem(index, { technologies: v })} />
+            <EditableList field="highlights"
               label={t('highlights')}
               items={item.highlights}
               onChange={(v) => updateItem(index, { highlights: v })}

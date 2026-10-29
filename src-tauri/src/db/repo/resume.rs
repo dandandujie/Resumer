@@ -212,6 +212,7 @@ pub fn delete(conn: &Connection, id: &str, user_id: &str) -> Result<(), rusqlite
     // chat_sessions lost its FK cascade in migration 003 — clean up manually
     // (chat_messages still cascade from chat_sessions).
     super::chat::delete_sessions_for_resume(conn, id)?;
+    super::document::prune_unreferenced(conn)?;
     Ok(())
 }
 
@@ -237,6 +238,9 @@ pub fn duplicate(conn: &Connection, id: &str, user_id: &str) -> Result<String, r
                     section.visible,
                     &section.content,
                 )?;
+            }
+            if let Some(document) = super::document::reference(conn, id)? {
+                super::document::restore(conn, &new_id, &document)?;
             }
             Ok(new_id)
         }

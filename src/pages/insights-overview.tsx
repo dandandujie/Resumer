@@ -6,6 +6,10 @@ import {
   AlarmClock,
   Briefcase,
   CalendarClock,
+  ArrowUpRight,
+  LayoutList,
+  Columns3,
+  Network,
   FileText,
   MapPin,
   MoreVertical,
@@ -50,6 +54,7 @@ import {
 import { ApplicationEditor } from '@/components/journal/application-editor';
 import { FORMAT_KEY, STATUS_KEY, formatDateTime, statusTone } from '@/components/journal/journal-labels';
 import { cn } from '@/lib/utils';
+import { logError } from '@/stores/error-log-store';
 import * as api from '@/lib/tauri-api';
 import { KnowledgeGraph } from '@/components/graph/knowledge-graph';
 import { ApplicationKanban } from '@/components/journal/application-kanban';
@@ -105,6 +110,7 @@ export default function InsightsOverviewPage() {
   const [query, setQuery] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('updated');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedRoundId, setSelectedRoundId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Application | null>(null);
   const [view, setView] = useState<InsightsView>('list');
   const [graph, setGraph] = useState<api.KnowledgeGraphData>({ nodes: [], edges: [] });
@@ -115,8 +121,8 @@ export default function InsightsOverviewPage() {
   }, [hydrate]);
   useEffect(() => {
     void fetchResumes();
-    void api.knowledgeGraph().then(setGraph);
-  }, [fetchResumes]);
+    void api.knowledgeGraph().then(setGraph).catch((error) => logError(tJournal('viewGraph'), String(error)));
+  }, [fetchResumes, tJournal]);
 
   const resumeMap = useMemo(() => new Map(resumes.map((r) => [r.id, r.title])), [resumes]);
   const resumeOptions = useMemo(() => resumes.map((r) => ({ id: r.id, title: r.title })), [resumes]);
@@ -171,7 +177,7 @@ export default function InsightsOverviewPage() {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
+    <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--whale-ink-muted)]">{t('workspace')}</p>
@@ -181,7 +187,7 @@ export default function InsightsOverviewPage() {
         {finishedCount >= 5 && (
           <button
             type="button"
-            onClick={() => void api.knowledgeStrategyReview()}
+            onClick={() => void api.knowledgeStrategyReview().catch((error) => logError(tJournal('strategyReview'), String(error)))}
             className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[var(--whale-divider)] px-4 py-2 text-[13px] font-semibold text-[var(--whale-ink)]"
           >{tJournal('strategyReview')}</button>
         )}
@@ -195,13 +201,36 @@ export default function InsightsOverviewPage() {
         </button>
       </header>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <AgendaCard items={agenda} locale={locale} onOpen={setSelectedId} />
-        <PipelineFunnel agg={agg} />
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label={t('funnelTitle')}>
+        {[
+          { key: 'all' as const, label: t('funnelApplied'), count: applications.length, detail: tJournal('metricTotal') },
+          { key: 'open' as const, label: t('funnelInProgress'), count: agg.pendingCount, detail: tJournal('metricActive') },
+          { key: 'offer' as const, label: t('funnelOffers'), count: agg.offerCount, detail: tJournal('metricOffer') },
+          { key: 'overdue' as const, label: t('funnelOverdue'), count: agg.overdueFollowUps, detail: tJournal('metricFollowUp') },
+        ].map((metric) => (
+          <button key={metric.key} type="button" aria-pressed={filter === metric.key} onClick={() => { setFilter(metric.key); if (view === 'graph') setView('list'); }}
+            className={cn('group min-w-0 cursor-pointer rounded-xl border px-4 py-3 text-left transition-colors', metric.key === 'open' ? 'border-[var(--whale-ink)] bg-[var(--whale-ink)] text-[var(--whale-cream)]' : 'border-[var(--whale-divider)] bg-[var(--whale-card)] hover:border-[var(--whale-ink-muted)]')}>
+            <span className="flex items-center justify-between text-xs opacity-75">{metric.label}<ArrowUpRight className="h-3.5 w-3.5 opacity-50 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" /></span>
+            <span className="mt-1 block font-display text-2xl font-semibold tabular-nums">{metric.count.toString().padStart(2, '0')}</span>
+            <span className="sr-only">{metric.detail}</span>
+          </button>
+        ))}
+      </section>
+      <div className={cn("grid min-w-0 items-start gap-5", view === 'list' && "xl:grid-cols-[minmax(0,1fr)_280px]")}>
+      <div className="min-w-0 space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-base font-semibold">{tJournal('applicationsHeading')}</h2>
+        <div className="inline-flex rounded-lg bg-[var(--whale-cream-deep)] p-1" role="tablist" aria-label={tJournal('viewLabel')}>
+          {(['list', 'kanban', 'graph'] as const).map((item) => {
+            const Icon = item === 'list' ? LayoutList : item === 'kanban' ? Columns3 : Network;
+            return <button key={item} type="button" role="tab" aria-selected={view === item} onClick={() => setView(item)} className={cn('inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs transition-colors', view === item ? 'bg-[var(--whale-card)] text-[var(--whale-ink)] shadow-sm' : 'text-[var(--whale-ink-muted)]')}>
+              <Icon className="h-3.5 w-3.5" />{item === 'list' ? tJournal('viewList') : item === 'kanban' ? tJournal('viewKanban') : tJournal('viewGraph')}
+            </button>;
+          })}
+        </div>
       </div>
-
       {/* 筛选 */}
-      <section className="flex flex-wrap items-center gap-2">
+      <section className={cn("flex flex-wrap items-center gap-2", view === 'graph' && "hidden")}>
         {filterDefs.map((item) => (
           <FilterPill
             key={item.key}
@@ -226,38 +255,14 @@ export default function InsightsOverviewPage() {
         </Select>
       </section>
 
-      <div className="flex items-center justify-end gap-1 rounded-lg border border-[var(--whale-divider)] p-0.5">
-        {(['list', 'kanban', 'graph'] as const).map((item) => (
-          <button key={item} type="button" onClick={() => setView(item)} className={`rounded-md px-3 py-1.5 text-xs ${view === item ? 'bg-[var(--whale-ink)] text-[var(--whale-cream)]' : 'text-[var(--whale-ink-muted)]'}`}>
-            {item === 'list'
-              ? tJournal('viewList')
-              : item === 'kanban' ? tJournal('viewKanban') : tJournal('viewGraph')}
-          </button>
-        ))}
-      </div>
-
-      {view === 'graph' ? (
-        <KnowledgeGraph
-          nodes={mergedGraph.nodes}
-          edges={mergedGraph.edges}
-          onNodeClick={(node) => node.id.startsWith('application:') && setSelectedId(node.id.slice('application:'.length))}
-        />
-      ) : view === 'kanban' ? (
-        <div className="overflow-x-auto rounded-2xl bg-[var(--whale-card)] p-3 shadow-[0_0_0_1px_var(--whale-divider)]">
-          <ApplicationKanban
-            applications={applications}
-            onOpen={setSelectedId}
-            onStatusChange={(id, status) => void updateApplication(id, { status })}
-          />
-        </div>
-      ) : <section className="overflow-hidden rounded-2xl bg-[var(--whale-card)] shadow-[0_0_0_1px_var(--whale-divider)]">
-        <div className="flex items-center justify-between gap-3 border-b border-[var(--whale-divider)] px-4 py-2.5">
+        <div className={cn("flex flex-wrap items-center justify-between gap-3", view === 'graph' && "hidden")}>
           <label className="relative w-full max-w-[300px]">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--whale-ink-muted)]" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t('insightsSearchPlaceholder')}
+              aria-label={t('insightsSearchPlaceholder')}
               className="h-8 w-full rounded-lg border border-[var(--whale-divider)] bg-[var(--whale-card)] pl-9 pr-3 text-[12px] outline-none transition-colors placeholder:text-[var(--whale-ink-muted)] focus:border-[var(--whale-ink-muted)]"
             />
           </label>
@@ -274,6 +279,23 @@ export default function InsightsOverviewPage() {
             </Select>
           </div>
         </div>
+      {view === 'graph' ? (
+        <KnowledgeGraph
+          nodes={mergedGraph.nodes}
+          edges={mergedGraph.edges}
+          onNodeClick={(node) => node.id.startsWith('application:') && setSelectedId(node.id.slice('application:'.length))}
+        />
+      ) : view === 'kanban' ? (
+        <div className="overflow-x-auto rounded-xl border border-[var(--whale-divider)] bg-[var(--whale-card)] p-3">
+          <p className="mb-3 text-xs text-[var(--whale-ink-muted)]">{tJournal('kanbanHint')}</p>
+          <ApplicationKanban
+            applications={filtered}
+            onOpen={setSelectedId}
+            onStatusChange={(id, status) => void updateApplication(id, { status })}
+          />
+        </div>
+      ) : <section className="overflow-hidden rounded-2xl bg-[var(--whale-card)] shadow-[0_0_0_1px_var(--whale-divider)]">
+
 
         {!loaded ? (
           <div className="py-16 text-center text-[13px] text-[var(--whale-ink-muted)]">{tCommon('loading')}</div>
@@ -311,11 +333,18 @@ export default function InsightsOverviewPage() {
         )}
       </section>}
 
+      </div>
+      <aside className={cn("grid min-w-0 gap-4 lg:grid-cols-2", view === 'list' && 'xl:grid-cols-1')}>
+        <AgendaCard items={agenda} locale={locale} onOpen={(id, roundId) => { setSelectedRoundId(roundId ?? null); setSelectedId(id); }} />
+        <PipelineFunnel agg={agg} />
+      </aside>
+      </div>
+
       {/* 详情抽屉 */}
-      <Sheet open={!!selected} onOpenChange={(open) => !open && setSelectedId(null)}>
+      <Sheet open={!!selected} onOpenChange={(open) => { if (!open) { setSelectedId(null); setSelectedRoundId(null); } }}>
         <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]">
-          <SheetHeader className="border-b border-[var(--whale-divider)] px-5 py-3">
-            <SheetTitle className="truncate text-[15px]">
+          <SheetHeader className="border-b border-[var(--whale-divider)] px-5 py-5 pr-12">
+            <SheetTitle className="break-words text-[17px]">
               {selected ? [selected.company, selected.role].filter(Boolean).join(' · ') || tJournal('untitledCompany') : ''}
             </SheetTitle>
           </SheetHeader>
@@ -324,6 +353,7 @@ export default function InsightsOverviewPage() {
               <ApplicationEditor
                 key={selected.id}
                 app={selected}
+                initialRoundId={selectedRoundId}
                 resumes={resumeOptions}
                 onDelete={() => setPendingDelete(selected)}
                 onBeforeLaunchTool={() => setSelectedId(null)}
@@ -358,6 +388,7 @@ function FilterPill({ label, count, active, onClick }: { label: string; count: n
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
         'inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors',
         active
@@ -374,10 +405,11 @@ function FilterPill({ label, count, active, onClick }: { label: string; count: n
 }
 
 /** 接下来要做的事：未来 7 天的面试 + 逾期/今日跟进。 */
-function AgendaCard({ items, locale, onOpen }: { items: AgendaItem[]; locale: string; onOpen: (id: string) => void }) {
+function AgendaCard({ items, locale, onOpen }: { items: AgendaItem[]; locale: string; onOpen: (id: string, roundId?: string) => void }) {
   const t = useTranslations('dashboard');
   const tJournal = useTranslations('journal');
-  const shown = items.slice(0, 6);
+  const [expanded, setExpanded] = useState(false);
+  const shown = expanded ? items : items.slice(0, 4);
   return (
     <section className="flex flex-col rounded-2xl border border-[var(--whale-divider)] bg-[var(--whale-card)] p-4 shadow-sm">
       <div className="mb-3 flex items-baseline justify-between">
@@ -396,8 +428,9 @@ function AgendaCard({ items, locale, onOpen }: { items: AgendaItem[]; locale: st
               <li key={`${item.kind}-${item.app.id}-${item.round?.id ?? ''}`}>
                 <button
                   type="button"
-                  onClick={() => onOpen(item.app.id)}
-                  className="flex w-full cursor-pointer items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-[var(--whale-cream-soft)]"
+                  data-agenda-round={item.round?.id}
+                  onClick={() => onOpen(item.app.id, item.round?.id)}
+                  className="flex w-full cursor-pointer flex-wrap items-start gap-x-2 gap-y-1 rounded-lg px-1 py-2.5 text-left transition-colors hover:bg-[var(--whale-cream-soft)]"
                 >
                   <span
                     className={cn(
@@ -423,7 +456,7 @@ function AgendaCard({ items, locale, onOpen }: { items: AgendaItem[]; locale: st
                           : t('agendaFollowUpToday')}
                     </span>
                   </span>
-                  <span className={cn('shrink-0 text-[11px] font-medium tabular-nums', overdue ? 'text-red-600' : 'text-[var(--whale-ink-soft)]')}>
+                  <span className={cn('ml-9 w-full text-[11px] font-medium tabular-nums', overdue ? 'text-red-600' : 'text-[var(--whale-ink-soft)]')}>
                     {isInterview ? formatDateTime(item.round?.scheduledAt, locale) : item.app.nextFollowUp}
                   </span>
                 </button>
@@ -431,7 +464,7 @@ function AgendaCard({ items, locale, onOpen }: { items: AgendaItem[]; locale: st
             );
           })}
           {items.length > shown.length && (
-            <li className="px-2.5 pt-1 text-[11px] text-[var(--whale-ink-muted)]">{t('agendaMore', { count: items.length - shown.length })}</li>
+            <li><button type="button" onClick={() => setExpanded(true)} className="cursor-pointer px-2.5 pt-1 text-xs text-[var(--whale-mint-deep)]">{t('agendaMore', { count: items.length - shown.length })}</button></li>
           )}
         </ul>
       )}
@@ -468,8 +501,8 @@ function PipelineFunnel({ agg }: { agg: JournalAggregate }) {
       ) : (
         <div className="flex flex-1 flex-col justify-center gap-2">
           {stages.map((stage, i) => (
-            <div key={stage.key} className="flex items-center gap-3">
-              <span className="w-12 shrink-0 text-right text-[12px] font-medium text-[var(--whale-ink-soft)]">{stage.label}</span>
+            <div key={stage.key} className="flex items-center gap-2">
+              <span className="w-16 shrink-0 text-left text-[11px] font-medium text-[var(--whale-ink-soft)]">{stage.label}</span>
               <div className="relative h-6 flex-1 overflow-hidden rounded-md bg-[var(--whale-cream-soft)]">
                 <div
                   className={cn('h-full rounded-md transition-all', stage.tone)}
@@ -477,13 +510,13 @@ function PipelineFunnel({ agg }: { agg: JournalAggregate }) {
                 />
               </div>
               <span className="w-8 shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--whale-ink)]">{stage.count}</span>
-              <span className="w-9 shrink-0 text-right text-[11px] tabular-nums text-[var(--whale-ink-muted)]">{stageConv[i] || ''}</span>
+              <span className="w-8 shrink-0 text-right text-[10px] tabular-nums text-[var(--whale-ink-muted)]">{stageConv[i] || ''}</span>
             </div>
           ))}
         </div>
       )}
 
-      <div className="mt-3 flex items-center gap-4 border-t border-[var(--whale-divider)] pt-3 text-[11px]">
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[var(--whale-divider)] pt-3 text-[11px]">
         <span className={cn('flex items-center gap-1', agg.overdueFollowUps > 0 ? 'text-red-600' : 'text-[var(--whale-ink-muted)]')}>
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-current" />
           {t('funnelOverdue')} {agg.overdueFollowUps}
@@ -525,21 +558,21 @@ function ApplicationRow({
   const overdue = isOverdue(app);
 
   return (
-    <li className="grid grid-cols-[minmax(180px,1.4fr)_120px_minmax(120px,1fr)_minmax(170px,1.1fr)_40px] items-center gap-3 border-b border-[var(--whale-divider)] px-4 py-2.5 text-[12px] transition-colors hover:bg-[var(--whale-cream-soft)] last:border-b-0">
+    <li className="journal-application-row grid grid-cols-[minmax(0,1fr)_110px_28px] items-center gap-x-3 gap-y-3 border-b border-[var(--whale-divider)] p-4 text-[13px] transition-colors hover:bg-[var(--whale-cream-soft)] last:border-b-0">
       <button type="button" onClick={onOpen} className="flex min-w-0 cursor-pointer items-center gap-2.5 text-left">
         <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--whale-divider)] bg-[var(--whale-card)]">
           <Briefcase className="h-4 w-4 text-[var(--whale-ink-soft)]" />
         </span>
         <span className="min-w-0">
           <span className="block truncate font-semibold text-[var(--whale-ink)]">{app.company || tJournal('untitledCompany')}</span>
-          <span className="block truncate text-[11px] text-[var(--whale-ink-muted)]">
+          <span className="mt-1 block break-words text-[12px] leading-relaxed text-[var(--whale-ink-muted)]">
             {[app.role || '—', app.channel, app.appliedDate].filter(Boolean).join(' · ')}
           </span>
         </span>
       </button>
 
       <Select value={app.status} onValueChange={(v) => onStatusChange(v as ApplicationStatus)}>
-        <SelectTrigger size="sm" className={cn('h-7 w-full gap-1 rounded-full border-0 px-2.5 text-[11px] font-medium shadow-none', statusTone(app.status))}>
+        <SelectTrigger aria-label={`${app.company} ${tJournal('fieldStatus')}`} size="sm" className={cn('h-8 w-full gap-1 rounded-full border-0 px-2.5 text-[11px] font-medium shadow-none', statusTone(app.status))}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -549,6 +582,7 @@ function ApplicationRow({
         </SelectContent>
       </Select>
 
+      <div className="col-span-3 row-start-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-[var(--whale-ink-muted)]">
         <FileText className="h-3.5 w-3.5 shrink-0" />
         <span className={cn('truncate', resumeDeleted && 'text-red-600')}>
@@ -565,14 +599,14 @@ function ApplicationRow({
             ) : (
               <Video className="h-3.5 w-3.5 shrink-0 text-amber-600" />
             )}
-            <span className="truncate text-[var(--whale-ink-soft)]">
+            <span className="break-words text-[var(--whale-ink-soft)]">
               {[upcoming.round || tJournal('stageInterview'), formatDateTime(upcoming.scheduledAt, locale), upcoming.location].filter(Boolean).join(' · ')}
             </span>
           </>
         ) : app.nextFollowUp && (app.status === 'submitted' || app.status === 'screening' || app.status === 'interview') ? (
           <>
             <AlarmClock className={cn('h-3.5 w-3.5 shrink-0', overdue ? 'text-red-600' : 'text-[var(--whale-ink-muted)]')} />
-            <span className={cn('truncate', overdue ? 'font-medium text-red-600' : 'text-[var(--whale-ink-soft)]')}>
+            <span className={cn('break-words', overdue ? 'font-medium text-red-600' : 'text-[var(--whale-ink-soft)]')}>
               {overdue ? t('agendaFollowUpOverdue', { date: app.nextFollowUp }) : `${tJournal('followUpDue')} ${app.nextFollowUp}`}
             </span>
           </>
@@ -583,9 +617,11 @@ function ApplicationRow({
         )}
       </span>
 
+      </div>
+
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button type="button" className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--whale-ink-muted)] hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]">
+          <button type="button" aria-label={t('insightsRowDetail')} className="col-start-3 row-start-1 inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--whale-ink-muted)] hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]">
             <MoreVertical className="h-4 w-4" />
           </button>
         </DropdownMenuTrigger>

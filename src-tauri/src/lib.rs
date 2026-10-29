@@ -46,6 +46,11 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::document::import_original_docx,
+            commands::document::get_original_docx,
+            commands::document::save_original_docx,
+            commands::document::export_original_docx,
+            commands::document::save_docx_copy,
             commands::resume::list_resumes,
             commands::resume::get_resume,
             commands::resume::create_resume,
@@ -61,6 +66,7 @@ pub fn run() {
             commands::user::update_settings,
             commands::ai::ai_list_models,
             commands::ai::ai_test_connection,
+            commands::ai::ai_test_search,
             commands::ai::ai_grammar_check,
             commands::ai::ai_cover_letter,
             commands::ai::ai_jd_analysis,

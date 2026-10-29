@@ -14,11 +14,10 @@ export function SummarySection({ section, onUpdate }: Props) {
   const content = section.content as SummaryContent;
 
   return (
-    <EditableRichText
+    <EditableRichText field="text"
       label={t('description')}
       value={content.text}
       onChange={(v) => onUpdate({ text: v })}
-      rows={4}
       aiContext={{ sectionId: section.id, sectionTitle: section.title }}
     />
   );

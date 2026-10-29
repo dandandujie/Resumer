@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import * as api from '@/lib/tauri-api';
 import { useResumeStore } from '@/stores/resume-store';
 import { useEditorStore } from '@/stores/editor-store';
@@ -9,31 +9,33 @@ export function useEditor(resumeId: string) {
   const { setResume, sections, currentResume, updateSection, addSection, removeSection, reorderSections, reset: resetResume } = useResumeStore();
   const { pushSnapshot, reset: resetEditor, selectSection } = useEditorStore();
   const [isLoading, setIsLoading] = useState(true);
+  const loadRequest = useRef(0);
 
   const loadResume = useCallback(async () => {
+    const request = ++loadRequest.current;
     try {
       setIsLoading(true);
       const data = await api.getResume(resumeId);
+      if (request !== loadRequest.current) return;
       if (data) {
         setResume({
           ...data,
           sections: data.sections || [],
           themeConfig: data.themeConfig || {},
-          createdAt: new Date(data.createdAt * 1000),
-          updatedAt: new Date(data.updatedAt * 1000),
         });
       }
     } catch (error) {
       console.error('Failed to load resume:', error);
       logError('加载失败', '简历加载失败，请刷新页面重试');
     } finally {
-      setIsLoading(false);
+      if (request === loadRequest.current) setIsLoading(false);
     }
   }, [resumeId, setResume]);
 
   useEffect(() => {
     loadResume();
     return () => {
+      loadRequest.current++;
       void useResumeStore.getState().flushPendingSave();
       resetResume();
       resetEditor();

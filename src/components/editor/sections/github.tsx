@@ -1,10 +1,13 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { Plus, X, RefreshCw, Star, Code2, Loader2 } from 'lucide-react';
+import { Plus, RefreshCw, Star, Code2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
+import { SortableList } from '../dnd/sortable-item';
+import { ItemCard } from '../fields/item-card';
+import { useEditorStore } from '@/stores/editor-store';
+import { plainText } from '@/lib/resume-text';
 import { EditableText } from '../fields/editable-text';
 import { EditableRichText } from '../fields/editable-rich-text';
 import { generateId } from '@/lib/utils';
@@ -25,9 +28,9 @@ export function GitHubSection({ section, onUpdate }: Props) {
   const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   // Keep a ref to always access the latest items, avoiding stale closures in setTimeout
   const itemsRef = useRef(items);
-  itemsRef.current = items;
+  useLayoutEffect(() => { itemsRef.current = items; }, [items]);
 
-  const addItem = () => {
+  const addItemAt = (index = items.length) => {
     const newItem: GitHubRepoItem = {
       id: generateId(),
       repoUrl: '',
@@ -36,7 +39,14 @@ export function GitHubSection({ section, onUpdate }: Props) {
       language: '',
       description: '',
     };
-    onUpdate({ items: [...items, newItem] } as any);
+    onUpdate({ items: [...items.slice(0,index), newItem, ...items.slice(index)] } as any);
+    useEditorStore.getState().setActiveItem({sectionId:section.id,itemId:newItem.id});
+  };
+
+  const moveItem = (from: number, to: number) => {
+    if (to < 0 || to >= items.length) return;
+    const next = [...items]; const [item] = next.splice(from,1); next.splice(to,0,item);
+    onUpdate({items:next} as any);
   };
 
   const updateItem = (index: number, data: Partial<GitHubRepoItem>) => {
@@ -53,19 +63,22 @@ export function GitHubSection({ section, onUpdate }: Props) {
     onUpdate({ items: items.filter((_, i) => i !== index) } as any);
   };
 
-  const fetchRepo = async (index: number, url: string) => {
+  const fetchRepo = async (itemId: string, url: string) => {
     const latest = itemsRef.current;
-    const item = latest[index];
+    const item = latest.find(entry => entry.id === itemId && plainText(entry.repoUrl) === plainText(url));
     if (!item) return;
     setLoadingIds((prev) => new Set(prev).add(item.id));
     try {
-      const data = await (await import('@/lib/tauri-api')).aiFetchGithubRepo(url);
+      const data = await (await import('@/lib/tauri-api')).aiFetchGithubRepo(plainText(url));
       if (data) {
-        updateItem(index, {
-          name: data.name,
+        const latestIndex = itemsRef.current.findIndex(entry => entry.id === item.id && plainText(entry.repoUrl) === plainText(url));
+        if (latestIndex < 0) return;
+        const current = itemsRef.current[latestIndex];
+        updateItem(latestIndex, {
+          name: current.name || data.name,
           stars: data.stars,
           language: data.language,
-          description: data.description,
+          description: current.description || data.description,
         });
       }
     } catch { /* ignore */ }
@@ -85,10 +98,10 @@ export function GitHubSection({ section, onUpdate }: Props) {
     const prev = debounceTimers.current.get(item.id);
     if (prev) clearTimeout(prev);
 
-    if (GITHUB_REPO_RE.test(value)) {
+    if (plainText(value) !== plainText(item.repoUrl) && GITHUB_REPO_RE.test(plainText(value))) {
       const timer = setTimeout(() => {
         debounceTimers.current.delete(item.id);
-        fetchRepo(index, value);
+        fetchRepo(item.id, value);
       }, 600);
       debounceTimers.current.set(item.id, timer);
     }
@@ -100,31 +113,30 @@ export function GitHubSection({ section, onUpdate }: Props) {
     if (didAutoRefresh.current) return;
     didAutoRefresh.current = true;
     const current = itemsRef.current;
-    current.forEach((item, index) => {
-      if (item.repoUrl && GITHUB_REPO_RE.test(item.repoUrl)) {
+    current.forEach((item) => {
+      if (item.repoUrl && GITHUB_REPO_RE.test(plainText(item.repoUrl))) {
         import('@/lib/tauri-api')
-          .then((api) => api.aiFetchGithubRepo(item.repoUrl))
-          .then((data) => { if (data) updateItem(index, { stars: data.stars }); })
+          .then((api) => api.aiFetchGithubRepo(plainText(item.repoUrl)))
+          .then((data) => { const latest = itemsRef.current.findIndex(entry => entry.id === item.id && plainText(entry.repoUrl) === plainText(item.repoUrl)); if (data && latest >= 0) updateItem(latest, { stars: data.stars }); })
           .catch(() => {});
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => () => {
+    for (const timer of debounceTimers.current.values()) clearTimeout(timer);
+  }, []);
+
   return (
     <div className="space-y-4">
-      {items.map((item, index) => (
-        <div key={item.id || `gh-${index}`}>
-          {index > 0 && <Separator className="mb-4" />}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-[var(--whale-ink-muted)]">#{index + 1}</span>
-              <Button variant="ghost" size="sm" className="h-7 cursor-pointer p-1 text-[var(--whale-ink-muted)] hover:text-red-500" onClick={() => removeItem(index)}>
-                <X className="h-3.5 w-3.5" />
-              </Button>
-            </div>
+      <SortableList items={items.map(item=>item.id)} onMove={moveItem} ownHandle>
+        {(_, index, handle) => { const item=items[index]; return (
+          <ItemCard sectionId={section.id} itemId={item.id} index={index} count={items.length} title={plainText(item.name || item.repoUrl)} handle={handle}
+            onMove={(to)=>moveItem(index,to)} onInsert={()=>addItemAt(index)} onRemove={()=>removeItem(index)}>
+            <EditableText field="name" label={t('projectName')} value={item.name} onChange={value=>updateItem(index,{name:value})} />
             <div className="relative">
-              <EditableText
+              <EditableText field="repoUrl"
                 label={t('repoUrl')}
                 value={item.repoUrl}
                 onChange={(v) => handleUrlChange(index, v)}
@@ -135,7 +147,7 @@ export function GitHubSection({ section, onUpdate }: Props) {
             </div>
             {item.name && (
               <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--whale-ink-soft)]">
-                <span className="font-medium text-[var(--whale-ink)]">{item.name}</span>
+                <span className="font-medium text-[var(--whale-ink)]">{plainText(item.name)}</span>
                 {item.stars > 0 && (
                   <span className="inline-flex items-center gap-0.5">
                     <Star className="h-3 w-3 text-amber-500" />
@@ -151,18 +163,18 @@ export function GitHubSection({ section, onUpdate }: Props) {
                 <button
                   type="button"
                   className="inline-flex cursor-pointer items-center gap-0.5 text-[var(--whale-ink-muted)] hover:text-[var(--whale-ink)]"
-                  onClick={() => fetchRepo(index, item.repoUrl)}
+                  onClick={() => fetchRepo(item.id, item.repoUrl)}
                   disabled={loadingIds.has(item.id)}
                 >
                   <RefreshCw className={`h-3 w-3 ${loadingIds.has(item.id) ? 'animate-spin' : ''}`} />
                 </button>
               </div>
             )}
-            <EditableRichText label={t('description')} value={item.description} onChange={(v) => updateItem(index, { description: v })} />
-          </div>
-        </div>
-      ))}
-      <Button variant="outline" size="sm" onClick={addItem} className="w-full cursor-pointer gap-1">
+            <EditableRichText field="description" label={t('description')} value={item.description} onChange={(v) => updateItem(index, { description: v })} />
+          </ItemCard>
+        ); }}
+      </SortableList>
+      <Button variant="outline" size="sm" onClick={() => addItemAt()} className="w-full cursor-pointer gap-1">
         <Plus className="h-3.5 w-3.5" />
         {t('addItem')}
       </Button>

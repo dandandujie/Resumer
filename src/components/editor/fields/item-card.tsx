@@ -5,7 +5,9 @@ import { useTranslations } from 'next-intl';
 import { ChevronDown } from 'lucide-react';
 import { SortableItemActions, type SortableHandleProps } from '../dnd/sortable-item';
 import { useEditorStore } from '@/stores/editor-store';
+import { plainText } from '@/lib/resume-text';
 import { cn } from '@/lib/utils';
+import { FieldScopeProvider } from './field-scope';
 
 interface ItemCardProps {
   sectionId: string;
@@ -74,9 +76,9 @@ export function ItemCard({
           <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform', !expanded && '-rotate-90')} />
           <span className="shrink-0 text-[11px] font-medium tabular-nums text-muted-foreground">#{index + 1}</span>
           <span className={cn('truncate text-xs', title ? 'font-medium text-[var(--whale-ink)]' : 'text-muted-foreground')}>
-            {title || t('untitled')}
+            {plainText(title) || t('untitled')}
           </span>
-          {subtitle && <span className="truncate text-[11px] text-muted-foreground">{subtitle}</span>}
+          {subtitle && <span className="truncate text-[11px] text-muted-foreground">{plainText(subtitle)}</span>}
         </button>
         <SortableItemActions
           index={index}
@@ -89,7 +91,7 @@ export function ItemCard({
       </div>
       {expanded && (
         <div className="space-y-3 border-t border-[var(--whale-divider)] p-3" onFocusCapture={activate}>
-          {children}
+          <FieldScopeProvider sectionId={sectionId} itemId={itemId}>{children}</FieldScopeProvider>
         </div>
       )}
     </div>

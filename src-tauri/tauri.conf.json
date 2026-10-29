@@ -30,7 +30,8 @@
     "active": true,
     "targets": "all",
     "resources": [
-      "fonts/*"
+      "fonts/*",
+      "../licenses/*"
     ],
     "icon": [
       "icons/32x32.png",

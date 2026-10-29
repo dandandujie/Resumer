@@ -81,18 +81,18 @@ export function EducationSection({ section, onUpdate }: Props) {
               onRemove={() => removeItem(index)}
             >
             <FieldWrapper>
-              <EditableText label={t('institution')} value={item.institution} onChange={(v) => updateItem(index, { institution: v })} />
-              <EditableText label={t('degree')} value={item.degree} onChange={(v) => updateItem(index, { degree: v })} />
+              <EditableText field="institution" label={t('institution')} value={item.institution} onChange={(v) => updateItem(index, { institution: v })} />
+              <EditableText field="degree" label={t('degree')} value={item.degree} onChange={(v) => updateItem(index, { degree: v })} />
             </FieldWrapper>
             <FieldWrapper>
-              <EditableText label={t('field')} value={item.field} onChange={(v) => updateItem(index, { field: v })} />
-              <EditableText label={t('gpa')} value={item.gpa || ''} onChange={(v) => updateItem(index, { gpa: v })} />
+              <EditableText field="field" label={t('field')} value={item.field} onChange={(v) => updateItem(index, { field: v })} />
+              <EditableText field="gpa" label={t('gpa')} value={item.gpa || ''} onChange={(v) => updateItem(index, { gpa: v })} />
             </FieldWrapper>
             <FieldWrapper>
-              <EditableDate label={t('startDate')} value={item.startDate} onChange={(v) => updateItem(index, { startDate: v })} />
-              <EditableDate label={t('endDate')} value={item.endDate} onChange={(v) => updateItem(index, { endDate: v })} />
+              <EditableDate field="startDate" label={t('startDate')} value={item.startDate} onChange={(v) => updateItem(index, { startDate: v })} />
+              <EditableDate field="endDate" label={t('endDate')} value={item.endDate} onChange={(v) => updateItem(index, { endDate: v })} />
             </FieldWrapper>
-            <EditableList
+            <EditableList field="highlights"
               label={t('highlights')}
               items={item.highlights}
               onChange={(v) => updateItem(index, { highlights: v })}

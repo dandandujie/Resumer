@@ -22,7 +22,7 @@ export type DateStyle = 'dot' | 'dash' | 'cn';
 export type HeadingStyle = 'underline' | 'plain' | 'filled';
 
 interface FontEntry {
-  /** 屏幕优先系统字体，导出优先内置字体（PDF 可嵌入、离线一致）。 */
+  /** 预览和导出共享字体优先级，不能在导出时静默替换用户选择。 */
   screen: string;
   export: string;
   /** Office/WPS 认识的字体名 */
@@ -37,42 +37,42 @@ interface FontEntry {
 export const CJK_FONTS: Record<FontSchemeId, FontEntry> = {
   yahei: {
     screen: "'Microsoft YaHei', 'PingFang SC', 'Reseumer Hei'",
-    export: "'Reseumer Hei', 'Microsoft YaHei', 'PingFang SC'",
+    export: "'Microsoft YaHei', 'PingFang SC', 'Reseumer Hei'",
     office: '微软雅黑',
   },
   'sourcehan-sans': {
     screen: "'Reseumer Hei', 'Source Han Sans SC', 'Noto Sans CJK SC', 'Noto Sans SC'",
     export: "'Reseumer Hei', 'Source Han Sans SC', 'Noto Sans CJK SC', 'Noto Sans SC'",
-    office: '思源黑体 CN',
+    office: 'Noto Sans SC',
   },
   songti: {
     screen: "'SimSun', 'Songti SC', 'Reseumer Song'",
-    export: "'Reseumer Song', 'SimSun', 'Songti SC'",
+    export: "'SimSun', 'Songti SC', 'Reseumer Song'",
     office: '宋体',
   },
   'sourcehan-serif': {
     screen: "'Reseumer Song', 'Source Han Serif SC', 'Noto Serif CJK SC', 'Noto Serif SC'",
     export: "'Reseumer Song', 'Source Han Serif SC', 'Noto Serif CJK SC', 'Noto Serif SC'",
-    office: '思源宋体 CN',
+    office: 'Noto Serif CJK SC',
   },
   stzhongsong: {
     screen: "'STZhongsong', 'Songti SC', 'SimSun', 'Reseumer Song'",
-    export: "'STZhongsong', 'Reseumer Song', 'Songti SC', 'SimSun'",
+    export: "'STZhongsong', 'Songti SC', 'SimSun', 'Reseumer Song'",
     office: '华文中宋',
   },
   heiti: {
     screen: "'SimHei', 'Heiti SC', 'Microsoft YaHei', 'Reseumer Hei'",
-    export: "'Reseumer Hei', 'SimHei', 'Heiti SC'",
+    export: "'SimHei', 'Heiti SC', 'Microsoft YaHei', 'Reseumer Hei'",
     office: '黑体',
   },
   kaiti: {
     screen: "'KaiTi', 'Kaiti SC', 'Reseumer Kai'",
-    export: "'Reseumer Kai', 'KaiTi', 'Kaiti SC'",
+    export: "'KaiTi', 'Kaiti SC', 'Reseumer Kai'",
     office: '楷体',
   },
   fangsong: {
     screen: "'FangSong', 'STFangsong', 'Reseumer Song'",
-    export: "'Reseumer Song', 'FangSong', 'STFangsong'",
+    export: "'FangSong', 'STFangsong', 'Reseumer Song'",
     office: '仿宋',
   },
 };
@@ -238,45 +238,23 @@ export function cjkOfficeFontNames(): Record<FontSchemeId, string> {
 
 /**
  * 预设是完整主题：套用即整体替换，不会残留上一预设的字段。
- * 显示名走 i18n 键 `themeEditor.presetLabels.<id>`。
+ * 只内置标准；用户自定义预设保存在本机用户设置中。
  */
 export const THEME_PRESETS: Record<string, ResolvedTheme> = {
   standard: DEFAULT_THEME,
-  'songti-classic': { ...DEFAULT_THEME, fontScheme: 'songti', latinFont: 'times', lineSpacing: 1.3 },
-  compact: {
-    ...DEFAULT_THEME,
-    fontScheme: 'sourcehan-sans',
-    latinFont: 'arial',
-    fontSize: 12,
-    lineSpacing: 1.25,
-    margin: { top: 14, right: 14, bottom: 14, left: 14 },
-    sectionSpacing: 4,
-  },
-  soe: {
-    ...DEFAULT_THEME,
-    fontScheme: 'songti',
-    latinFont: 'times',
-    fontSize: 16,
-    lineSpacing: 1.5,
-    infoLayout: 'grid',
-    avatarStyle: 'oneInch',
-  },
-  foreign: {
-    ...DEFAULT_THEME,
-    fontScheme: 'yahei',
-    latinFont: 'arial',
-    fontSize: 14.7,
-    lineSpacing: 1.3,
-    avatarStyle: 'circle',
-  },
-  'accent-blue': { ...DEFAULT_THEME, primaryColor: '#1f3a5f', accentColor: '#1f3a5f' },
+
 };
 
 /** 当前主题与哪个预设完全一致（用于工具条高亮）；被微调过就返回 null。 */
-export function matchPreset(theme: ResolvedTheme): string | null {
-  const entry = Object.entries(THEME_PRESETS).find(
-    ([, preset]) => JSON.stringify(preset) === JSON.stringify(theme),
-  );
+export function matchPreset(theme: ResolvedTheme, presets: Record<string, ResolvedTheme> = THEME_PRESETS): string | null {
+  const current = resolveTheme(theme);
+  const entry = Object.entries(presets).find(([, preset]) => {
+    const candidate = resolveTheme(preset);
+    // 只比较实际样式，旧数据遗留的 fontFamily 等迁移字段不影响高亮。
+    return (Object.keys(DEFAULT_THEME) as (keyof ResolvedTheme)[]).every(
+      (key) => JSON.stringify(candidate[key]) === JSON.stringify(current[key]),
+    );
+  });
   return entry ? entry[0] : null;
 }
 
@@ -303,17 +281,18 @@ export function buildThemeCss(
       `--base-section-spacing:${theme.sectionSpacing}px; --resume-body-color:${theme.bodyColor}; ` +
       `--resume-primary-color:${theme.primaryColor}; --resume-accent-color:${theme.accentColor}; }`,
     // span[data-fmt] 是选区级标记生成的，它自己的字号/颜色/字体要能覆盖正文规则
-    `${scopeSelector} p, ${scopeSelector} li, ${scopeSelector} span:not([data-fmt]), ${scopeSelector} td, ` +
+    `${scopeSelector} p, ${scopeSelector} li, ${scopeSelector} span:not([data-fmt]):not([data-inline-text]):not([data-paragraph]), ${scopeSelector} td, ` +
       `${scopeSelector} a, ${scopeSelector} div { font-size:${fs.body} !important; ` +
       `line-height:${theme.lineSpacing} !important; color:var(--resume-body-color); }`,
     `${scopeSelector} span[data-fmt] { line-height:${theme.lineSpacing}; }`,
+    `${scopeSelector} [data-paragraph] * { line-height:inherit !important; }`,
     `${scopeSelector} h1 { color:var(--resume-primary-color) !important; font-size:${fs.h1} !important; ` +
       `line-height:${theme.lineSpacing} !important; }`,
     `${scopeSelector} h2, ${scopeSelector} h3 { color:var(--resume-primary-color) !important; ` +
       `font-size:${fs.h2} !important; line-height:${theme.lineSpacing} !important; ` +
       `border-color:var(--resume-accent-color) !important; }`,
     `${scopeSelector} [data-section] { margin-bottom:${theme.sectionSpacing}px !important; }`,
-    `${scopeSelector} [data-zone="dark"], ${scopeSelector} [data-zone="dark"] * { color:#fff !important; }`,
+    `${scopeSelector} [data-zone="dark"], ${scopeSelector} [data-zone="dark"] :not([data-fmt], [data-fmt] *) { color:#fff !important; }`,
     `${scopeSelector} [data-zone="dark"] h2 { border-color:rgba(255,255,255,.35) !important; }`,
     headingStyle,
   ].join('\n');

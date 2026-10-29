@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import * as api from '@/lib/tauri-api';
 import { normalizeResumeDates } from '@/lib/resume-date';
+import { useResumeStore } from '@/stores/resume-store';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -81,8 +82,10 @@ export function ImportResumeDialog({
         setState('error');
         return;
       }
-      if (candidate.size > 20 * 1024 * 1024) {
-        setError(t('fileTooLarge'));
+      // 完整中文字体嵌入后的 DOCX 可能超过 20 MB，必须能重新导入自己导出的文件。
+      const max = type === MIME_BY_EXTENSION.docx ? 64 : 20;
+      if (candidate.size > max * 1024 * 1024) {
+        setError(t('fileTooLarge', { max }));
         setState('error');
         return;
       }
@@ -112,15 +115,23 @@ export function ImportResumeDialog({
         } else {
           resumeId = await api.createResume({
             title: data.title || '未命名简历',
+            template: data.template,
+            language: data.language,
             themeConfig: data.themeConfig,
             sections: normalizeResumeDates(data.sections),
           });
         }
+
       } else {
         resumeId = await api.parseResumeFile({
           file,
           targetResumeId: mode === 'replace' ? targetResumeId : undefined,
         });
+      }
+      if (mode === 'replace') {
+        const current = await api.getResume(resumeId);
+        if (!current) throw new Error(t('invalidFormat'));
+        useResumeStore.getState().setResume(current);
       }
       setState('success');
       window.setTimeout(() => {
@@ -223,7 +234,7 @@ export function ImportResumeDialog({
                 <Upload className="mb-2 h-8 w-8 text-muted-foreground" />
                 <p className="text-sm font-medium">{t('selectAnyFile')}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {t('supportedFiles')}
+                  {t('supportedFiles')}<br />{t('aiImport')}
                 </p>
               </>
             )}

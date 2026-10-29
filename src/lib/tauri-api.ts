@@ -3,6 +3,7 @@
  */
 import { invoke } from '@tauri-apps/api/core';
 import { DEFAULT_THEME } from '@/lib/theme-config';
+import { normalizeResumeData } from '@/lib/resume-api-data';
 
 // ── 用户 ──
 // 桌面端只有一个本地用户，由后端负责创建/归并；前端只缓存它的 id。
@@ -27,7 +28,10 @@ export type WebSearchMode =
   | 'google'
   | 'baidu'
   | 'tavily'
-  | 'grok';
+  | 'grok'
+  | 'doubao'
+  | 'deepseek'
+  | 'deepseek-api';
 
 export interface AIRequestConfig {
   provider: AIProviderId;
@@ -39,6 +43,13 @@ export interface AIRequestConfig {
   grokApiKey?: string;
   grokBaseUrl?: string;
   grokModel?: string;
+  doubaoApiKey?: string;
+  doubaoBaseUrl?: string;
+  doubaoModel?: string;
+  deepseekApiKey?: string;
+  deepseekBaseUrl?: string;
+  deepseekModel?: string;
+  deepseekSearchUrl?: string;
 }
 
 interface SettingsSnapshot {
@@ -51,6 +62,13 @@ interface SettingsSnapshot {
   grokApiKey: string;
   grokBaseURL: string;
   grokModel: string;
+  doubaoApiKey: string;
+  doubaoBaseURL: string;
+  doubaoModel: string;
+  deepseekApiKey: string;
+  deepseekBaseURL: string;
+  deepseekModel: string;
+  deepseekSearchURL: string;
 }
 
 const DEFAULT_CONFIG: AIRequestConfig = {
@@ -63,6 +81,13 @@ const DEFAULT_CONFIG: AIRequestConfig = {
   grokApiKey: '',
   grokBaseUrl: '',
   grokModel: '',
+  doubaoApiKey: '',
+  doubaoBaseUrl: '',
+  doubaoModel: '',
+  deepseekApiKey: '',
+  deepseekBaseUrl: '',
+  deepseekModel: '',
+  deepseekSearchUrl: '',
 };
 
 /**
@@ -86,10 +111,21 @@ export function getAIConfig(modelOverride?: string): AIRequestConfig {
         grokApiKey: state.grokApiKey,
         grokBaseUrl: state.grokBaseURL,
         grokModel: state.grokModel,
+        doubaoApiKey: state.doubaoApiKey,
+        doubaoBaseUrl: state.doubaoBaseURL,
+        doubaoModel: state.doubaoModel,
+        deepseekApiKey: state.deepseekApiKey,
+        deepseekBaseUrl: state.deepseekBaseURL,
+        deepseekModel: state.deepseekModel,
+        deepseekSearchUrl: state.deepseekSearchURL,
       }
     : DEFAULT_CONFIG;
   const model = modelOverride?.trim();
   return model ? { ...base, model } : base;
+}
+
+export async function aiTestSearch(config: AIRequestConfig) {
+  return invoke<{ engine: string; results: { title: string; url: string; content: string }[] }>('ai_test_search', { config });
 }
 
 export function isAIConfigured(): boolean {
@@ -111,12 +147,14 @@ export async function aiTestConnection(config: AIRequestConfig) {
 
 export async function listResumes() {
   const userId = await getCachedUserId();
-  return invoke<any[]>('list_resumes', { userId });
+  const data = await invoke<any[]>('list_resumes', { userId });
+  return data.map(normalizeResumeData);
 }
 
 export async function getResume(id: string) {
   const userId = await getCachedUserId();
-  return invoke<any>('get_resume', { id, userId });
+  const data = await invoke<any>('get_resume', { id, userId });
+  return data ? normalizeResumeData(data) : null;
 }
 
 export async function createResume(data: {
@@ -169,6 +207,35 @@ export async function deleteResume(id: string) {
 export async function duplicateResume(id: string) {
   const userId = await getCachedUserId();
   return invoke<string>('duplicate_resume', { id, userId });
+}
+
+export interface OriginalDocument {
+  filename: string;
+  revision: number;
+  bytes: number[];
+}
+
+export async function importOriginalDocx(file: File, targetResumeId?: string) {
+  return invoke<string>('import_original_docx', {
+    userId: await getCachedUserId(), filename: file.name,
+    bytes: Array.from(new Uint8Array(await file.arrayBuffer())), targetResumeId,
+  });
+}
+
+export async function getOriginalDocx(resumeId: string, versionId?: string) {
+  return invoke<OriginalDocument>('get_original_docx', { userId: await getCachedUserId(), resumeId, versionId });
+}
+
+export async function saveOriginalDocx(resumeId: string, revision: number, bytes: number[]) {
+  return invoke<number>('save_original_docx', { userId: await getCachedUserId(), resumeId, revision, bytes });
+}
+
+export async function exportOriginalDocx(resumeId: string) {
+  return invoke<string | null>('export_original_docx', { userId: await getCachedUserId(), resumeId });
+}
+
+export async function saveDocxCopy(filename: string, bytes: number[]) {
+  return invoke<string | null>('save_docx_copy', { filename, bytes });
 }
 
 // ── 版本历史 ──
@@ -603,7 +670,8 @@ export async function deleteMockInterview(id: string) {
 // ── 备份与恢复 ──
 
 /** 前端设置都在 localStorage（AI 渠道与 Key、联网搜索、界面语言），按前缀整体打包。 */
-const LOCAL_SETTINGS_PREFIX = 'jade_';
+const LOCAL_SETTINGS_PREFIXES = ['jade_', 'resumer_'];
+const isOwnedSettingsKey = (key: string) => LOCAL_SETTINGS_PREFIXES.some((prefix) => key.startsWith(prefix));
 const LOCAL_SETTINGS_EXTRA_KEYS = ['i18nextLng'];
 
 export function collectLocalSettings(): string {
@@ -611,7 +679,7 @@ export function collectLocalSettings(): string {
   for (let index = 0; index < localStorage.length; index += 1) {
     const key = localStorage.key(index);
     if (!key) continue;
-    if (key.startsWith(LOCAL_SETTINGS_PREFIX) || LOCAL_SETTINGS_EXTRA_KEYS.includes(key)) {
+    if (isOwnedSettingsKey(key) || LOCAL_SETTINGS_EXTRA_KEYS.includes(key)) {
       entries[key] = localStorage.getItem(key) ?? '';
     }
   }
@@ -621,10 +689,10 @@ export function collectLocalSettings(): string {
 export function applyLocalSettings(raw: string) {
   const entries = JSON.parse(raw) as Record<string, string>;
   for (const key of Object.keys(localStorage)) {
-    if (key.startsWith(LOCAL_SETTINGS_PREFIX)) localStorage.removeItem(key);
+    if (isOwnedSettingsKey(key)) localStorage.removeItem(key);
   }
   for (const [key, value] of Object.entries(entries)) {
-    if (key.startsWith(LOCAL_SETTINGS_PREFIX) || LOCAL_SETTINGS_EXTRA_KEYS.includes(key)) {
+    if (isOwnedSettingsKey(key) || LOCAL_SETTINGS_EXTRA_KEYS.includes(key)) {
       localStorage.setItem(key, value);
     }
   }

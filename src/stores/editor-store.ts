@@ -36,11 +36,26 @@ export interface ActiveItem {
   itemId: string | null;
 }
 
+/**
+ * 右栏正在编辑的字段与选区（纯文本偏移）。预览据此高亮对应文字，让人知道正在改哪里。
+ * field 是字段在条目里的路径：'description'、'highlights.2'、'company'……与预览里的 data-field 一致。
+ */
+export interface ActiveField {
+  sectionId: string;
+  itemId: string | null;
+  field: string;
+  /** 字段的纯文本（去掉标记），预览按它与渲染出的文字对齐 */
+  text: string;
+  start: number;
+  end: number;
+}
+
 export type PendingModal = 'jd-analysis' | 'cover-letter' | 'interview' | 'version-history';
 
 interface EditorStore {
   selectedSectionId: string | null;
   activeItem: ActiveItem | null;
+  activeField: ActiveField | null;
   showAiChat: boolean;
   showThemeEditor: boolean;
   undoStack: ResumeSnapshot[];
@@ -56,6 +71,7 @@ interface EditorStore {
 
   selectSection: (id: string | null) => void;
   setActiveItem: (item: ActiveItem | null) => void;
+  setActiveField: (field: ActiveField | null) => void;
   toggleAiChat: () => void;
   setShowAiChat: (show: boolean) => void;
   toggleThemeEditor: () => void;
@@ -74,6 +90,7 @@ interface EditorStore {
 export const useEditorStore = create<EditorStore>((set, get) => ({
   selectedSectionId: null,
   activeItem: null,
+  activeField: null,
   showAiChat: false,
   showThemeEditor: false,
   undoStack: [],
@@ -87,6 +104,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   selectSection: (id) => set({ selectedSectionId: id }),
   setActiveItem: (item) => set({ activeItem: item }),
+  setActiveField: (field) => set({ activeField: field }),
   toggleAiChat: () => set((s) => ({ showAiChat: !s.showAiChat })),
   setShowAiChat: (show) => set({ showAiChat: show }),
   toggleThemeEditor: () => set((s) => ({ showThemeEditor: !s.showThemeEditor })),
@@ -134,7 +152,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setPendingModal: (modal) => set({ pendingModal: modal }),
   setPendingVersionId: (id) => set({ pendingVersionId: id }),
   setMobileActiveTab: (tab) => set({ mobileActiveTab: tab }),
-  setRightPaneTab: (tab) => set({ rightPaneTab: tab }),
+  setRightPaneTab: (tab) => set({ rightPaneTab: tab, showThemeEditor: false }),
 
   // GOTCHA: reset() runs on editor unmount (including resume switches). It must
   // NOT clear pendingAiMessage / toolPrefill / pendingModal / rightPaneTab —
@@ -145,6 +163,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     set({
       selectedSectionId: null,
       activeItem: null,
+      activeField: null,
       showAiChat: false,
       showThemeEditor: false,
       undoStack: [],

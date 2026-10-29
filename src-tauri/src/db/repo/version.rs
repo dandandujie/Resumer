@@ -97,9 +97,20 @@ pub fn create_snapshot(
     let Some(current) = resume::find_by_id(conn, resume_id, user_id)? else {
         return Err(rusqlite::Error::QueryReturnedNoRows);
     };
-    let hash = content_hash(&current);
-    let snapshot = serde_json::to_string(&current)
+    let mut snapshot_value = serde_json::to_value(&current)
         .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?;
+    let mut hash = content_hash(&current);
+    if current.resume.template == super::document::TEMPLATE {
+        let document = super::document::reference(conn, resume_id)?
+            .ok_or(rusqlite::Error::QueryReturnedNoRows)?;
+        hash = format!(
+            "{:x}",
+            Sha256::digest(format!("{hash}:{}", document.current_hash).as_bytes())
+        );
+        snapshot_value["originalDocument"] = serde_json::to_value(document)
+            .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?;
+    }
+    let snapshot = snapshot_value.to_string();
     let label = label.trim();
     let previous = latest(conn, resume_id)?;
 
@@ -198,8 +209,8 @@ pub fn snapshot_for_application(
     if let Some(version_id) = version_id {
         let direct: Option<String> = conn
             .query_row(
-                "SELECT snapshot FROM resume_versions WHERE id = ?1",
-                params![version_id],
+                "SELECT snapshot FROM resume_versions WHERE id = ?1 AND resume_id = ?2",
+                params![version_id, resume_id],
                 |row| row.get(0),
             )
             .optional()?;
@@ -235,6 +246,20 @@ pub fn restore(
             )
         })?;
     let resume_id = &version.summary.resume_id;
+    if snapshot.resume.template == super::document::TEMPLATE {
+        let reference = serde_json::from_value::<super::document::DocumentRef>(
+            version.snapshot["originalDocument"].clone(),
+        )
+        .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?;
+        super::document::restore(conn, resume_id, &reference)?;
+    } else {
+        // 保留停用的文件引用并推进 revision：切回 DOCX 时不能复用旧窗口的版本号。
+        // get_original_docx 同时检查模板，结构化模式不能读取或写入停用文件。
+        conn.execute(
+            "UPDATE resume_documents SET revision=revision+1 WHERE resume_id=?1",
+            [resume_id],
+        )?;
+    }
     conn.execute(
         "UPDATE resumes SET title = ?1, template = ?2, theme_config = ?3, language = ?4, updated_at = unixepoch()
          WHERE id = ?5 AND user_id = ?6",
@@ -401,6 +426,11 @@ mod tests {
             .unwrap();
         let found = snapshot_for_application(&conn, &resume_id, Some(&linked), "").unwrap();
         assert!(found.is_some());
+        assert!(
+            snapshot_for_application(&conn, "other-resume", Some(&linked), "")
+                .unwrap()
+                .is_none()
+        );
         let by_date = snapshot_for_application(&conn, &resume_id, None, "2099-01-01").unwrap();
         assert!(by_date.is_some());
         let none = snapshot_for_application(&conn, &resume_id, None, "2000-01-01").unwrap();

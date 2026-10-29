@@ -26,12 +26,11 @@ type PretextModule = typeof import('@chenglou/pretext');
 const A4_WIDTH = 794;
 const A4_HEIGHT = 1123;
 const AVATAR_SIZE = 64;
-const HEADER_BOTTOM_MARGIN = 24;
-const HEADER_BOTTOM_PADDING = 16;
+const HEADER_BOTTOM_PADDING = 10; // pb-2 + 2px 分隔线
 const HEADER_CONTACT_MARGIN_TOP = 8;
 const HEADER_GAP = 16;
 const CONTACT_GAP = 12;
-const CONTACT_ROW_GAP = 12;
+const CONTACT_ROW_GAP = 4;
 const SECTION_TITLE_MARGIN_BOTTOM = 8;
 const SECTION_TITLE_PADDING_BOTTOM = 4;
 const SECTION_ROW_GAP_SM = 4;
@@ -40,7 +39,6 @@ const SECTION_ROW_GAP_LG = 12;
 const LIST_INDENT = 24;
 const LIST_BLOCK_MARGIN = 4;
 const GRID_GAP = 24;
-const COMPANY_COLUMN_WIDTH = 140;
 const DATE_COLUMN_WIDTH = 120;
 const QR_TILE_HEIGHT = 112;
 const QR_TILE_WIDTH = 96;
@@ -252,6 +250,7 @@ function estimateHeaderHeight(
   h1Size: number,
   h1LineHeight: number,
 ) {
+  const theme = resolveTheme(resume.themeConfig);
   const personalInfo = resume.sections.find((section) => section.type === 'personal_info');
   const info = (personalInfo?.content || {}) as PersonalInfoContent;
   const titleWidth = info.avatar ? Math.max(160, contentWidth - AVATAR_SIZE - HEADER_GAP) : contentWidth;
@@ -267,7 +266,8 @@ function estimateHeaderHeight(
     : 0;
 
   const titleBlockHeight = nameHeight + (jobHeight > 0 ? SECTION_ROW_GAP_SM + jobHeight : 0);
-  const rowHeight = info.avatar ? Math.max(AVATAR_SIZE, titleBlockHeight) : titleBlockHeight;
+  const avatarHeight = theme.avatarStyle === 'oneInch' ? Math.round(AVATAR_SIZE * 1.4) : AVATAR_SIZE;
+  const rowHeight = info.avatar ? Math.max(avatarHeight, titleBlockHeight) : titleBlockHeight;
 
   const contacts = [
     info.age,
@@ -283,10 +283,17 @@ function estimateHeaderHeight(
     info.wechat,
     info.location,
     info.website,
+    info.linkedin,
+    info.github,
+    ...(info.customLinks || []).map((link) => [link.label, link.url].filter(Boolean).join(': ')),
   ].filter(Boolean) as string[];
 
   const contactsHeight = contacts.length
-    ? estimateFlexWrapHeight(
+    ? theme.infoLayout === 'grid'
+      ? Array.from({ length: Math.ceil(contacts.length / 2) }, (_, row) => Math.max(
+          ...contacts.slice(row * 2, row * 2 + 2).map((value) => measure.height(value, font(400, bodySize, family), (contentWidth - CONTACT_GAP) / 2, bodyLineHeight)),
+        )).reduce((sum, height) => sum + height, 0) + Math.max(0, Math.ceil(contacts.length / 2) - 1) * CONTACT_ROW_GAP
+      : estimateFlexWrapHeight(
         measure,
         contacts,
         font(400, bodySize, family),
@@ -297,7 +304,7 @@ function estimateHeaderHeight(
       )
     : 0;
 
-  return rowHeight + HEADER_BOTTOM_PADDING + HEADER_BOTTOM_MARGIN + (contactsHeight ? HEADER_CONTACT_MARGIN_TOP + contactsHeight : 0);
+  return rowHeight + HEADER_BOTTOM_PADDING + theme.sectionSpacing + (contactsHeight ? HEADER_CONTACT_MARGIN_TOP + contactsHeight : 0);
 }
 
 function estimateHighlights(
@@ -322,19 +329,23 @@ function estimateWorkHeight(
   bodyLineHeight: number,
   contentWidth: number,
 ) {
-  const leftWidth = Math.max(180, contentWidth - COMPANY_COLUMN_WIDTH - DATE_COLUMN_WIDTH - GRID_GAP);
-  const companyWidth = COMPANY_COLUMN_WIDTH;
-  const dateWidth = DATE_COLUMN_WIDTH;
   const strongFont = font(600, bodySize, family);
   const bodyFont = font(400, bodySize, family);
 
   return (content.items || []).reduce((sum, item, index) => {
-    const positionHeight = measure.height(item.position, strongFont, leftWidth, bodyLineHeight);
-    const companyHeight = item.company ? measure.height(item.company, strongFont, companyWidth, bodyLineHeight) : 0;
-    const locationHeight = item.location ? measure.height(item.location, bodyFont, companyWidth, bodyLineHeight) : 0;
+    // 对应预览的“等宽两侧 + 公司地点同行居中”，地点不再多占一行。
+    const companyWidth = Math.min(contentWidth - GRID_GAP, Math.max(1,
+      measure.width(item.company, strongFont) + measure.width(item.location, bodyFont)
+      + (item.company && item.location ? 6 : 0),
+    ));
+    const sideWidth = Math.max(1, (contentWidth - companyWidth - GRID_GAP) / 2);
+    const positionHeight = measure.height(item.position, strongFont, sideWidth, bodyLineHeight);
+    const companyBlockHeight = estimateWrappedInlineHeight(measure, [
+      { text: item.company, fontValue: strongFont, lineHeight: bodyLineHeight },
+      { text: item.location, fontValue: bodyFont, lineHeight: bodyLineHeight },
+    ], companyWidth);
     const dateText = [item.startDate, item.endDate || (item.current ? 'Present' : '')].filter(Boolean).join(' - ');
-    const dateHeight = dateText ? measure.height(dateText, strongFont, dateWidth, bodyLineHeight) : 0;
-    const companyBlockHeight = companyHeight + (locationHeight > 0 ? locationHeight : 0);
+    const dateHeight = dateText ? measure.height(dateText, strongFont, sideWidth, bodyLineHeight) : 0;
     const headerHeight = Math.max(positionHeight, companyBlockHeight, dateHeight, bodyLineHeight);
 
     const descriptionHeight = item.description

@@ -1,8 +1,11 @@
 'use client';
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { RotateCcw } from 'lucide-react';
+import { Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { useThemePresetsStore, type CustomThemePreset } from '@/stores/theme-presets-store';
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
@@ -13,11 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 import {
   CJK_FONTS,
   DEFAULT_LATIN_FOR,
@@ -37,10 +35,15 @@ import {
 import { useResumeStore } from '@/stores/resume-store';
 import { useEditorStore } from '@/stores/editor-store';
 import type { ThemeConfig } from '@/types/resume';
-import { cn } from '@/lib/utils';
 
 export function FormatRibbon() {
   const t = useTranslations('themeEditor');
+  const tc = useTranslations('common');
+  const { presets, loaded, loading, loadError, saving, load, add, remove } = useThemePresetsStore();
+  const [addingPreset, setAddingPreset] = useState(false);
+  const [presetName, setPresetName] = useState('');
+  const [pendingDelete, setPendingDelete] = useState<CustomThemePreset | null>(null);
+  useEffect(() => { void load(); }, [load]);
   const currentResume = useResumeStore((state) => state.currentResume);
   const updateThemeConfig = useResumeStore((state) => state.updateThemeConfig);
   const pushSnapshot = useEditorStore((state) => state.pushSnapshot);
@@ -66,55 +69,59 @@ export function FormatRibbon() {
     updateTheme({
       margin: { ...theme.margin, [side]: Math.max(0, Math.min(MAX_PAGE_MARGIN_MM, value)) },
     });
-  const activePreset = matchPreset(theme);
+  const activePreset = matchPreset(theme, { ...Object.fromEntries(presets.map((preset) => [preset.id, preset.theme])), ...THEME_PRESETS });
+  const duplicateName = ['标准', 'standard', ...presets.map((preset) => preset.name.toLowerCase())].includes(presetName.trim().toLowerCase());
+  const savePreset = async () => {
+    if (!presetName.trim() || duplicateName || saving) return;
+    try {
+      await add(presetName, theme);
+      setAddingPreset(false);
+      setPresetName('');
+      toast.success(t('custom.saved'));
+    } catch { toast.error(t('custom.saveFailed')); }
+  };
   const activeStep = FONT_SIZE_STEPS.find((step) => step.px === theme.fontSize);
   const fontSizeLabel = activeStep
     ? t(`fontSizeStep.${activeStep.key}`)
     : t('fontSizeStep.custom', { pt: pxToPt(theme.fontSize) });
 
   const control = (label: string, content: React.ReactNode) => (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 shrink-0 cursor-pointer text-xs"
-        >
-          {label}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-60 space-y-3">
-        {content}
-      </PopoverContent>
-    </Popover>
+    <section className="space-y-3 border-b border-[var(--whale-divider)] pb-5 last:border-0">
+      <h3 className="text-sm font-semibold text-[var(--whale-ink)]">{label}</h3>
+      {content}
+    </section>
   );
 
   return (
-    <div
-      className={cn(
-        'flex min-w-0 items-center gap-1 overflow-x-auto border-b',
-        'border-[var(--whale-divider)] bg-[var(--whale-card)] px-3 py-1.5',
-      )}
-      role="toolbar"
-      aria-label={t('title')}
-    >
+    <div className="h-full overflow-y-auto p-5" role="region" aria-label={t('title')}>
+      <p className="mb-5 text-xs leading-5 text-muted-foreground">{t('panelHint')}</p>
+      <div className="space-y-5">
       {control(
-        `${t('presets')}${activePreset ? ` · ${t(`preset.${activePreset}`)}` : ''}`,
-        <div className="grid grid-cols-2 gap-1.5">
-          {Object.keys(THEME_PRESETS).map((id) => (
-            <Button
-              key={id}
-              variant={activePreset === id ? 'default' : 'outline'}
-              size="sm"
-              className="h-8 cursor-pointer text-xs"
-              onClick={() => updateTheme(THEME_PRESETS[id])}
-              aria-pressed={activePreset === id}
-            >
-              {t(`preset.${id}`)}
-            </Button>
+        t('presets'),
+        <div className="space-y-3">
+          <Button variant={activePreset === 'standard' ? 'default' : 'outline'} className="w-full justify-start" onClick={() => updateTheme(THEME_PRESETS.standard)} aria-pressed={activePreset === 'standard'}>{t('preset.standard')}</Button>
+          {presets.map((preset) => (
+            <div key={preset.id} className="flex items-center gap-2">
+              <Button variant={activePreset === preset.id ? 'default' : 'outline'} className="min-w-0 flex-1 justify-start" title={preset.name} onClick={() => updateTheme(preset.theme)} aria-pressed={activePreset === preset.id}><span className="truncate">{preset.name}</span></Button>
+              <Button variant="ghost" size="icon" disabled={saving} aria-label={t('custom.delete', { name: preset.name })} title={t('custom.delete', { name: preset.name })} onClick={() => setPendingDelete(preset)}><Trash2 className="h-4 w-4" /></Button>
+            </div>
           ))}
+          {loading && <p className="text-xs text-muted-foreground">{t('custom.loading')}</p>}
+          {loadError && <div role="alert" className="text-sm text-destructive">{t('custom.loadFailed')} <Button variant="link" onClick={() => void load()}>{t('custom.retry')}</Button></div>}
+          {addingPreset ? <form className="space-y-2 rounded-lg border bg-muted/30 p-3" onSubmit={(event) => { event.preventDefault(); void savePreset(); }}>
+            <label className="block space-y-2 text-sm"><span>{t('custom.name')}</span><Input autoFocus maxLength={40} value={presetName} onChange={(event) => setPresetName(event.target.value)} placeholder={t('custom.placeholder')} aria-invalid={duplicateName} disabled={saving} /></label>
+            {duplicateName && <p role="alert" className="text-xs text-destructive">{t('custom.duplicate')}</p>}
+            <p className="text-xs leading-5 text-muted-foreground">{t('custom.hint')}</p>
+            <div className="flex justify-end gap-2"><Button type="button" variant="ghost" disabled={saving} onClick={() => { setAddingPreset(false); setPresetName(''); }}>{tc('cancel')}</Button><Button type="submit" disabled={saving || !loaded || !presetName.trim() || duplicateName}>{saving ? t('custom.saving') : tc('save')}</Button></div>
+          </form> : <Button variant="outline" className="w-full border-dashed" disabled={!loaded || saving} onClick={() => setAddingPreset(true)}><Plus className="h-4 w-4" />{t('custom.add')}</Button>}
         </div>,
       )}
+      <AlertDialog open={!!pendingDelete} onOpenChange={(open) => { if (!open) setPendingDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>{t('custom.delete', { name: pendingDelete?.name || '' })}</AlertDialogTitle><AlertDialogDescription>{t('custom.deleteHint')}</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>{tc('cancel')}</AlertDialogCancel><AlertDialogAction onClick={() => { if (pendingDelete) void remove(pendingDelete.id).catch(() => toast.error(t('custom.deleteFailed'))); }}>{tc('delete')}</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       {control(
         `${t('fontFamily')} · ${t(`cjkFont.${theme.fontScheme}`)} + ${t(`latinFont.${theme.latinFont}`)}`,
         <div className="space-y-2">
@@ -221,7 +228,7 @@ export function FormatRibbon() {
                 max={MAX_PAGE_MARGIN_MM}
                 value={theme.margin[side]}
                 onChange={(event) => setMargin(side, Number(event.target.value))}
-                className="mt-0.5 h-7 px-1 text-center text-xs"
+                className="mt-1 h-9 px-1 text-center text-sm"
               />
             </label>
           ))}
@@ -293,14 +300,15 @@ export function FormatRibbon() {
       )}
       <Button
         variant="ghost"
-        size="icon-xs"
+        size="sm"
         onClick={() => updateTheme(DEFAULT_THEME)}
         title={t('reset')}
         aria-label={t('reset')}
         className="cursor-pointer"
       >
-        <RotateCcw className="h-3.5 w-3.5" />
+        <RotateCcw className="h-3.5 w-3.5" />{t('reset')}
       </Button>
+      </div>
     </div>
   );
 }

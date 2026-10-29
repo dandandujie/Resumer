@@ -10,7 +10,7 @@ pub struct AIConfig {
     #[serde(alias = "baseURL")]
     pub base_url: String,
     pub model: String,
-    /// off | native | free | bing | google | baidu | tavily | grok
+    /// off | native | free | bing | google | baidu | tavily | grok | doubao | deepseek | deepseek-api
     #[serde(default)]
     pub web_search_mode: String,
     #[serde(default)]
@@ -21,6 +21,20 @@ pub struct AIConfig {
     pub grok_base_url: String,
     #[serde(default)]
     pub grok_model: String,
+    #[serde(default)]
+    pub doubao_api_key: String,
+    #[serde(default)]
+    pub doubao_base_url: String,
+    #[serde(default)]
+    pub doubao_model: String,
+    #[serde(default)]
+    pub deepseek_api_key: String,
+    #[serde(default)]
+    pub deepseek_base_url: String,
+    #[serde(default)]
+    pub deepseek_model: String,
+    #[serde(default)]
+    pub deepseek_search_url: String,
 }
 
 impl Default for AIConfig {
@@ -35,6 +49,13 @@ impl Default for AIConfig {
             grok_api_key: String::new(),
             grok_base_url: String::new(),
             grok_model: String::new(),
+            doubao_api_key: String::new(),
+            doubao_base_url: String::new(),
+            doubao_model: String::new(),
+            deepseek_api_key: String::new(),
+            deepseek_base_url: String::new(),
+            deepseek_model: String::new(),
+            deepseek_search_url: String::new(),
         }
     }
 }
@@ -44,13 +65,45 @@ pub enum ProviderError {
     #[error("API key is required. Please configure it in Settings.")]
     MissingApiKey,
     #[error("HTTP error: {0}")]
-    Http(#[from] reqwest::Error),
+    Http(reqwest::Error),
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
     #[error("AI error: {0}")]
     Api(String),
     #[error("Parse error: {0}")]
     Parse(String),
+}
+
+impl From<reqwest::Error> for ProviderError {
+    fn from(error: reqwest::Error) -> Self {
+        // Gemini 等渠道会把 Key 放在查询参数里，错误不应携带请求 URL。
+        Self::Http(error.without_url())
+    }
+}
+
+pub(crate) fn api_error(
+    status: reqwest::StatusCode,
+    body: &str,
+    config: &AIConfig,
+) -> ProviderError {
+    let mut message = body.to_owned();
+    for key in [
+        &config.api_key,
+        &config.tavily_api_key,
+        &config.grok_api_key,
+        &config.doubao_api_key,
+        &config.deepseek_api_key,
+    ] {
+        if !key.is_empty() {
+            message = message.replace(key, "[已隐藏]");
+            message = message.replace(urlencoding::encode(key).as_ref(), "[已隐藏]");
+        }
+    }
+    // 部分服务商只回显 Key 的首尾片段，不能仅靠完整字符串替换。
+    let echoed = regex::Regex::new(r"(?i)(incorrect api key provided:\s*)[^\s]+")
+        .expect("固定的凭据回显规则");
+    message = echoed.replace_all(&message, "${1}[已隐藏]").into_owned();
+    ProviderError::Api(format!("{status} {message}"))
 }
 
 impl serde::Serialize for ProviderError {
@@ -174,7 +227,7 @@ async fn generate_openai(req: GenerateRequest<'_>) -> Result<GenerateResponse, P
     if !res.status().is_success() {
         let status = res.status();
         let txt = res.text().await.unwrap_or_default();
-        return Err(ProviderError::Api(format!("{} {}", status, txt)));
+        return Err(api_error(status, &txt, req.config));
     }
 
     let data: Value = res.json().await?;
@@ -267,7 +320,7 @@ async fn generate_anthropic(req: GenerateRequest<'_>) -> Result<GenerateResponse
     if !res.status().is_success() {
         let status = res.status();
         let txt = res.text().await.unwrap_or_default();
-        return Err(ProviderError::Api(format!("{} {}", status, txt)));
+        return Err(api_error(status, &txt, req.config));
     }
 
     let data: Value = res.json().await?;
@@ -364,7 +417,7 @@ async fn generate_gemini(req: GenerateRequest<'_>) -> Result<GenerateResponse, P
     if !res.status().is_success() {
         let status = res.status();
         let txt = res.text().await.unwrap_or_default();
-        return Err(ProviderError::Api(format!("{} {}", status, txt)));
+        return Err(api_error(status, &txt, req.config));
     }
 
     let data: Value = res.json().await?;
@@ -441,7 +494,7 @@ pub async fn list_models(config: &AIConfig) -> Result<Vec<AiModel>, ProviderErro
             if !res.status().is_success() {
                 let status = res.status();
                 let txt = res.text().await.unwrap_or_default();
-                return Err(ProviderError::Api(format!("{} {}", status, txt)));
+                return Err(api_error(status, &txt, config));
             }
             let data: Value = res.json().await?;
             let mut out = Vec::new();
@@ -471,7 +524,7 @@ pub async fn list_models(config: &AIConfig) -> Result<Vec<AiModel>, ProviderErro
             if !res.status().is_success() {
                 let status = res.status();
                 let txt = res.text().await.unwrap_or_default();
-                return Err(ProviderError::Api(format!("{} {}", status, txt)));
+                return Err(api_error(status, &txt, config));
             }
             let data: Value = res.json().await?;
             let mut out = Vec::new();
@@ -495,7 +548,7 @@ pub async fn list_models(config: &AIConfig) -> Result<Vec<AiModel>, ProviderErro
             if !res.status().is_success() {
                 let status = res.status();
                 let txt = res.text().await.unwrap_or_default();
-                return Err(ProviderError::Api(format!("{} {}", status, txt)));
+                return Err(api_error(status, &txt, config));
             }
             let data: Value = res.json().await?;
             let mut out = Vec::new();
@@ -530,4 +583,28 @@ pub async fn test_connection(config: &AIConfig) -> Result<AiConnectionTest, Prov
         model_count: models.len(),
         models,
     })
+}
+
+#[cfg(test)]
+mod error_tests {
+    use super::*;
+
+    #[test]
+    fn provider_error_redacts_full_and_partial_credentials() {
+        let config = AIConfig {
+            api_key: "test-secret+value".into(),
+            ..AIConfig::default()
+        };
+        for body in [
+            "Incorrect API key provided: test...value. Invalid API key",
+            "invalid_api_key: test-secret+value",
+            "key=test-secret%2Bvalue",
+        ] {
+            let error = api_error(reqwest::StatusCode::UNAUTHORIZED, body, &config).to_string();
+            assert!(error.contains("401"));
+            assert!(error.contains("[已隐藏]"));
+            assert!(!error.contains("test-secret"));
+            assert!(!error.contains("test...value"));
+        }
+    }
 }

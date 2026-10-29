@@ -384,6 +384,15 @@ pub fn update_resume(db: State<AppDb>, payload: Value) -> Result<(), CommandErro
         message: e.to_string(),
     })?;
     let input = parse_update_resume_payload(payload)?;
+    let current =
+        repo::find_by_id(&conn, &input.id, &input.user_id)?.ok_or("简历不存在".to_owned())?;
+    if current.resume.template == crate::db::repo::document::TEMPLATE
+        && (input.sections.is_some() || input.template.is_some() || input.theme_config.is_some())
+    {
+        return Err("原文档请在原文档编辑器中修改，不能以结构化字段覆盖"
+            .to_owned()
+            .into());
+    }
     let tx = conn.transaction()?;
     repo::update(
         &tx,
@@ -503,10 +512,13 @@ pub fn duplicate_resume(
     id: String,
     user_id: String,
 ) -> Result<String, CommandError> {
-    let conn = db.conn.lock().map_err(|e| CommandError {
+    let mut conn = db.conn.lock().map_err(|e| CommandError {
         message: e.to_string(),
     })?;
-    repo::duplicate(&conn, &id, &user_id).map_err(Into::into)
+    let tx = conn.transaction()?;
+    let new_id = repo::duplicate(&tx, &id, &user_id)?;
+    tx.commit()?;
+    Ok(new_id)
 }
 
 #[derive(serde::Deserialize)]

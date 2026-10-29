@@ -9,7 +9,7 @@ export function FieldWrapper({ children, columns = 2 }: FieldWrapperProps) {
   return (
     <div
       className="grid gap-3"
-      style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}
+      style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
     >
       {children}
     </div>

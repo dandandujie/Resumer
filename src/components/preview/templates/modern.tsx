@@ -17,10 +17,11 @@ import type {
   GitHubContent,
 } from '@/types/resume';
 import { isSectionEmpty, md } from '../utils';
-import { formatDateRange } from '@/lib/resume-date';
+import { formatDateRange, formatMonth } from '@/lib/resume-date';
 import { resolveTheme, type DateStyle } from '@/lib/theme-config';
 import { AvatarImage } from '../avatar-image';
 import { QrCodesPreview } from '../qr-codes-preview';
+import { InlineText } from '../inline-text';
 import { ItemBox } from '../item-box';
 import { useEditorStore } from '@/stores/editor-store';
 import { useProposalsStore } from '@/stores/proposals-store';
@@ -44,7 +45,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 
 function getDateRange(startDate?: string, endDate?: string | null, current = false, style: DateStyle = 'dot', lang = 'zh') {
-  return formatDateRange(startDate, endDate, { current, style, lang });
+  return <InlineText>{formatDateRange(startDate, endDate, { current, style, lang })}</InlineText>;
 }
 
 function EmptySectionPlaceholder({ lang, dark }: { lang?: string; dark?: boolean }) {
@@ -112,7 +113,7 @@ export function ModernTemplate({ resume, interactive, onReorderSections }: { res
   };
 
   // Modern template: left sidebar for personal + skills/languages, main content for work/edu/projects
-  const leftSidebarTypes = new Set(['skills', 'languages', 'certifications', 'qr-codes']);
+  const leftSidebarTypes = new Set(['skills', 'languages', 'certifications', 'qr_codes']);
   const leftSections = resume.sections.filter((s) => s.visible && leftSidebarTypes.has(s.type) && (interactive || !isSectionEmpty(s)));
   const mainSections = resume.sections.filter((s) => s.visible && s.type !== 'personal_info' && !leftSidebarTypes.has(s.type) && (interactive || !isSectionEmpty(s)));
 
@@ -181,6 +182,7 @@ export function ModernTemplate({ resume, interactive, onReorderSections }: { res
         <div data-zone="dark" className="bg-gradient-to-br from-slate-800 to-slate-900 p-6 text-white">
           {/* Avatar + Name — avatar respects the configured style (circle / 1-inch)
               so its shape & size match the photo instead of forcing a circle. */}
+          <div data-section-id={personalInfo?.id}>
           <div {...(personalInfo ? getSectionProps(personalInfo.id) : {})} className="text-center">
             {pi.avatar && (
               <AvatarImage
@@ -190,8 +192,8 @@ export function ModernTemplate({ resume, interactive, onReorderSections }: { res
                 className="mx-auto mb-4 block ring-4 ring-white/20"
               />
             )}
-            <h1 className="mb-1 text-2xl font-bold tracking-tight">{pi.fullName || (isZh ? '姓名' : 'Your Name')}</h1>
-            {pi.jobTitle && <p className="text-sm font-medium text-slate-300">{pi.jobTitle}</p>}
+            <h1 className="mb-1 text-2xl font-bold tracking-tight" data-field="fullName"><InlineText>{pi.fullName || (isZh ? '姓名' : 'Your Name')}</InlineText></h1>
+            {pi.jobTitle && <p className="text-sm font-medium text-slate-300" data-field="jobTitle"><InlineText>{pi.jobTitle}</InlineText></p>}
           </div>
 
           {/* Personal info — plain text labels, no icons */}
@@ -201,10 +203,12 @@ export function ModernTemplate({ resume, interactive, onReorderSections }: { res
               if (!val) return null;
               return (
                 <div key={key} className="break-words">
-                  <span className="opacity-60">{label}{isZh ? '：' : ': '}</span>{val}
+                  <span className="opacity-60">{label}{isZh ? '：' : ': '}</span><InlineText field={key}>{val}</InlineText>
                 </div>
               );
             })}
+            {pi.customLinks?.map((link, index) => <div key={index}><InlineText field={`customLinks.${index}.label`}>{link.label}</InlineText>{link.label && ': '}<InlineText field={`customLinks.${index}.url`}>{link.url}</InlineText></div>)}
+          </div>
           </div>
 
           {/* Left Sidebar Sections */}
@@ -274,7 +278,7 @@ function PreviewSection({
   );
 
   const inner = (
-    <div className={sectionClasses} {...sectionProps}>
+    <div className={sectionClasses} data-section-id={section.id} {...sectionProps}>
       {interactive && dndEnabled && (
         <button
           {...attributes}
@@ -294,20 +298,21 @@ function PreviewSection({
       ) : (
         <div className={compact ? "text-white/80 space-y-2" : "space-y-3"}>
           {section.type === 'summary' && (
-            <div className="text-sm leading-relaxed text-[var(--resume-body-color)]" dangerouslySetInnerHTML={{ __html: md((content as SummaryContent).text || '') }} />
+            <div className="text-sm leading-relaxed text-[var(--resume-body-color)]" data-field="text" dangerouslySetInnerHTML={{ __html: md((content as SummaryContent).text || '') }} />
           )}
           {section.type === 'work_experience' && (
             (content as WorkExperienceContent).items?.map((item: any) => (
               <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive} className={compact ? "space-y-0.5" : "space-y-1"}>
                 <div className="flex items-baseline justify-between">
-                  <span className="font-semibold">{item.position}</span>
-                  <span className={cn("text-xs", compact ? "text-white/60" : "text-[var(--resume-body-color)]")}>{getDateRange(item.startDate, item.endDate, Boolean(item.current), theme.dateStyle, lang)}</span>
+                  <span className="font-semibold" data-field="position"><InlineText>{item.position}</InlineText></span>
+                  <span className={cn("text-xs", compact ? "text-white/60" : "text-[var(--resume-body-color)]")} data-field="startDate endDate">{getDateRange(item.startDate, item.endDate, Boolean(item.current), theme.dateStyle, lang)}</span>
                 </div>
-                <div className={cn("text-xs", compact ? "text-white/70" : "text-[var(--resume-body-color)]")}>{item.company}{item.location && ` · ${item.location}`}</div>
-                {item.description && <div className="text-xs text-[var(--resume-body-color)]" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
+                <div className={cn("text-xs", compact ? "text-white/70" : "text-[var(--resume-body-color)]")} ><InlineText field="company">{item.company}</InlineText>{item.location && <> · <InlineText field="location">{item.location}</InlineText></>}</div>
+                {item.description && <div className="text-xs text-[var(--resume-body-color)]" data-field="description" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
+                {item.technologies?.length > 0 && <div className="text-xs" data-field="technologies">{item.technologies.map((tech: string, i: number) => <span key={i}>{i > 0 && ', '}<InlineText field={`technologies.${i}`}>{tech}</InlineText></span>)}</div>}
                 {item.highlights && item.highlights.length > 0 && (
                   <ul className="ml-4 list-disc space-y-0.5 text-xs text-[var(--resume-body-color)]">
-                    {item.highlights.map((h: string, i: number) => <li key={i} dangerouslySetInnerHTML={{ __html: md(h) }} />)}
+                    {item.highlights.map((h: string, i: number) => <li key={i} data-field={`highlights.${i}`} dangerouslySetInnerHTML={{ __html: md(h) }} />)}
                   </ul>
                 )}
               </ItemBox>
@@ -317,21 +322,24 @@ function PreviewSection({
             (content as EducationContent).items?.map((item: any) => (
               <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive} className="space-y-0.5">
                 <div className="flex items-baseline justify-between">
-                  <span className="font-semibold text-sm">{item.degree}</span>
-                  <span className={cn("text-xs", compact ? "text-white/60" : "text-[var(--resume-body-color)]")}>{getDateRange(item.startDate, item.endDate, Boolean(item.current), theme.dateStyle, lang)}</span>
+                  <span className="font-semibold text-sm" data-field="degree"><InlineText>{item.degree}</InlineText></span>
+                  <span className={cn("text-xs", compact ? "text-white/60" : "text-[var(--resume-body-color)]")} data-field="startDate endDate">{getDateRange(item.startDate, item.endDate, Boolean(item.current), theme.dateStyle, lang)}</span>
                 </div>
-                <div className={cn("text-xs", compact ? "text-white/70" : "text-[var(--resume-body-color)]")}>{item.institution}{item.field && ` · ${item.field}`}</div>
+                <div className={cn("text-xs", compact ? "text-white/70" : "text-[var(--resume-body-color)]")} ><InlineText field="institution">{item.institution}</InlineText>{item.field && <> · <InlineText field="field">{item.field}</InlineText></>}</div>
+                {item.location && <div className="text-xs" data-field="location"><InlineText>{item.location}</InlineText></div>}
+                {item.gpa && <div className="text-xs" >GPA: <InlineText field="gpa">{item.gpa}</InlineText></div>}
+                {item.highlights?.length > 0 && <ul className="ml-4 list-disc space-y-0.5 text-xs">{item.highlights.map((text: string, i: number) => <li key={i} data-field={`highlights.${i}`} dangerouslySetInnerHTML={{ __html: md(text) }} />)}</ul>}
               </ItemBox>
             ))
           )}
           {section.type === 'skills' && (
             (content as SkillsContent).categories?.map((cat: any) => (
-              <div key={cat.id} className="space-y-1">
-                <div className={cn("font-semibold text-xs", compact ? "text-white/90" : "text-[var(--resume-body-color)]")}>{cat.name}</div>
-                <div className={cn("flex flex-wrap gap-1.5", compact && "text-xs")}>
+              <div key={cat.id} className="space-y-1" data-item-id={cat.id}>
+                <div className={cn("font-semibold text-xs", compact ? "text-white/90" : "text-[var(--resume-body-color)]")} data-field="name"><InlineText>{cat.name}</InlineText></div>
+                <div className={cn("flex flex-wrap gap-1.5", compact && "text-xs")} data-field="skills">
                   {cat.skills?.map((skill: string, i: number) => (
                     <span key={i} className={cn("rounded px-2 py-0.5 text-xs font-medium", compact ? "bg-white/10 text-white/80" : "bg-zinc-100 text-[var(--resume-body-color)]")}>
-                      {skill}
+                      <InlineText field={`skills.${i}`}>{skill}</InlineText>
                     </span>
                   ))}
                 </div>
@@ -341,52 +349,61 @@ function PreviewSection({
           {section.type === 'projects' && (
             (content as ProjectsContent).items?.map((item: any) => (
               <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive} className="space-y-1">
-                <div className="font-semibold text-sm">{item.name}</div>
-                {item.description && <div className="text-xs text-[var(--resume-body-color)]" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
+                <div className="flex items-baseline justify-between gap-2">
+                  <div className="font-semibold text-sm" data-field="name"><InlineText>{item.name}</InlineText></div>
+                  <span className="text-xs" data-field="startDate endDate">{getDateRange(item.startDate, item.endDate, false, theme.dateStyle, lang)}</span>
+                </div>
+                {item.url && <div className="text-xs" data-field="url"><InlineText>{item.url}</InlineText></div>}
+                {item.description && <div className="text-xs text-[var(--resume-body-color)]" data-field="description" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
                 {item.technologies && item.technologies.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
+                  <div className="flex flex-wrap gap-1" data-field="technologies">
                     {item.technologies.map((tech: string, i: number) => (
-                      <span key={i} className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-[var(--resume-body-color)]">{tech}</span>
+                      <span key={i} className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-[var(--resume-body-color)]"><InlineText field={`technologies.${i}`}>{tech}</InlineText></span>
                     ))}
                   </div>
                 )}
+                {item.highlights?.length > 0 && <ul className="ml-4 list-disc space-y-0.5 text-xs">{item.highlights.map((text: string, i: number) => <li key={i} data-field={`highlights.${i}`} dangerouslySetInnerHTML={{ __html: md(text) }} />)}</ul>}
               </ItemBox>
             ))
           )}
           {section.type === 'languages' && (
             (content as LanguagesContent).items?.map((item: any) => (
               <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive} className="flex items-baseline justify-between text-xs">
-                <span className="font-medium">{item.language}</span>
-                <span className={compact ? "text-white/60" : "text-[var(--resume-body-color)]"}>{item.proficiency}</span>
+                <span className="font-medium" data-field="language"><InlineText>{item.language}</InlineText></span>
+                <span className={compact ? "text-white/60" : "text-[var(--resume-body-color)]"} data-field="proficiency"><InlineText>{item.proficiency}</InlineText></span>
+                {item.description && <div className="text-xs"><InlineText field="description">{item.description}</InlineText></div>}
               </ItemBox>
             ))
           )}
           {section.type === 'certifications' && (
             (content as CertificationsContent).items?.map((item: any) => (
               <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive} className="space-y-0.5">
-                <div className="font-semibold text-sm">{item.name}</div>
-                <div className={cn("text-xs", compact ? "text-white/70" : "text-[var(--resume-body-color)]")}>{item.issuer}{item.date && ` · ${item.date}`}</div>
+                <div className="font-semibold text-sm" data-field="name"><InlineText>{item.name}</InlineText></div>
+                <div className={cn("text-xs", compact ? "text-white/70" : "text-[var(--resume-body-color)]")} ><InlineText field="issuer">{item.issuer}</InlineText>{item.date && <> · <InlineText field="date">{formatMonth(item.date, theme.dateStyle, lang)}</InlineText></>}</div>
+                {item.url && <div className="text-xs"><InlineText field="url">{item.url}</InlineText></div>}
               </ItemBox>
             ))
           )}
           {section.type === 'custom' && (
             (content as CustomContent).items?.map((item: any) => (
               <ItemBox key={item.id} sectionId={section.id} itemId={item.id} interactive={interactive} className="space-y-1">
-                <div className="font-semibold text-sm">{item.title}</div>
-                {item.subtitle && <div className="text-xs text-[var(--resume-body-color)]">{item.subtitle}</div>}
-                {item.description && <div className="text-sm text-[var(--resume-body-color)]" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
+                <div className="font-semibold text-sm" data-field="title"><InlineText>{item.title}</InlineText></div>
+                {item.subtitle && <div className="text-xs text-[var(--resume-body-color)]" data-field="subtitle"><InlineText>{item.subtitle}</InlineText></div>}
+                {item.date && <div className="text-xs" data-field="date"><InlineText field="date">{formatMonth(item.date, theme.dateStyle, lang)}</InlineText></div>}
+                {item.description && <div className="text-sm text-[var(--resume-body-color)]" data-field="description" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
               </ItemBox>
             ))
           )}
-          {section.type === 'qr-codes' && <QrCodesPreview items={(content as any).items || []} svgs={(content as any)._qrSvgs} />}
+          {section.type === 'qr_codes' && <QrCodesPreview items={(content as any).items || []} svgs={(content as any)._qrSvgs} />}
           {section.type === 'github' && (
             <div className="space-y-2">
               {(content as GitHubContent).items?.map((repo: any) => (
-                <div key={repo.id} className="space-y-1">
-                  <div className="font-semibold text-sm">{repo.name}</div>
-                  {repo.description && <div className="text-xs text-[var(--resume-body-color)]">{repo.description}</div>}
+                <div key={repo.id} className="space-y-1" data-item-id={repo.id}>
+                  <div className="font-semibold text-sm"><InlineText field="name">{repo.name}</InlineText></div>
+                  {repo.description && <div className="text-xs text-[var(--resume-body-color)]"><InlineText field="description">{repo.description}</InlineText></div>}
                   <div className="flex items-center gap-3 text-[10px] text-[var(--resume-body-color)]">
-                    {repo.language && <span>● {repo.language}</span>}
+                    {repo.repoUrl && <div className="text-xs"><InlineText field="repoUrl">{repo.repoUrl}</InlineText></div>}
+                    {repo.language && <span>● <InlineText>{repo.language}</InlineText></span>}
                     {repo.stars != null && <span>⭐ {repo.stars}</span>}
                   </div>
                 </div>

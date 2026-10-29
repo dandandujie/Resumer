@@ -1,4 +1,4 @@
-use super::date::{DateStyle, format_range};
+use super::date::{DateStyle, format_month, format_range};
 use super::inline::strip;
 use serde_json::Value;
 
@@ -30,9 +30,24 @@ fn garr_str(v: &Value, key: &str) -> Vec<String> {
 
 /// Generate plain text from a resume's sections array.
 pub fn generate_plain_text(sections: &[Value], style: DateStyle, lang: &str) -> String {
+    // 先清理字段，再添加项目符号；对整篇成品解析会误把两行的 * 当作斜体标记。
+    fn clean(value: &Value) -> Value {
+        match value {
+            Value::String(text) => Value::String(strip(text)),
+            Value::Array(values) => Value::Array(values.iter().map(clean).collect()),
+            Value::Object(values) => Value::Object(
+                values
+                    .iter()
+                    .map(|(key, value)| (key.clone(), clean(value)))
+                    .collect(),
+            ),
+            _ => value.clone(),
+        }
+    }
+    let sections: Vec<_> = sections.iter().map(clean).collect();
     let mut lines: Vec<String> = Vec::new();
 
-    for section in sections {
+    for section in &sections {
         if section.get("visible").and_then(|v| v.as_bool()) == Some(false) {
             continue;
         }
@@ -76,7 +91,7 @@ pub fn generate_plain_text(sections: &[Value], style: DateStyle, lang: &str) -> 
                     lines.push(info_parts.join(" | "));
                 }
 
-                let contact_keys = ["email", "phone", "wechat", "location"];
+                let contact_keys = ["email", "phone", "wechat", "location", "linkedin", "github"];
                 let contact_parts: Vec<String> = contact_keys
                     .iter()
                     .filter_map(|k| {
@@ -95,6 +110,9 @@ pub fn generate_plain_text(sections: &[Value], style: DateStyle, lang: &str) -> 
                 let website = gstr(&content, "website");
                 if !website.is_empty() {
                     lines.push(website.into());
+                }
+                for link in garr(&content, "customLinks") {
+                    lines.push(format!("{}: {}", gstr(link, "label"), gstr(link, "url")));
                 }
                 lines.push("".into());
             }
@@ -137,6 +155,10 @@ pub fn generate_plain_text(sections: &[Value], style: DateStyle, lang: &str) -> 
                     let desc = gstr(item, "description");
                     if !desc.is_empty() {
                         lines.push(format!("  {}", desc));
+                    }
+                    let techs = garr_str(item, "technologies");
+                    if !techs.is_empty() {
+                        lines.push(format!("  Technologies: {}", techs.join(", ")));
                     }
                     for h in garr_str(item, "highlights") {
                         if !h.is_empty() {
@@ -205,6 +227,18 @@ pub fn generate_plain_text(sections: &[Value], style: DateStyle, lang: &str) -> 
                         "".into()
                     };
                     lines.push(format!("- {}{}", name, suffix));
+                    let dates = format_range(
+                        gstr(item, "startDate"),
+                        gstr(item, "endDate"),
+                        item.get("current")
+                            .and_then(Value::as_bool)
+                            .unwrap_or(false),
+                        style,
+                        lang,
+                    );
+                    if !dates.is_empty() {
+                        lines.push(format!("  {}", dates));
+                    }
                     let desc = gstr(item, "description");
                     if !desc.is_empty() {
                         lines.push(format!("  {}", desc));
@@ -224,9 +258,13 @@ pub fn generate_plain_text(sections: &[Value], style: DateStyle, lang: &str) -> 
             "certifications" => {
                 lines.push(format!("== {} ==", title));
                 for item in garr(&content, "items") {
+                    let url = gstr(item, "url");
+                    if !url.is_empty() {
+                        lines.push(url.into());
+                    }
                     let name = gstr(item, "name");
                     let issuer = gstr(item, "issuer");
-                    let date = gstr(item, "date");
+                    let date = format_month(gstr(item, "date"), style, lang);
                     let issuer_s = if !issuer.is_empty() {
                         format!(", {}", issuer)
                     } else {
@@ -244,6 +282,10 @@ pub fn generate_plain_text(sections: &[Value], style: DateStyle, lang: &str) -> 
             "languages" => {
                 lines.push(format!("== {} ==", title));
                 for item in garr(&content, "items") {
+                    let description = gstr(item, "description");
+                    if !description.is_empty() {
+                        lines.push(description.into());
+                    }
                     lines.push(format!(
                         "- {}: {}",
                         gstr(item, "language"),
@@ -251,6 +293,29 @@ pub fn generate_plain_text(sections: &[Value], style: DateStyle, lang: &str) -> 
                     ));
                 }
                 lines.push("".into());
+            }
+            "github" => {
+                lines.push(format!("== {} ==", title));
+                for item in garr(&content, "items") {
+                    lines.push(format!("- {}", gstr(item, "name")));
+                    for key in ["repoUrl", "language", "description"] {
+                        let value = gstr(item, key);
+                        if !value.is_empty() {
+                            lines.push(format!("  {}", value));
+                        }
+                    }
+                    if let Some(stars) = item.get("stars").and_then(Value::as_u64) {
+                        lines.push(format!("  ★ {}", stars));
+                    }
+                }
+                lines.push(String::new());
+            }
+            "qr_codes" => {
+                lines.push(format!("== {} ==", title));
+                for item in garr(&content, "items") {
+                    lines.push(format!("- {}: {}", gstr(item, "label"), gstr(item, "url")));
+                }
+                lines.push(String::new());
             }
             _ => {
                 lines.push(format!("== {} ==", title));
@@ -263,7 +328,7 @@ pub fn generate_plain_text(sections: &[Value], style: DateStyle, lang: &str) -> 
                         "".into()
                     };
                     lines.push(format!("- {}{}", i_title, subtitle_s));
-                    let date = gstr(item, "date");
+                    let date = format_month(gstr(item, "date"), style, lang);
                     if !date.is_empty() {
                         lines.push(format!("  {}", date));
                     }
@@ -277,5 +342,5 @@ pub fn generate_plain_text(sections: &[Value], style: DateStyle, lang: &str) -> 
         }
     }
 
-    strip(&lines.join("\n"))
+    lines.join("\n")
 }

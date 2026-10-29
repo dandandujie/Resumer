@@ -78,21 +78,8 @@ pub fn find_chrome() -> Option<PathBuf> {
     None
 }
 
-/// Build an `@font-face` <style> block defining the LOCAL, embeddable font
-/// families the export stack references first ("Reseumer Hei/Song/Kai"), backed
-/// by bundled woff2 files copied next to the HTML.
-///
-/// WHY: the export normally relies on OS system fonts / Google Fonts. On macOS
-/// the system CJK fonts (PingFang, Songti SC…) are marked non-embeddable, so
-/// Chrome rasterizes text as uneditable Type3 fonts; and Google Fonts is often
-/// blocked/slow. By bundling open (OFL) fonts and making them the primary
-/// export family, every PDF embeds a real TrueType/CFF font — editable,
-/// fully offline, and byte-identical on Windows and macOS.
-///
-/// Family → bundled file:
-///   Reseumer Hei  (黑体/雅黑/sans) → Noto Sans SC  (Regular + Bold)
-///   Reseumer Song (宋体/serif)     → Noto Serif SC (Regular + Bold)
-///   Reseumer Kai  (楷体)           → LXGW WenKai   (Regular; Bold synthesized)
+/// 为主题引用的内置字体提供离线资源；字体优先级与 App 预览相同。
+/// 系统字体的 PDF 表示由打印引擎决定，不能仅凭嵌入成功推断 Office 可编辑性。
 fn build_local_font_css(font_dir: &std::path::Path, temp_dir: &std::path::Path) -> Option<String> {
     // (css family name, regular file, optional bold file)
     let families: [(&str, &str, Option<&str>); 3] = [

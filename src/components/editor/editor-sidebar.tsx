@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { Plus, GripVertical, User, FileText, Briefcase, GraduationCap, Wrench, FolderKanban, Award, Languages, LayoutList, Pencil, Github, QrCode } from 'lucide-react';
+import { Plus, GripVertical, User, FileText, Briefcase, GraduationCap, Wrench, FolderKanban, Award, Languages, LayoutList, Pencil, Github, QrCode, ArrowUp, ArrowDown, Trash2 } from 'lucide-react';
 import { generateId, cn } from '@/lib/utils';
 import {
   DndContext,
@@ -43,116 +43,47 @@ const sectionIcons: Record<string, React.ElementType> = {
   custom: LayoutList,
 };
 
-function SortableSidebarItem({
-  section,
-  isSelected,
-  onSelect,
-  onRename,
-  icon: Icon,
-}: {
+function SortableSidebarItem({ section, isSelected, onSelect, onRename, onRemove, onMove, first, last, icon: Icon }: {
   section: ResumeSection;
   isSelected: boolean;
   onSelect: () => void;
-  onRename?: (title: string) => void;
+  onRename: (title: string) => void;
+  onRemove: () => void;
+  onMove: (delta: number) => void;
+  first: boolean;
+  last: boolean;
   icon: React.ElementType;
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: section.id });
-
+  const t = useTranslations('editor.sidebar');
+  const fixed = section.type === 'personal_info';
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: section.id, disabled: fixed });
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(section.title);
   const inputRef = useRef<HTMLInputElement>(null);
-
   useEffect(() => {
-    if (isRenaming) {
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    }
+    if (isRenaming) { inputRef.current?.focus(); inputRef.current?.select(); }
   }, [isRenaming]);
-
   const commitRename = () => {
     const trimmed = renameValue.trim();
-    if (trimmed && trimmed !== section.title && onRename) {
-      onRename(trimmed);
-    } else {
-      setRenameValue(section.title);
-    }
+    if (trimmed && trimmed !== section.title) onRename(trimmed);
     setIsRenaming(false);
   };
-
-  const style = {
-    transform: CSS.Translate.toString(transform),
-    transition,
-    opacity: isDragging ? 0.8 : undefined,
-    zIndex: isDragging ? 50 : undefined,
-    position: isDragging ? 'relative' : undefined,
-  } as React.CSSProperties;
-
-  const isRenamable = section.type !== 'personal_info';
-
+  const actionClass = 'inline-flex h-7 min-w-7 cursor-pointer items-center justify-center gap-1 rounded text-[var(--whale-ink-muted)] hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)] disabled:cursor-default disabled:opacity-30';
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`group/item flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors duration-150 ${
-        isDragging ? 'shadow-md ring-1 ring-[var(--whale-mint)]/40 bg-[var(--whale-card)] cursor-grabbing' :
-        isSelected
-          ? 'bg-[var(--whale-ink)] text-[var(--whale-cream)]'
-          : 'text-[var(--whale-ink-soft)] hover:bg-[var(--whale-cream-deep)]'
-      }`}
-    >
-      <GripVertical
-        className={`h-3 w-3 shrink-0 ${
-          isDragging
-            ? 'cursor-grabbing text-[var(--whale-mint-deep)]'
-            : isSelected
-              ? 'text-[var(--whale-cream)]/50 cursor-grab active:cursor-grabbing'
-              : 'text-[var(--whale-ink-muted)]/50 cursor-grab active:cursor-grabbing'
-        }`}
-        {...attributes}
-        {...listeners}
-      />
-      <button
-        type="button"
-        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2"
-        onClick={onSelect}
-      >
-        <Icon className="h-4 w-4 shrink-0" />
-        {isRenaming ? (
-          <input
-            ref={inputRef}
-            value={renameValue}
-            onChange={(e) => setRenameValue(e.target.value)}
-            onBlur={commitRename}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') commitRename();
-              if (e.key === 'Escape') { setRenameValue(section.title); setIsRenaming(false); }
-            }}
-            onClick={(e) => e.stopPropagation()}
-            className="h-5 w-full min-w-0 rounded border border-[var(--whale-ink)] bg-[var(--whale-card)] px-1 text-sm text-[var(--whale-ink)] outline-none"
-          />
-        ) : (
-          <span className="truncate">{section.title}</span>
-        )}
-      </button>
-      {isRenamable && !isRenaming && (
-        <button
-          type="button"
-          className={cn(
-            'hidden shrink-0 cursor-pointer rounded p-0.5 group-hover/item:block',
-            isSelected ? 'text-[var(--whale-cream)]/60 hover:text-[var(--whale-cream)]' : 'text-[var(--whale-ink-muted)]/60 hover:text-[var(--whale-ink)]'
-          )}
-          onClick={(e) => { e.stopPropagation(); setRenameValue(section.title); setIsRenaming(true); }}
-        >
-          <Pencil className="h-3 w-3" />
-        </button>
-      )}
+    <div ref={setNodeRef} data-module-id={section.id}
+      style={{ transform: CSS.Translate.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
+      className={cn('rounded-lg border p-2', isSelected ? 'border-[var(--whale-mint-deep)] bg-[var(--whale-card)] shadow-sm' : 'border-transparent hover:bg-[var(--whale-cream-soft)]')}>
+      <div className="flex items-center gap-1">
+        {!fixed && <button type="button" {...attributes} {...listeners} aria-label={t('drag', { title: section.title })} title={t('drag', { title: section.title })} className="flex h-7 w-7 shrink-0 touch-none cursor-grab items-center justify-center rounded text-[var(--whale-ink-muted)] hover:bg-[var(--whale-cream-deep)] active:cursor-grabbing"><GripVertical className="h-4 w-4" /></button>}
+        {isRenaming ? <input ref={inputRef} aria-label={t('rename')} value={renameValue} onChange={(event) => setRenameValue(event.target.value)} onBlur={commitRename} onKeyDown={(event) => { if (event.key === 'Enter') commitRename(); if (event.key === 'Escape') setIsRenaming(false); }} className="h-7 min-w-0 flex-1 rounded border bg-background px-1 text-sm" /> :
+          <button type="button" onClick={onSelect} aria-pressed={isSelected} className="flex min-w-0 flex-1 items-center gap-2 py-1 text-left text-sm font-medium text-[var(--whale-ink)]"><Icon className="h-4 w-4 shrink-0" /><span className="truncate">{section.title}</span></button>}
+      </div>
+      {!fixed && <div className="mt-1 flex items-center justify-between border-t border-[var(--whale-divider)] pt-1">
+        <button type="button" className={actionClass} disabled={first} onClick={() => onMove(-1)} aria-label={t('moveUp', { title: section.title })} title={t('moveUp', { title: section.title })}><ArrowUp className="h-3.5 w-3.5" /></button>
+        <button type="button" className={actionClass} disabled={last} onClick={() => onMove(1)} aria-label={t('moveDown', { title: section.title })} title={t('moveDown', { title: section.title })}><ArrowDown className="h-3.5 w-3.5" /></button>
+        <button type="button" className={actionClass} onClick={() => { setRenameValue(section.title); setIsRenaming(true); }} aria-label={t('rename')} title={t('rename')}><Pencil className="h-3.5 w-3.5" /></button>
+        <button type="button" className={cn(actionClass, 'px-1 text-xs hover:text-red-600')} onClick={onRemove} aria-label={t('remove', { title: section.title })}><Trash2 className="h-3.5 w-3.5" />{t('removeLabel')}</button>
+      </div>}
     </div>
   );
 }
@@ -161,9 +92,11 @@ interface EditorSidebarProps {
   sections: ResumeSection[];
   onAddSection: (section: ResumeSection) => void;
   onReorderSections: (sections: ResumeSection[]) => void;
+  onRemoveSection: (sectionId: string) => void;
+  onSectionSelect?: () => void;
 }
 
-export function EditorSidebar({ sections, onAddSection, onReorderSections }: EditorSidebarProps) {
+export function EditorSidebar({ sections, onAddSection, onReorderSections, onRemoveSection, onSectionSelect }: EditorSidebarProps) {
   const t = useTranslations('editor');
   const { selectedSectionId, selectSection } = useEditorStore();
   const { updateSectionTitle } = useResumeStore();
@@ -171,11 +104,13 @@ export function EditorSidebar({ sections, onAddSection, onReorderSections }: Edi
 
   const handleSelect = useCallback((id: string) => {
     selectSection(id);
+    useEditorStore.setState({ showThemeEditor: false, rightPaneTab: 'edit' });
+    onSectionSelect?.();
     requestAnimationFrame(() => {
       const el = document.querySelector(`[data-section-id="${id}"]`);
       el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
-  }, [selectSection]);
+  }, [selectSection, onSectionSelect]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -194,7 +129,7 @@ export function EditorSidebar({ sections, onAddSection, onReorderSections }: Edi
       if (over && active.id !== over.id) {
         const oldIndex = sections.findIndex((s) => s.id === active.id);
         const newIndex = sections.findIndex((s) => s.id === over.id);
-        if (oldIndex !== -1 && newIndex !== -1) {
+        if (oldIndex !== -1 && newIndex !== -1 && sections[newIndex].type !== 'personal_info') {
           const newSections = [...sections];
           const [removed] = newSections.splice(oldIndex, 1);
           newSections.splice(newIndex, 0, removed);
@@ -248,17 +183,19 @@ export function EditorSidebar({ sections, onAddSection, onReorderSections }: Edi
       updatedAt: new Date(),
     };
     onAddSection(newSection);
+    useEditorStore.setState({ showThemeEditor: false, rightPaneTab: 'edit' });
   };
 
   return (
-    <div className="w-56 shrink-0 border-r border-[var(--whale-divider)] bg-[var(--whale-sidebar)] max-md:w-full max-md:border-r-0">
+    <div className="flex h-full w-52 shrink-0 flex-col border-r border-[var(--whale-divider)] bg-[var(--whale-sidebar)] max-md:w-full max-md:border-r-0">
       <div className="p-3">
         <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--whale-ink-muted)]">
           {t('sidebar.sections')}
         </h3>
+        <p className="mt-2 text-xs leading-5 text-[var(--whale-ink-muted)]">{t('sidebar.hint')}</p>
       </div>
-      <ScrollArea className="h-[calc(100vh-7rem)] max-md:h-[calc(100vh-5rem)]">
-        <div className="space-y-0.5 px-2">
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="space-y-1 px-2">
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -269,7 +206,7 @@ export function EditorSidebar({ sections, onAddSection, onReorderSections }: Edi
               items={sections.map((s) => s.id)}
               strategy={verticalListSortingStrategy}
             >
-              {sections.map((section) => {
+              {sections.map((section, index) => {
                 const Icon = sectionIcons[section.type] || LayoutList;
                 return (
                   <SortableSidebarItem
@@ -277,7 +214,15 @@ export function EditorSidebar({ sections, onAddSection, onReorderSections }: Edi
                     section={section}
                     isSelected={selectedSectionId === section.id}
                     onSelect={() => handleSelect(section.id)}
-                    onRename={section.type !== 'personal_info' ? (title) => updateSectionTitle(section.id, title) : undefined}
+                    onRename={(title) => updateSectionTitle(section.id, title)}
+                    onRemove={() => onRemoveSection(section.id)}
+                    first={index === 0 || sections[index - 1]?.type === 'personal_info'}
+                    last={index === sections.length - 1}
+                    onMove={(delta) => {
+                      const next = [...sections];
+                      [next[index], next[index + delta]] = [next[index + delta], next[index]];
+                      onReorderSections(next.map((item, order) => ({ ...item, sortOrder: order })));
+                    }}
                     icon={Icon}
                   />
                 );

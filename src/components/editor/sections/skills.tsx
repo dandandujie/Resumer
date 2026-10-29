@@ -1,11 +1,12 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { FieldScopeProvider } from '../fields/field-scope';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { EditableText } from '../fields/editable-text';
-import { EditableList } from '../fields/editable-list';
+import { TagListInput } from '../fields/tag-list-input';
 import { generateId } from '@/lib/utils';
 import { SortableItemActions, SortableList } from '../dnd/sortable-item';
 import type { ResumeSection, SkillsContent, SkillCategory } from '@/types/resume';
@@ -48,16 +49,18 @@ export function SkillsSection({ section, onUpdate }: Props) {
     <div className="space-y-4">
       <SortableList items={categories.map((cat, index) => cat.id || `cat-${index}-${cat.name}`)} onMove={moveCategory}>
         {(_, index) => { const cat = categories[index]; return (
-        <div key={cat.id || `cat-${index}-${cat.name}`}>
+        <FieldScopeProvider key={cat.id || `cat-${index}-${cat.name}`} sectionId={section.id} itemId={cat.id}>
+        <div data-editor-item-id={cat.id}>
           {index > 0 && <Separator className="mb-4" />}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <EditableText label={t('skillCategory')} value={cat.name} onChange={(v) => updateCategory(index, { name: v })} />
+              <EditableText field="name" label={t('skillCategory')} value={cat.name} onChange={(v) => updateCategory(index, { name: v })} />
               <SortableItemActions index={index} count={categories.length} onMove={(to) => moveCategory(index, to)} onInsert={() => addCategoryAt(index)} onRemove={() => removeCategory(index)} />
             </div>
-            <EditableList label={t('technologies')} items={cat.skills} onChange={(v) => updateCategory(index, { skills: v })} />
+            <TagListInput field="skills" label={t('technologies')} items={cat.skills} onChange={(v) => updateCategory(index, { skills: v })} />
           </div>
         </div>
+        </FieldScopeProvider>
         ); }}
       </SortableList>
       <Button variant="outline" size="sm" onClick={addCategory} className="w-full cursor-pointer gap-1">

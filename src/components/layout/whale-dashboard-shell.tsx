@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom';
+import { BoundedOutlet } from '@/components/layout/page-error-boundary';
 import { useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import {
@@ -142,11 +142,11 @@ function WhaleTopBar() {
   return (
     <header
       data-tauri-drag-region
-      className="flex h-14 items-center justify-between border-b border-[var(--whale-divider)] bg-[var(--whale-cream)] px-4 md:px-6"
+      className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--whale-divider)] bg-[var(--whale-cream)] px-4 md:px-6"
     >
       <div className="flex items-center gap-3 pl-20 md:hidden">
         <BrandMark size={28} />
-        <span className="font-display text-[17px] font-semibold tracking-tight text-[var(--whale-ink)]">{APP_NAME}</span>
+        <span className="hidden font-display text-[17px] font-semibold tracking-tight text-[var(--whale-ink)] sm:inline">{APP_NAME}</span>
       </div>
       <div className="hidden md:flex items-center gap-2 rounded-full border border-[var(--whale-divider)] bg-[var(--whale-cream-soft)] px-3 py-1 text-[12px] text-[var(--whale-ink-soft)]">
         <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[var(--whale-mint)] text-[var(--whale-ink)]">
@@ -171,10 +171,22 @@ function WhaleTopBar() {
   );
 }
 
+function MobileNavigation() {
+  const t = useTranslations('dashboard');
+  const pathname = usePathname();
+  return <nav aria-label={t('workspace')} className="flex shrink-0 gap-1 border-b border-[var(--whale-divider)] px-3 py-2 md:hidden">
+    {[
+      { href: '/dashboard', label: t('nav'), icon: LayoutDashboard },
+      { href: '/insights', label: t('journalTitle'), icon: BookOpenCheck },
+      { href: '/knowledge', label: t('knowledgeNav'), icon: Library },
+    ].map(({ href, label, icon: Icon }) => <Link key={href} href={href} aria-current={pathname === href ? 'page' : undefined} className={cn('flex flex-1 items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs', pathname === href ? 'bg-[var(--whale-ink)] text-[var(--whale-cream)]' : 'text-[var(--whale-ink-muted)]')}><Icon className="h-3.5 w-3.5" />{label}</Link>)}
+  </nav>;
+}
+
 function WhaleFooter() {
   const t = useTranslations('dashboard');
   return (
-    <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[var(--whale-divider)] bg-[var(--whale-cream)] px-4 py-3 text-[11px] text-[var(--whale-ink-muted)] md:px-6">
+    <footer className="hidden shrink-0 items-center justify-between gap-3 border-t md:flex border-[var(--whale-divider)] bg-[var(--whale-cream)] px-4 py-3 text-[11px] text-[var(--whale-ink-muted)] md:px-6">
       <span>© {new Date().getFullYear()} {APP_NAME} · {t('footerRights')}</span>
       <div className="flex items-center gap-3">
         <span className="inline-flex items-center gap-1 rounded-full bg-[var(--whale-mint)]/40 px-2.5 py-0.5 font-semibold text-[var(--whale-ink)]">
@@ -223,8 +235,9 @@ export function WhaleDashboardShell() {
       <WhaleSidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <WhaleTopBar />
-        <main className="whale-scroll min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-8 md:py-8">
-          <Outlet />
+        <MobileNavigation />
+        <main className={cn("whale-scroll min-h-0 flex-1", location.pathname.endsWith('/knowledge') ? "overflow-hidden" : "overflow-y-auto px-4 py-6 lg:px-7 lg:py-7")}>
+          <BoundedOutlet />
         </main>
         <WhaleFooter />
       </div>

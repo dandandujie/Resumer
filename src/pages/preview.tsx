@@ -1,7 +1,7 @@
 /**
  * Preview page — read-only A4 view with PDF export.
  */
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslations } from '@/i18n';
 import { ArrowLeft, Download, Loader2 } from 'lucide-react';
@@ -12,6 +12,7 @@ import { usePdfExport } from '@/hooks/use-pdf-export';
 import { useDesignAttribute } from '@/hooks/use-design-attribute';
 import * as api from '@/lib/tauri-api';
 import type { Resume } from '@/types/resume';
+const OriginalDocumentEditor = lazy(() => import('@/components/editor/original-document-editor'));
 
 export default function PreviewPage() {
   const { id } = useParams<{ id: string }>();
@@ -34,6 +35,10 @@ export default function PreviewPage() {
         {t('common.loading')}
       </div>
     );
+  }
+
+  if (resume.template === 'original-docx') {
+    return <Suspense fallback={null}><OriginalDocumentEditor resume={resume} readOnly /></Suspense>;
   }
 
   return (

@@ -1,4 +1,5 @@
 import QRCode from 'qrcode';
+import { plainText } from './resume-text';
 import type {
   PersonalInfoContent,
   QrCodeItem,
@@ -18,9 +19,29 @@ export async function generateQrSvg(url: string, size = 80): Promise<string> {
   });
 }
 
+/** DOCX 中嵌入标准 PNG，正文仍然是可编辑段落。 */
+export async function generateQrImages(sections: ResumeSection[]): Promise<Record<string, string>> {
+  const images: Record<string, string> = {};
+  for (const section of sections.filter(section => section.type === 'qr_codes' && section.visible !== false)) {
+    for (const item of (section.content as { items?: QrCodeItem[] }).items || []) {
+      if (isValidQrUrl(item.url)) images[item.id] = await QRCode.toDataURL(normalizeUrl(item.url), { width: 320, margin: 1 });
+    }
+  }
+  return images;
+}
+
+export function isValidQrUrl(value: string): boolean {
+  if (!plainText(value).trim()) return false;
+  try {
+    const url = new URL(normalizeUrl(value));
+    return ['http:', 'https:'].includes(url.protocol) &&
+      (url.hostname === 'localhost' || /\.\w{2,}$/.test(url.hostname) || /^\d{1,3}(\.\d{1,3}){3}$/.test(url.hostname));
+  } catch { return false; }
+}
+
 /** Ensure URL has https:// prefix */
 function normalizeUrl(url: string): string {
-  const trimmed = url.trim();
+  const trimmed = plainText(url).trim();
   if (!trimmed) return trimmed;
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
   return `https://${trimmed}`;

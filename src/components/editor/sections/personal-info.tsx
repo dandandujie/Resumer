@@ -135,12 +135,12 @@ export function PersonalInfoSection({ section, onUpdate }: Props) {
 
       <FieldGroup title={t('groupBasic')} defaultOpen>
         <FieldWrapper>
-          <EditableText label={t('fullName')} value={content.fullName} onChange={(v) => onUpdate({ fullName: v })} />
-          <EditableText label={t('jobTitle')} value={content.jobTitle} onChange={(v) => onUpdate({ jobTitle: v })} />
+          <EditableText field="fullName" label={t('fullName')} value={content.fullName} onChange={(v) => onUpdate({ fullName: v })} />
+          <EditableText field="jobTitle" label={t('jobTitle')} value={content.jobTitle} onChange={(v) => onUpdate({ jobTitle: v })} />
         </FieldWrapper>
         <FieldWrapper>
-          <EditableText label={t('yearsOfExperience')} value={content.yearsOfExperience || ''} onChange={(v) => onUpdate({ yearsOfExperience: v })} />
-          <EditableSelect
+          <EditableText field="yearsOfExperience" label={t('yearsOfExperience')} value={content.yearsOfExperience || ''} onChange={(v) => onUpdate({ yearsOfExperience: v })} />
+          <EditableSelect field="educationLevel"
             label={t('educationLevel')}
             value={content.educationLevel || ''}
             onChange={(v) => onUpdate({ educationLevel: v })}
@@ -150,16 +150,26 @@ export function PersonalInfoSection({ section, onUpdate }: Props) {
       </FieldGroup>
       <FieldGroup title={t('groupContact')} defaultOpen>
         <FieldWrapper>
-          <EditableText label={t('email')} value={content.email} onChange={(v) => onUpdate({ email: v })} type="email" />
-          <EditableText label={t('phone')} value={content.phone} onChange={(v) => onUpdate({ phone: v })} type="tel" />
+          <EditableText field="email" label={t('email')} value={content.email} onChange={(v) => onUpdate({ email: v })} type="email" />
+          <EditableText field="phone" label={t('phone')} value={content.phone} onChange={(v) => onUpdate({ phone: v })} type="tel" />
         </FieldWrapper>
         <FieldWrapper>
-          <EditableText label={t('wechat')} value={content.wechat || ''} onChange={(v) => onUpdate({ wechat: v })} />
-          <EditableText label={t('location')} value={content.location} onChange={(v) => onUpdate({ location: v })} />
+          <EditableText field="wechat" label={t('wechat')} value={content.wechat || ''} onChange={(v) => onUpdate({ wechat: v })} />
+          <EditableText field="location" label={t('location')} value={content.location} onChange={(v) => onUpdate({ location: v })} />
         </FieldWrapper>
         <FieldWrapper>
-          <EditableText label={t('website')} value={content.website || ''} onChange={(v) => onUpdate({ website: v })} />
+          <EditableText field="website" label={t('website')} value={content.website || ''} onChange={(v) => onUpdate({ website: v })} />
         </FieldWrapper>
+      </FieldGroup>
+      <FieldGroup title={t('customLinks')} defaultOpen={Boolean(content.github || content.linkedin || content.customLinks?.length)}>
+        <EditableText field="github" label={t('githubProfile')} value={content.github || ''} onChange={github => onUpdate({ github })} />
+        <EditableText field="linkedin" label={t('linkedin')} value={content.linkedin || ''} onChange={linkedin => onUpdate({ linkedin })} />
+        {content.customLinks?.map((link, index) => <div key={index} className="space-y-2 border-t border-[var(--whale-divider)] pt-2">
+          <EditableText field={`customLinks.${index}.label`} label={t('linkLabel')} value={link.label} onChange={label => onUpdate({ customLinks: content.customLinks?.map((item,i) => i===index ? {...item,label} : item) })} />
+          <EditableText field={`customLinks.${index}.url`} label={t('linkUrl')} value={link.url} onChange={url => onUpdate({ customLinks: content.customLinks?.map((item,i) => i===index ? {...item,url} : item) })} />
+          <button type="button" className="text-xs text-[var(--whale-ink-muted)]" onClick={() => onUpdate({ customLinks: content.customLinks?.filter((_,i)=>i!==index) })}>{t('removeLink')}</button>
+        </div>)}
+        <button type="button" className="text-xs text-[var(--whale-ink-muted)]" onClick={() => onUpdate({ customLinks: [...(content.customLinks || []), { label:'', url:'' }] })}>{t('addLink')}</button>
       </FieldGroup>
       {/* 社招简历通常不填这些；已有值时默认展开，避免用户找不到自己填过的内容 */}
       <FieldGroup
@@ -170,8 +180,8 @@ export function PersonalInfoSection({ section, onUpdate }: Props) {
         )}
       >
         <FieldWrapper>
-          <EditableText label={t('age')} value={content.age || ''} onChange={(v) => onUpdate({ age: v })} />
-          <EditableSelect
+          <EditableText field="age" label={t('age')} value={content.age || ''} onChange={(v) => onUpdate({ age: v })} />
+          <EditableSelect field="gender"
             label={t('gender')}
             value={content.gender || ''}
             onChange={(v) => onUpdate({ gender: v })}
@@ -179,13 +189,13 @@ export function PersonalInfoSection({ section, onUpdate }: Props) {
           />
         </FieldWrapper>
         <FieldWrapper>
-          <EditableSelect
+          <EditableSelect field="politicalStatus"
             label={t('politicalStatus')}
             value={content.politicalStatus || ''}
             onChange={(v) => onUpdate({ politicalStatus: v })}
             options={t('politicalStatusOptions').split(',').map((s) => ({ label: s, value: s }))}
           />
-          <EditableSelect
+          <EditableSelect field="ethnicity"
             label={t('ethnicity')}
             value={content.ethnicity || ''}
             onChange={(v) => onUpdate({ ethnicity: v })}
@@ -193,8 +203,8 @@ export function PersonalInfoSection({ section, onUpdate }: Props) {
           />
         </FieldWrapper>
         <FieldWrapper>
-          <EditableText label={t('hometown')} value={content.hometown || ''} onChange={(v) => onUpdate({ hometown: v })} />
-          <EditableSelect
+          <EditableText field="hometown" label={t('hometown')} value={content.hometown || ''} onChange={(v) => onUpdate({ hometown: v })} />
+          <EditableSelect field="maritalStatus"
             label={t('maritalStatus')}
             value={content.maritalStatus || ''}
             onChange={(v) => onUpdate({ maritalStatus: v })}

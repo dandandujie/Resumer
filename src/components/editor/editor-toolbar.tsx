@@ -10,7 +10,6 @@ import {
   Download,
   Upload,
   Settings,
-  Palette,
   Save,
   Languages,
   SpellCheck,
@@ -30,6 +29,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { useEditorStore } from '@/stores/editor-store';
 import * as api from '@/lib/tauri-api';
@@ -41,8 +41,6 @@ export function EditorToolbar() {
   const t = useTranslations('editor.toolbar');
   const router = useRouter();
   const {
-    toggleThemeEditor,
-    showThemeEditor,
     undo,
     redo,
     undoStack,
@@ -104,11 +102,11 @@ export function EditorToolbar() {
     <div
       data-tauri-drag-region
       className={cn(
-        'flex h-12 min-w-0 items-center justify-between gap-2 overflow-x-auto border-b',
+        'flex min-h-14 min-w-0 shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b py-2',
         'border-[var(--whale-divider)] bg-[var(--whale-sidebar)] pl-20 pr-2 sm:pr-3',
       )}
     >
-      <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
+      <div className="flex min-w-0 flex-1 items-center gap-1 max-lg:basis-full sm:gap-2">
         <Button
           variant="ghost"
           size="icon"
@@ -118,6 +116,8 @@ export function EditorToolbar() {
             'hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]',
           )}
           disabled={isSaving}
+          title={t('back')}
+          aria-label={t('back')}
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -158,7 +158,7 @@ export function EditorToolbar() {
         </span>
       </div>
 
-      <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+      <div data-editor-actions className="flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-0.5 max-lg:w-full sm:gap-1">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -223,12 +223,12 @@ export function EditorToolbar() {
           onClick={handleUndo}
           disabled={undoStack.length === 0}
           className={cn(
-            'h-8 w-8 cursor-pointer text-[var(--whale-ink-soft)]',
+            'h-8 w-8 cursor-pointer text-[var(--whale-ink-soft)] sm:w-auto sm:px-2',
             'hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)] disabled:opacity-40',
           )}
           title={t('undo')}
         >
-          <Undo2 className="h-4 w-4" />
+          <Undo2 className="h-4 w-4" /><span className="hidden text-xs sm:inline">{t('undo')}</span>
         </Button>
         <Button
           variant="ghost"
@@ -236,168 +236,52 @@ export function EditorToolbar() {
           onClick={handleRedo}
           disabled={redoStack.length === 0}
           className={cn(
-            'h-8 w-8 cursor-pointer text-[var(--whale-ink-soft)]',
+            'h-8 w-8 cursor-pointer text-[var(--whale-ink-soft)] sm:w-auto sm:px-2',
             'hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)] disabled:opacity-40',
           )}
           title={t('redo')}
         >
-          <Redo2 className="h-4 w-4" />
+          <Redo2 className="h-4 w-4" /><span className="hidden text-xs sm:inline">{t('redo')}</span>
         </Button>
 
         <span className="mx-1 hidden h-5 w-px bg-[var(--whale-divider)] md:inline-block" />
 
-        {/* 求职主线：JD 匹配 → 投递记录 → 模拟面试 */}
-        <div className="hidden items-center gap-0.5 md:flex">
-          <ToolbarSecondary
-            onClick={() => openModal('jd-analysis')}
-            title={t('jdAnalysis')}
-            icon={FileSearch}
-            label={t('jdAnalysis')}
-          />
-          <ToolbarSecondary
-            onClick={() => openModal('journal')}
-            title={t('journal')}
-            icon={BookOpenCheck}
-            label={t('journal')}
-          />
-          <ToolbarSecondary
-            onClick={() => openModal('interview')}
-            title={t('interview')}
-            icon={MessagesSquare}
-            label={t('interview')}
-          />
-          <span className="mx-1 h-5 w-px bg-[var(--whale-divider)]" />
+        <ToolbarSecondary onClick={() => openModal('export')} title={t('exportPdf')} icon={Download} label={t('exportPdf')} />
+        <div className="hidden md:block"><ToolbarSecondary onClick={() => openModal('jd-analysis')} title={t('jdAnalysis')} icon={FileSearch} label={t('jdAnalysis')} /></div>
+        <div className="hidden lg:block"><ToolbarSecondary onClick={() => openModal('journal')} title={t('journal')} icon={BookOpenCheck} label={t('journal')} /></div>
+        <div className="hidden xl:block"><ToolbarSecondary onClick={() => openModal('interview')} title={t('interview')} icon={MessagesSquare} label={t('interview')} /></div>
 
-          {/* 其余 AI 工具收进一个菜单，工具栏不再一字排开十几个按钮 */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  'cursor-pointer gap-1 text-[var(--whale-ink-soft)]',
-                  'hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]',
-                )}
-                title={t('aiTools')}
-              >
-                <Sparkles className="h-4 w-4" />
-                <span className="text-xs">{t('aiTools')}</span>
-                <ChevronDown className="h-3 w-3 opacity-60" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                className="cursor-pointer"
-                onClick={() => openModal('grammar-check')}
-              >
-                <SpellCheck className="mr-2 h-4 w-4" />
-                {t('grammarCheck')}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="cursor-pointer"
-                onClick={() => openModal('translate')}
-              >
-                <Languages className="mr-2 h-4 w-4" />
-                {t('translate')}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="cursor-pointer"
-                onClick={() => openModal('cover-letter')}
-              >
-                <PenLine className="mr-2 h-4 w-4" />
-                {t('coverLetter')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        {/* 窄屏：全部收进"更多" */}
-        <div className="md:hidden">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-[var(--whale-ink-soft)]"
-              >
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => openModal('jd-analysis')}>
-                <FileSearch className="mr-2 h-4 w-4" />
-                {t('jdAnalysis')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => openModal('journal')}>
-                <BookOpenCheck className="mr-2 h-4 w-4" />
-                {t('journal')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => openModal('interview')}>
-                <MessagesSquare className="mr-2 h-4 w-4" />
-                {t('interview')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => openModal('import')}>
-                <Upload className="mr-2 h-4 w-4" />
-                {t('import')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => openModal('export')}>
-                <Download className="mr-2 h-4 w-4" />
-                {t('exportPdf')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => void handleDuplicate()}>
-                <Copy className="mr-2 h-4 w-4" />
-                {t('duplicate')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => openModal('version-history')}>
-                <History className="mr-2 h-4 w-4" />
-                {t('history')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => openModal('grammar-check')}>
-                <SpellCheck className="mr-2 h-4 w-4" />
-                {t('grammarCheck')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => openModal('translate')}>
-                <Languages className="mr-2 h-4 w-4" />
-                {t('translate')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => openModal('cover-letter')}>
-                <PenLine className="mr-2 h-4 w-4" />
-                {t('coverLetter')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 cursor-pointer gap-1 px-2 text-[var(--whale-ink-soft)] hover:bg-[var(--whale-cream-deep)]" title={t('aiTools')}>
+              <Sparkles className="h-4 w-4" /><span className="text-xs">{t('aiTools')}</span><ChevronDown className="h-3 w-3 opacity-60" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem className="cursor-pointer md:hidden" onClick={() => openModal('jd-analysis')}><FileSearch className="mr-2 h-4 w-4" />{t('jdAnalysis')}</DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer lg:hidden" onClick={() => openModal('journal')}><BookOpenCheck className="mr-2 h-4 w-4" />{t('journal')}</DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer xl:hidden" onClick={() => openModal('interview')}><MessagesSquare className="mr-2 h-4 w-4" />{t('interview')}</DropdownMenuItem>
+            <DropdownMenuSeparator className="xl:hidden" />
+            <DropdownMenuItem className="cursor-pointer" onClick={() => openModal('grammar-check')}><SpellCheck className="mr-2 h-4 w-4" />{t('grammarCheck')}</DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer" onClick={() => openModal('translate')}><Languages className="mr-2 h-4 w-4" />{t('translate')}</DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer" onClick={() => openModal('cover-letter')}><PenLine className="mr-2 h-4 w-4" />{t('coverLetter')}</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <Button
           variant="ghost"
           size="icon"
           onClick={() => openModal('settings')}
           className={cn(
-            'h-8 w-8 cursor-pointer text-[var(--whale-ink-soft)]',
-            'hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)] sm:w-auto sm:px-3',
+            'h-8 w-auto cursor-pointer px-2 text-[var(--whale-ink-soft)]',
+            'hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]',
           )}
           title={t('settings')}
         >
           <Settings className="h-4 w-4" />
-          <span className="ml-1 hidden text-xs sm:inline">{t('settings')}</span>
+          <span className="ml-1 text-xs">{t('settings')}</span>
         </Button>
 
-        {/* Primary: theme toggle — always visible */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={toggleThemeEditor}
-          className={cn(
-            'h-8 w-8 cursor-pointer transition-colors sm:w-auto sm:px-3',
-            showThemeEditor
-              ? 'bg-[var(--whale-mint)]/50 text-[var(--whale-ink)] hover:bg-[var(--whale-mint)]/60'
-              : 'text-[var(--whale-ink-soft)] hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]',
-          )}
-          title={t('theme')}
-        >
-          <Palette className="h-4 w-4" />
-          <span className="ml-1 hidden text-xs sm:inline">{t('theme')}</span>
-        </Button>
       </div>
     </div>
   );
@@ -420,13 +304,13 @@ function ToolbarSecondary({
       size="sm"
       onClick={onClick}
       className={cn(
-        'cursor-pointer text-[var(--whale-ink-soft)]',
+        'h-8 cursor-pointer gap-1 px-2 text-[var(--whale-ink-soft)]',
         'hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]',
       )}
       title={title}
     >
       <Icon className="h-4 w-4" />
-      <span className="ml-1 text-xs hidden sm:inline">{label}</span>
+      <span className="ml-1 text-xs">{label}</span>
     </Button>
   );
 }

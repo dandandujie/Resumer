@@ -16,8 +16,7 @@ import { compile } from 'tailwindcss';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, '..');
-const EXPORT_TEMPLATES_DIR = path.join(ROOT, 'src/lib/export/templates');
-const EXPORT_UTILS = path.join(ROOT, 'src/lib/export/utils.ts');
+const PREVIEW_DIR = path.join(ROOT, 'src/components/preview');
 const EXPORT_BUILDERS = path.join(ROOT, 'src/lib/export/builders.ts');
 const OUTPUT_FILE = path.join(ROOT, 'src/lib/pdf/export-tailwind-css.ts');
 
@@ -98,15 +97,16 @@ async function main() {
   // Collect all source files to scan
   const files: string[] = [];
 
-  // Export templates
-  for (const f of fs.readdirSync(EXPORT_TEMPLATES_DIR)) {
-    if (f.endsWith('.ts')) {
-      files.push(path.join(EXPORT_TEMPLATES_DIR, f));
+  // HTML/PDF 与编辑器共用 React 模板，必须从实际渲染组件生成工具类。
+  const collect = (directory: string) => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const file = path.join(directory, entry.name);
+      if (entry.isDirectory()) collect(file);
+      else if (/\.tsx?$/.test(entry.name)) files.push(file);
     }
-  }
-
-  // Export utils and builders (they contain class strings too)
-  files.push(EXPORT_UTILS, EXPORT_BUILDERS);
+  };
+  collect(PREVIEW_DIR);
+  files.push(EXPORT_BUILDERS);
 
   // Extract all candidates
   const allCandidates = new Set<string>();

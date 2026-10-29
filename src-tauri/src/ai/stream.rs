@@ -226,7 +226,7 @@ async fn stream_openai(
     if !res.status().is_success() {
         let status = res.status();
         let txt = res.text().await.unwrap_or_default();
-        return Err(ProviderError::Api(format!("{} {}", status, txt)));
+        return Err(super::provider::api_error(status, &txt, config));
     }
 
     let mut stream = res.bytes_stream();
@@ -529,7 +529,7 @@ async fn stream_openai_responses(
     if !res.status().is_success() {
         let status = res.status();
         let txt = res.text().await.unwrap_or_default();
-        return Err(ProviderError::Api(format!("{} {}", status, txt)));
+        return Err(super::provider::api_error(status, &txt, config));
     }
 
     let mut stream = res.bytes_stream();
@@ -712,7 +712,11 @@ async fn stream_openai_responses(
                             .or_else(|| v.get("message"))
                             .and_then(|m| m.as_str())
                             .unwrap_or("responses stream error");
-                        log::warn!("responses stream error: {msg}");
+                        return Err(super::provider::api_error(
+                            reqwest::StatusCode::BAD_GATEWAY,
+                            msg,
+                            config,
+                        ));
                     }
                     _ => {}
                 }
@@ -800,7 +804,7 @@ async fn stream_anthropic(
     if !res.status().is_success() {
         let status = res.status();
         let txt = res.text().await.unwrap_or_default();
-        return Err(ProviderError::Api(format!("{} {}", status, txt)));
+        return Err(super::provider::api_error(status, &txt, config));
     }
 
     let mut stream = res.bytes_stream();
@@ -1011,8 +1015,7 @@ async fn stream_gemini(
     if !res.status().is_success() {
         let status = res.status();
         let txt = res.text().await.unwrap_or_default();
-        eprintln!("[gemini stream] HTTP {} body={}", status, txt);
-        return Err(ProviderError::Api(format!("{} {}", status, txt)));
+        return Err(super::provider::api_error(status, &txt, config));
     }
 
     let mut stream = res.bytes_stream();

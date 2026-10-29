@@ -18,7 +18,11 @@
     "expand": "Expand",
     "add": "Add",
     "copyDiagnostics": "Copy diagnostics",
-    "diagnosticsCopied": "Diagnostics copied — paste them to a developer or your provider"
+    "diagnosticsCopied": "Diagnostics copied — paste them to a developer or your provider",
+    "pageCrashed": "This page crashed (other pages still work)",
+    "retry": "Retry",
+    "backHome": "Back to dashboard",
+    "done": "Done"
   },
   "dashboard": {
     "nav": "Dashboard",
@@ -40,7 +44,7 @@
     "viewGrid": "Grid view",
     "viewList": "List view",
     "aiGenerate": "AI Generate",
-    "importJson": "Import JSON",
+    "importJson": "Import file",
     "workspace": "Workspace",
     "localBadge": "LOCAL",
     "localSubtitle": "private by design",
@@ -128,7 +132,8 @@
       "purposeDesc": "Target role / city / industry / constraints are injected into every AI conversation",
       "purposeAction": "Fill it in",
       "done": "Done"
-    }
+    },
+    "originalDocument": "Edit the original document"
   },
   "interview": {
     "title": "Mock interview",
@@ -191,14 +196,24 @@
       "history": "Version history",
       "smartFit": "Smart fit",
       "smartFitTitle": "Fit to one page",
-      "smartFitError": "Smart fit failed"
+      "smartFitError": "Smart fit failed",
+      "back": "Back to dashboard"
     },
     "aiPolish": "AI Polish",
     "invalidSectionContent": "This section has invalid data. Please use AI to regenerate the content.",
     "sidebar": {
       "sections": "Sections",
       "addSection": "Add Section",
-      "dragHint": "Drag sections to reorder"
+      "dragHint": "Drag sections to reorder",
+      "hint": "Drag the handle or use arrows to reorder. Personal info stays first.",
+      "drag": "Reorder: {title}",
+      "rename": "Rename",
+      "moveUp": "Move up: {title}",
+      "moveDown": "Move down: {title}",
+      "remove": "Remove section: {title}",
+      "removeLabel": "Delete",
+      "hide": "Hide from resume",
+      "show": "Show in resume"
     },
     "sections": {
       "personalInfo": "Personal Info",
@@ -279,7 +294,17 @@
       "groupContact": "Contact",
       "groupExtra": "Additional (common for SOE / public sector)",
       "customTitle": "Title",
-      "customDate": "Date"
+      "customDate": "Date",
+      "current": "Present",
+      "customLinks": "Other links",
+      "linkLabel": "Link label",
+      "linkUrl": "Link URL",
+      "addLink": "Add link",
+      "removeLink": "Remove link",
+      "linkedin": "LinkedIn",
+      "githubProfile": "GitHub profile",
+      "workLocation": "Work location",
+      "workLocationPlaceholder": "e.g. Shanghai / Remote"
     },
     "items": {
       "drag": "Drag item",
@@ -314,7 +339,32 @@
       "color": "Color",
       "size": "Size",
       "font": "Font",
-      "clear": "Clear formatting"
+      "clear": "Clear formatting",
+      "fontDefault": "Font",
+      "sizeDefault": "Size",
+      "themeDefault": "Theme default",
+      "customColor": "Custom color…",
+      "barLabel": "Text format",
+      "barHint": "Click into a field and select text to change font, size and color; with no selection it applies to what you type next",
+      "sizeNames": {
+        "s9": "",
+        "s10": "",
+        "s10_5": "",
+        "s11": "",
+        "s12": "",
+        "s14": "",
+        "s15": "",
+        "s16": "",
+        "s18": ""
+      },
+      "barHintShort": "Select text to format",
+      "customSize": "Custom size (pt)",
+      "spacing": "Spacing",
+      "characterSpacing": "Character spacing (pt)",
+      "paragraph": "Paragraph",
+      "paragraphBefore": "Before (pt)",
+      "paragraphAfter": "After (pt)",
+      "paragraphLine": "Line spacing (multiple)"
     }
   },
   "ai": {
@@ -409,7 +459,8 @@
       "connectionSuccess": "Connection successful. {count} available models found.",
       "connectionSuccessModelMissing": "Connection successful. {count} models found, but the current default model is not in the returned list.",
       "connectionFailedGeneric": "Connection failed. Please verify your network, Base URL, and API key.",
-      "description": "Save a few API channels and switch between them from any chat. Keys never leave this machine."
+      "description": "Save a few API channels and switch between them from any chat. Keys never leave this machine.",
+      "channelsTab": "AI channels"
     },
     "appearance": {
       "title": "Appearance",
@@ -432,7 +483,30 @@
       "off": "Off",
       "native": "Model built-in",
       "tavily": "Tavily",
-      "grok": "Grok"
+      "grok": "Grok",
+      "description": "All service settings stay visible. Select the service to use for searches.",
+      "active": "Active",
+      "offHint": "Disable web search.",
+      "nativeHint": "Use the current AI channel’s search tool, when supported by the provider and model.",
+      "publicHint": "No API key required. Public web results may be affected by rate limits or page changes.",
+      "baidu": "Baidu",
+      "tavilyHint": "Dedicated search API with sources and summaries.",
+      "grokHint": "Search with xAI and return an answer with sources.",
+      "baseUrl": "API URL",
+      "model": "Search model",
+      "doubao": "Doubao · Volcengine",
+      "doubaoHint": "Use web search through the Ark Responses API with a supported Doubao model or endpoint.",
+      "doubaoModelPlaceholder": "Search-enabled model ID or ep-…",
+      "deepseekHint": "Native search through the Messages API used by the official Harness, returning structured sources.",
+      "officialDocs": "Official documentation",
+      "deepseekApiHint": "Query the official Search API directly without an additional model turn. Requires access to this endpoint.",
+      "test": "Test service",
+      "testing": "Testing…",
+      "testService": "Test: {name}",
+      "testSuccess": "Service responded with {count} sources.",
+      "basicHint": "Native search depends on the active AI channel. DuckDuckGo, Bing, Google and Baidu use public pages without an API key and may be rate-limited.",
+      "deepseekNative": "DeepSeek · Native search",
+      "deepseekDirect": "DeepSeek · Search API"
     },
     "backup": {
       "title": "Data & backup",
@@ -449,19 +523,17 @@
       "restoredTitle": "Restored — restart required",
       "restoredBody": "Backup from {createdAt} (app version {version}). Current data was saved to: {safety}",
       "restartNow": "Restart now"
-    }
+    },
+    "general": "General",
+    "panelDescription": "Manage preferences, search services, backups and AI channels.",
+    "savedLocally": "Changes are saved locally"
   },
   "themeEditor": {
     "title": "Style Editor",
     "reset": "Reset Theme",
     "presets": "Presets",
     "preset": {
-      "standard": "Standard",
-      "songti-classic": "Songti Classic",
-      "compact": "One Page",
-      "soe": "SOE / Public Sector",
-      "foreign": "Foreign English",
-      "accent-blue": "Navy Accent"
+      "standard": "Standard"
     },
     "avatarCircle": "Circle",
     "avatarOneInch": "1-inch Photo",
@@ -504,9 +576,9 @@
     "cjkFont": {
       "label": "CJK font",
       "yahei": "Microsoft YaHei",
-      "sourcehan-sans": "Source Han Sans (bundled)",
+      "sourcehan-sans": "Noto Sans SC (bundled)",
       "songti": "SimSun",
-      "sourcehan-serif": "Source Han Serif (bundled)",
+      "sourcehan-serif": "Noto Serif CJK SC (bundled)",
       "stzhongsong": "STZhongsong",
       "heiti": "SimHei",
       "kaiti": "KaiTi",
@@ -519,7 +591,24 @@
       "times": "Times New Roman",
       "arial": "Arial"
     },
-    "fontHint": "Fonts not installed fall back to the bundled Source Han faces; PDF export always embeds the bundled fonts."
+    "fontHint": "Preview and PDF use the same font order, with bundled fallbacks for missing system fonts. DOCX rendering on other devices depends on font availability.",
+    "panelHint": "Changes update the preview immediately. Use Undo in the toolbar to revert.",
+    "custom": {
+      "add": "Save current style as preset",
+      "name": "Preset name",
+      "placeholder": "e.g. My resume style",
+      "hint": "Save the current fonts, size, spacing and colors for reuse across resumes.",
+      "duplicate": "This name already exists. Choose another name.",
+      "saved": "Preset saved",
+      "saveFailed": "Could not save. Please retry.",
+      "saving": "Saving…",
+      "delete": "Delete preset “{name}”",
+      "deleteHint": "Resumes using this preset will keep their current style.",
+      "deleteFailed": "Could not delete. Please retry.",
+      "loading": "Loading custom presets…",
+      "loadFailed": "Could not load custom presets.",
+      "retry": "Retry"
+    }
   },
   "jdAnalysis": {
     "title": "JD Match Analysis",
@@ -721,7 +810,18 @@
     "interviewPrepRunning": "Generating the prep sheet…",
     "interviewPrepDone": "Prep sheet saved to the knowledge base",
     "interviewPrepFailed": "Failed to generate the prep sheet",
-    "actionNeedsAi": "Configure a model provider in Settings first"
+    "actionNeedsAi": "Configure a model provider in Settings first",
+    "metricTotal": "Every opportunity, in one place",
+    "metricActive": "Opportunities moving forward",
+    "metricOffer": "Good news worth keeping",
+    "metricFollowUp": "Keep the conversation moving",
+    "applicationsHeading": "Your applications",
+    "viewLabel": "Applications view",
+    "detailsOverview": "Application",
+    "detailsInterviews": "Interviews",
+    "detailsOutcome": "Outcome",
+    "kanbanHint": "Drag cards to update progress · Scroll horizontally for all stages",
+    "kanbanFollowUp": "Follow up {date}"
   },
   "export": {
     "title": "Export Resume",
@@ -754,15 +854,16 @@
     "importing": "Importing...",
     "success": "Import successful!",
     "error": "Import failed. Please try again.",
-    "invalidFormat": "Invalid file format. Please select a valid JSON file with sections data.",
+    "invalidFormat": "Unsupported or invalid file. JSON must include sections.",
     "importBtn": "Import",
     "cancel": "Cancel",
-    "unifiedDescription": "Import JSON, PDF, DOCX, or an image into structured resume content",
+    "unifiedDescription": "AI converts DOCX, PDF and images into a Resumer resume. JSON restores resume data, template and layout settings.",
     "selectAnyFile": "Click to select or drag a file here",
     "supportedFiles": "JSON / PDF / DOCX / PNG / JPG / WebP",
-    "fileTooLarge": "Files must be smaller than 20 MB",
+    "fileTooLarge": "Files must be smaller than {max} MB",
     "newResume": "New resume",
-    "replaceCurrent": "Replace current content (keep theme and template)"
+    "replaceCurrent": "Replace current resume (keep history)",
+    "aiImport": "AI converts the file into a Resumer resume for editing and styling"
   },
   "coverLetter": {
     "title": "Outreach Writer",
@@ -838,7 +939,13 @@
     "typeNote": "Note",
     "typeRoot": "Root page",
     "openInsights": "Open in Journal",
-    "linkMissing": "Page not found: {path}"
+    "linkMissing": "Page not found: {path}",
+    "libraryCount": "PERSONAL LIBRARY · {count} pages",
+    "workspaceHint": "Turn experience, interviews and research into your next opportunity.",
+    "viewLabel": "Library view",
+    "browsePages": "Browse pages",
+    "maintenance": "Library maintenance",
+    "draftPending": "You have an unsaved draft. Open the editor to continue."
   },
   "versionHistory": {
     "title": "Version history",
@@ -880,5 +987,31 @@
       "server": "Temporary provider outage (5xx): retry later; switch channels if it keeps failing.",
       "chrome_missing": "No Chrome/Edge found: install any Chromium-based browser to export PDF, or export HTML and print it from a browser."
     }
+  },
+  "originalDocument": {
+    "mode": "Original document",
+    "loading": "Opening",
+    "load-error": "Could not open",
+    "saved": "Saved locally",
+    "dirty": "Unsaved changes",
+    "saving": "Saving",
+    "error": "Save failed. Please retry.",
+    "back": "Back to dashboard",
+    "save": "Save",
+    "history": "History",
+    "spacing": "Selection and paragraph",
+    "before": "Before",
+    "after": "After",
+    "letter": "Letter spacing",
+    "applySpacing": "Apply spacing",
+    "spacingApplied": "Spacing updated",
+    "invalidSpacing": "Paragraph spacing: 0–200 pt; letter spacing: -2–10 pt",
+    "selectText": "Select text to change letter spacing",
+    "selectParagraph": "Place the caret in a paragraph",
+    "journal": "Applications",
+    "rescueCopy": "Save a recovery copy",
+    "retry": "Reopen",
+    "line": "Line height",
+    "invalidLine": "Line height must be between 0.5 and 5"
   }
 }
