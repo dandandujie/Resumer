@@ -22,7 +22,7 @@ export function EditorCanvas({
   const displaySection = sections.find((s) => s.id === selectedSectionId) || sections[0];
 
   return (
-    <div className="flex h-full min-w-0 flex-col overflow-hidden bg-[var(--whale-cream-soft)]">
+    <div className="flex h-full min-w-0 flex-col overflow-hidden bg-[var(--app-bg)]">
       <TextFormatBar />
       <ScrollArea className="min-h-0 flex-1">
         <div className="mx-auto max-w-3xl px-3 py-4 lg:px-4 lg:py-5">
@@ -33,7 +33,7 @@ export function EditorCanvas({
               onRemove={() => onRemoveSection(displaySection.id)}
             />
           ) : (
-            <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-[var(--whale-divider)] text-sm text-[var(--whale-ink-muted)]">
+            <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-[var(--app-border)] text-sm text-[var(--app-text-muted)]">
               请选择或添加一个模块
             </div>
           )}

@@ -45,8 +45,9 @@ export function CreateResumeDialog({ open, onClose, onImport, onCreate }: Create
           <DialogDescription>{t('dashboard.createResumeDescription')}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
+          <p className="text-xs leading-6 text-muted-foreground">可以直接创建：使用标准排版，名称和内容稍后补充。</p>
           <Input placeholder={t('dashboard.titlePlaceholder')} value={title} onChange={(event) => setTitle(event.target.value)} />
-          <div>
+          <details><summary className="cursor-pointer text-sm">选择其他版式（可选）</summary><div className="mt-3">
             <label className="mb-2 block text-sm font-medium">{t('editor.toolbar.template') || 'Template'}</label>
             <div className="grid grid-cols-2 gap-3">
               {TEMPLATE_OPTIONS.map((option) => (
@@ -58,11 +59,12 @@ export function CreateResumeDialog({ open, onClose, onImport, onCreate }: Create
               ))}
             </div>
           </div>
+          </details>
           {error && <p className="text-sm text-red-600">{error}</p>}
         </div>
         <DialogFooter className="justify-between">
           <Button variant="ghost" onClick={() => { close(); onImport(); }}>{t('import.title')}</Button>
-          <div className="flex gap-2"><Button variant="outline" onClick={close}>{t('common.cancel')}</Button><Button onClick={create} disabled={isCreating} className="bg-brand hover:bg-brand-hover">{isCreating ? t('common.loading') : t('common.create')}</Button></div>
+          <div className="flex gap-2"><Button variant="outline" onClick={close}>{t('common.cancel')}</Button><Button onClick={create} disabled={isCreating} variant="primary">{isCreating ? t('common.loading') : t('common.create')}</Button></div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

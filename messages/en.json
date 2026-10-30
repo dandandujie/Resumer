@@ -154,7 +154,7 @@
     "startTrigger": "Start the interview",
     "startFirst": "Click \"Start interview\" first",
     "answerPlaceholder": "Type your answer, Enter to send…",
-    "emptyHint": "Pick an application on the left or fill in company / role / JD, then click \"Start\". Say \"end\" to get the interviewer's evaluation.",
+    "emptyHint": "Click \"Start\" to practice from your resume. You can optionally choose an application or add context. Say \"end\" for an evaluation.",
     "application": "Application",
     "applicationNone": "Not linked",
     "applicationUntitled": "Untitled application",
@@ -197,7 +197,10 @@
       "smartFit": "Smart fit",
       "smartFitTitle": "Fit to one page",
       "smartFitError": "Smart fit failed",
-      "back": "Back to dashboard"
+      "back": "Back to dashboard",
+      "savedLocally": "Saved locally",
+      "saveFailed": "Could not save. Your draft is still available.",
+      "autoSave": "Auto save"
     },
     "aiPolish": "AI Polish",
     "invalidSectionContent": "This section has invalid data. Please use AI to regenerate the content.",
@@ -411,7 +414,9 @@
     "thinkingLive": "Thinking",
     "thinkingDone": "Thoughts",
     "editResend": "Edit & resend",
-    "sourceOrigin": "Source"
+    "sourceOrigin": "Source",
+    "proposalDraftConflict": "This section changed after the proposal. Generate a new suggestion to preserve your edits.",
+    "proposalAppliedDraft": "Applied to your draft. See the toolbar for save status."
   },
   "pdf": {
     "exporting": "Generating PDF..."
@@ -863,7 +868,8 @@
     "fileTooLarge": "Files must be smaller than {max} MB",
     "newResume": "New resume",
     "replaceCurrent": "Replace current resume (keep history)",
-    "aiImport": "AI converts the file into a Resumer resume for editing and styling"
+    "aiImport": "AI converts the file into a Resumer resume for editing and styling",
+    "beforeJsonReplace": "Before replacing with JSON import"
   },
   "coverLetter": {
     "title": "Outreach Writer",
@@ -945,20 +951,26 @@
     "viewLabel": "Library view",
     "browsePages": "Browse pages",
     "maintenance": "Library maintenance",
-    "draftPending": "You have an unsaved draft. Open the editor to continue."
+    "draftPending": "You have an unsaved draft. Open the editor to continue.",
+    "typeConcept": "Concept",
+    "typeGuide": "Guide",
+    "typeQuestion": "Synthesis"
   },
   "versionHistory": {
     "title": "Version history",
-    "description": "Every save, export, application and accepted AI edit leaves a version; the current state is saved before restoring.",
-    "empty": "No versions yet. Save or export once and they will show up here.",
+    "description": "Keep important milestones. Preview, compare, and restore previous work.",
+    "empty": "No versions yet. Save your first milestone above.",
     "loading": "Loading…",
     "loadFailed": "Failed to load versions",
     "event": {
-      "save": "Saved",
+      "save": "Auto snapshot",
       "export": "Exported",
       "apply": "Applied",
       "ai_accept": "AI edit",
-      "restore": "Before restore"
+      "restore": "Before restore",
+      "manual": "Named version",
+      "other": "Historical record",
+      "import": "Before import"
     },
     "appliedTo": "Applied to {target}",
     "exportedAs": "Exported {format}",
@@ -969,10 +981,64 @@
     "restoreConfirmTitle": "Restore this version?",
     "restoreConfirmBody": "The current content is saved first as a “before restore” version, so you can always switch back.",
     "restoreLabel": "Before restore ({time})",
-    "current": "Current",
+    "current": "Current draft",
     "preview": "Preview",
     "selectVersion": "Pick a version on the left to preview it",
-    "viewApplied": "View the resume version that was applied"
+    "viewApplied": "View the resume version that was applied",
+    "create": "Save version",
+    "policy": "Saving updates the draft only. Keep named versions, exports/applications and overwrite protection. Identical content reuses a snapshot; no timed snapshots.",
+    "name": "Version name",
+    "namePlaceholder": "For example: Product manager · ready to apply",
+    "nameInvalid": "Enter a version name of 1–80 characters.",
+    "saveFailed": "Could not save this version.",
+    "created": "Named version saved",
+    "rename": "Rename",
+    "renamed": "Version renamed",
+    "delete": "Delete",
+    "deleted": "Historical version deleted",
+    "deleteTitle": "Delete this historical version?",
+    "deleteBody": "Only this historical record will be deleted. The current draft stays intact. This cannot be undone. Versions linked to applications are protected.",
+    "linkedProtected": "This version is linked to an application and is protected from deletion.",
+    "unsavedDraft": "Unsaved changes · saved before creating a version",
+    "savedDraft": "Saved locally · your editable working draft",
+    "currentHint": "Your working resume, separate from all historical records.",
+    "search": "Search names or dates",
+    "filterLabel": "Filter historical versions",
+    "filter": {
+      "all": "All records",
+      "named": "Named versions"
+    },
+    "noResults": "No matching records. Try another search or filter.",
+    "detailView": "Version detail view",
+    "compare": "Changes",
+    "identical": "Same as current",
+    "compareHint": "Historical version on the left; current draft on the right. Includes content, order, visibility, and formatting.",
+    "noChanges": "Content and formatting match your current draft. No restore is needed.",
+    "before": "Historical version",
+    "after": "Current draft",
+    "visible": "Visible",
+    "hidden": "Hidden",
+    "restoreSafety": "Your current draft is preserved automatically before restoring.",
+    "done": "Done",
+    "retry": "Retry",
+    "missing": "This version is no longer available. Reload the list.",
+    "originalCompare": "Use the preview to inspect original DOCX layouts. Text comparison is not available for this format.",
+    "change": {
+      "added": "Section added",
+      "removed": "Section removed",
+      "changed": "Content changed",
+      "format": "Formatting or item structure",
+      "visibility": "Visibility changed",
+      "order": "Section order",
+      "title": "Resume title",
+      "template": "Template",
+      "language": "Language",
+      "theme": "Layout style"
+    },
+    "changeHint": {
+      "theme": "Colors, fonts, spacing, or page settings differ. Use the preview to inspect this version.",
+      "format": "Text formatting, item structure, or images differ while the plain text matches. Check the preview."
+    }
   },
   "errors": {
     "hint": {
@@ -1013,5 +1079,15 @@
     "retry": "Reopen",
     "line": "Line height",
     "invalidLine": "Line height must be between 0.5 and 5"
+  },
+  "unsaved": {
+    "title": "Unsaved changes",
+    "body": "Save your changes before leaving? Discard will abandon this draft.",
+    "requiredTitle": "Save this draft first",
+    "requiredBody": "This action uses the saved resume. Save to continue, or cancel to keep editing.",
+    "cancel": "Cancel",
+    "discard": "Don’t save",
+    "saveContinue": "Save and continue",
+    "saveLeave": "Save and leave"
   }
 }

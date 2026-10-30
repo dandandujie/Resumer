@@ -39,3 +39,15 @@ pub(crate) fn cfg_from(config: Value) -> Result<AIConfig, CommandError> {
         message: format!("AI 配置无效: {error}"),
     })
 }
+
+pub mod lifecycle;
+
+pub mod recordings;
+
+pub mod workspace;
+
+pub mod knowledge_ai;
+
+pub mod knowledge_wiki;
+
+pub mod knowledge_files;

@@ -3,6 +3,6 @@
   text-align: initial;
 }
 .original-document .docx-toolbar {
-  border-bottom: 1px solid var(--whale-divider);
+  border-bottom: 1px solid var(--app-border);
   background: white;
 }

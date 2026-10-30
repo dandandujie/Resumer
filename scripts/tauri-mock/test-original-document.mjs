@@ -18,18 +18,10 @@ let checks = 0;
 const check = (condition, label) => { assert.ok(condition, label); checks++; console.log('PASS',label); };
 try {
   await browser.navigate(`${origin}/zh/dashboard`);
-  // 走用户真实导入按钮和文件 input；测试文件只含虚构人物与生成的色块头像。
-  await browser.click('text:导入文件');
-  await browser.evaluate(`(() => {
-    const input=document.querySelector('input[type=file]');
-    const transfer=new DataTransfer();
-    transfer.items.add(new File([new Uint8Array(${JSON.stringify([...original])})], '原文档验收.docx', {type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}));
-    input.files=transfer.files; input.dispatchEvent(new Event('change',{bubbles:true}));
-  })()`);
-  await browser.click('text:导入');
-  await browser.waitFor(`location.pathname.includes('/editor/') && document.querySelector('[role=status]')?.textContent==='已保存到本机'`);
-  const id = await browser.evaluate('location.pathname.split("/").pop()');
-  check(await browser.evaluate(`window.__TAURI_MOCK__.resumes['${id}'].template === 'original-docx'`),'DOCX 导入进入原文档模式');
+  // 新导入统一走 AI 结构化；此处仅置入既有原文档样本，验证兼容编辑器。
+  const id = await browser.evaluate(`(async()=>{const id=await window.__TAURI_INTERNALS__.invoke('import_original_docx',{filename:'原文档验收.docx',bytes:${JSON.stringify([...original])}});history.pushState(null,'','/zh/editor/'+id);dispatchEvent(new PopStateEvent('popstate'));return id;})()`);
+  await browser.waitFor(`document.querySelector('[role=status]')?.textContent==='已保存到本机'`);
+  check(await browser.evaluate(`window.__TAURI_MOCK__.resumes['${id}'].template === 'original-docx'`),'既有 DOCX 数据进入兼容编辑器');
   check(await browser.evaluate("document.querySelectorAll('.docx-page').length===2 && document.body.innerText.includes('原始页眉') && document.body.innerText.includes('原始页脚')"),'原分页和页眉页脚呈现');
   await browser.click('text:DOCX');
   const untouched = await browser.evaluate('window.__TAURI_MOCK__.exportedDocument.bytes');
@@ -72,7 +64,8 @@ try {
   await browser.waitFor("document.querySelector('[role=status]')?.textContent.includes('保存失败')");
   check(await browser.evaluate("document.body.innerText.includes('保存重试')"),'保存失败仍保留当前编辑');
   await browser.click('[aria-label="返回工作台"]');
-  check(await browser.evaluate(`location.pathname.endsWith('/editor/${id}')`),'保存失败时返回操作不会丢弃文档');
+  check(await browser.evaluate(`location.pathname.endsWith('/editor/${id}') && !!document.querySelector('[data-unsaved-dialog]')`),'保存失败时返回先确认不丢弃文档');
+  await browser.click('text:取消');
   await browser.click('text:另存当前副本');
   const rescued = await browser.evaluate('window.__TAURI_MOCK__.exportedDocument.bytes');
   writeFileSync(`${out}/rescued.docx`, Buffer.from(rescued));
@@ -84,6 +77,7 @@ try {
   await browser.navigate(`${origin}/zh/editor/${id}`);
   await browser.waitFor("document.querySelector('[role=status]')?.textContent==='已保存到本机'");
   check(await browser.evaluate("document.body.innerText.includes('保存重试')"),'失败重试后持久化回读');
+  await browser.evaluate(`(async()=>{const a=await window.__appModule('/src/lib/tauri-api.ts');await a.createResumeVersion('${id}','manual','编辑后定稿')})()`);
   await browser.click('text:历史版本');
   await browser.waitFor("document.querySelectorAll('[data-resume-version]').length>1");
   const earliest = await browser.evaluate("[...document.querySelectorAll('[data-resume-version]')].at(-1).dataset.resumeVersion");
@@ -99,6 +93,8 @@ try {
   await browser.send('Input.insertText',{text:' 返回保存'});
   await browser.waitFor("document.querySelector('[data-original-document]').textContent.includes('返回保存')");
   await browser.click('[aria-label="返回工作台"]');
+  await browser.waitFor("!!document.querySelector('[data-unsaved-dialog]')");
+  await browser.click('text:保存并离开');
   await browser.waitFor("location.pathname.endsWith('/dashboard')");
   await browser.navigate(`${origin}/zh/editor/${id}`);
   await browser.waitFor("document.querySelector('[role=status]')?.textContent==='已保存到本机'");
@@ -112,13 +108,7 @@ try {
   if (process.env.OFFICE_ROUNDTRIP) {
     const office = readFileSync(process.env.OFFICE_ROUNDTRIP);
     await browser.navigate(`${origin}/zh/dashboard`);
-    await browser.click('text:导入文件');
-    await browser.evaluate(`(() => {
-      const input=document.querySelector('input[type=file]'); const transfer=new DataTransfer();
-      transfer.items.add(new File([new Uint8Array(${JSON.stringify([...office])})], 'Word回读验收.docx'));
-      input.files=transfer.files; input.dispatchEvent(new Event('change',{bubbles:true}));
-    })()`);
-    await browser.click('text:导入');
+    await browser.evaluate(`(async()=>{const id=await window.__TAURI_INTERNALS__.invoke('import_original_docx',{filename:'Word回读验收.docx',bytes:${JSON.stringify([...office])}});history.pushState(null,'','/zh/editor/'+id);dispatchEvent(new PopStateEvent('popstate'));})()`);
     await browser.waitFor("document.querySelector('[role=status]')?.textContent==='已保存到本机' && document.querySelector('[data-original-document]')?.textContent.includes('2026-10-03')");
     await browser.waitFor("document.querySelector('[data-original-document] img')?.naturalWidth > 0");
     check(await browser.evaluate("document.querySelectorAll('.docx-page').length===2 && !!document.querySelector('[data-original-document] img')"),'Word 修改并保存的 DOCX 能重新导入，日期、两页和头像保留');

@@ -282,10 +282,8 @@ pub(crate) fn parse_pdf_assets(bytes: &[u8]) -> Result<ImportAssets, String> {
     let document = lopdf::Document::load_mem(bytes).map_err(|e| format!("PDF 读取失败: {}", e))?;
     let page_id = *document.get_pages().values().next().ok_or("PDF 没有页面")?;
     let mut images = Vec::new();
-    for image in document
-        .get_page_images(page_id)
-        .map_err(|e| format!("PDF 图片读取失败: {}", e))?
-    {
+    // 头像属于可选增强；没有 XObject 图片字典的正常 PDF 仍应继续读取文字。
+    for image in document.get_page_images(page_id).unwrap_or_default() {
         let filters = image.filters.clone().unwrap_or_default();
         let bytes = if filters.iter().any(|filter| filter == "DCTDecode") {
             Some(image.content.to_vec())
@@ -346,7 +344,9 @@ pub(crate) fn extract_knowledge_text(filename: &str, bytes: &[u8]) -> Result<Str
     match extension.as_str() {
         "md" | "markdown" | "txt" => String::from_utf8(bytes.to_vec())
             .map_err(|error| format!("文本编码不是 UTF-8: {error}")),
-        "pdf" => parse_pdf_assets(bytes).map(|assets| assets.text),
+        // 资料解析不需要头像，纯文本 PDF 不一定含 XObject 图片字典。
+        "pdf" => pdf_extract::extract_text_from_mem(bytes)
+            .map_err(|error| format!("PDF 文本读取失败: {error}")),
         "docx" => parse_docx_assets(bytes).map(|assets| assets.text),
         "png" | "jpg" | "jpeg" | "webp" => {
             image::guess_format(bytes).map_err(|error| format!("图片格式无法识别: {error}"))?;

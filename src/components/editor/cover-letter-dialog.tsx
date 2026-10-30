@@ -25,6 +25,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { useResumeStore } from '@/stores/resume-store';
 import { useEditorStore } from '@/stores/editor-store';
+import { ApplicationContextPicker } from '@/components/journal/application-context-picker';
 import { useJournalStore } from '@/stores/journal-store';
 import * as api from '@/lib/tauri-api';
 import type { CoverLetterStyle } from '@/lib/tauri-api';
@@ -185,7 +186,7 @@ export function CoverLetterDialog({
                         'flex cursor-pointer flex-col items-center gap-1.5 rounded-lg border-2 p-4 text-center transition-all',
                         isSelected
                           ? 'border-brand bg-brand-muted'
-                          : 'border-border bg-card hover:border-[var(--whale-ink-muted)]',
+                          : 'border-border bg-card hover:border-[var(--app-text-muted)]',
                       )}
                     >
                       <Icon
@@ -199,7 +200,7 @@ export function CoverLetterDialog({
                           'text-sm font-medium',
                           isSelected
                             ? 'text-brand'
-                            : 'text-[var(--whale-ink-soft)]',
+                            : 'text-[var(--app-text-secondary)]',
                         )}
                       >
                         {t(opt.labelKey)}
@@ -212,6 +213,8 @@ export function CoverLetterDialog({
                 })}
               </div>
 
+              <ApplicationContextPicker resumeId={resumeId} value={sourceApplicationId} onChoose={application => { setSourceApplicationId(application.id); setCompany(application.company); setRole(application.role); setJobDescription(application.jd); }} />
+              <details open={!!company || !!role}><summary className="cursor-pointer text-xs text-muted-foreground">公司与岗位（可选）</summary>
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">
@@ -233,9 +236,10 @@ export function CoverLetterDialog({
                 </div>
               </div>
 
+              </details>
               {/* Optional JD */}
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-[var(--whale-ink-soft)]">
+                <label className="text-sm font-medium text-[var(--app-text-secondary)]">
                   {t('jdLabel')}
                 </label>
                 <Textarea
@@ -250,7 +254,7 @@ export function CoverLetterDialog({
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="whitespace-pre-wrap rounded-xl border border-border bg-muted/50 p-4 text-[13.5px] leading-relaxed text-[var(--whale-ink-soft)]">
+              <div className="whitespace-pre-wrap rounded-xl border border-border bg-muted/50 p-4 text-[13.5px] leading-relaxed text-[var(--app-text-secondary)]">
                 {result}
               </div>
               {error && <p className="text-sm text-red-500">{error}</p>}
@@ -284,7 +288,7 @@ export function CoverLetterDialog({
               </Button>
               <Button
                 onClick={() => void handleCopy()}
-                className="cursor-pointer gap-1.5 bg-brand hover:bg-brand-hover"
+                variant="primary" className="cursor-pointer gap-1.5"
               >
                 <Copy className="h-3.5 w-3.5" />
                 {t('copy')}
@@ -294,7 +298,7 @@ export function CoverLetterDialog({
             <Button
               onClick={() => void handleGenerate()}
               disabled={isGenerating}
-              className="cursor-pointer gap-1.5 bg-brand hover:bg-brand-hover"
+              variant="primary" className="cursor-pointer gap-1.5"
             >
               {isGenerating ? (
                 <>

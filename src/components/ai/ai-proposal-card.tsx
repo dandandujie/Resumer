@@ -1,25 +1,52 @@
-'use client';
+"use client";
 
-import { useMemo, useCallback, useState } from 'react';
-import { Check, Undo2, Wand2, Plus, Trash2, RefreshCcw } from 'lucide-react';
-import { useTranslations } from 'next-intl';
-import { toast } from 'sonner';
-import { logError } from '@/stores/error-log-store';
-import { useProposalsStore, type Proposal } from '@/stores/proposals-store';
-import { useResumeStore } from '@/stores/resume-store';
-import { diffSectionFields, type FieldChange } from '@/lib/section-diff';
-import type { ResumeSection } from '@/types/resume';
-import * as api from '@/lib/tauri-api';
+import { useMemo, useCallback, useState } from "react";
+import { Check, Undo2, Wand2, Plus, Trash2, RefreshCcw } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { toast } from "sonner";
+import { logError } from "@/stores/error-log-store";
+import { useProposalsStore, type Proposal } from "@/stores/proposals-store";
+import { useResumeStore } from "@/stores/resume-store";
+import { diffSectionFields, type FieldChange } from "@/lib/section-diff";
+import type { ResumeSection } from "@/types/resume";
+import * as api from "@/lib/tauri-api";
+import { useEditorStore } from "@/stores/editor-store";
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === "object")
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([k, v]) => [k, canonical(v)]),
+    );
+  return value;
+}
 
 const TOOL_META: Record<
   string,
   { icon: typeof Wand2; key: string; defaultLabel: string }
 > = {
-  updateSection: { icon: Wand2, key: 'proposalSummaryModified', defaultLabel: '修改' },
-  rewriteText: { icon: RefreshCcw, key: 'proposalSummaryRewrite', defaultLabel: '改写' },
-  suggestSkills: { icon: Wand2, key: 'proposalSummaryModified', defaultLabel: '补充技能' },
-  addSection: { icon: Plus, key: 'proposalSummaryAdded', defaultLabel: '新增' },
-  removeSection: { icon: Trash2, key: 'proposalSummaryRemoved', defaultLabel: '删除' },
+  updateSection: {
+    icon: Wand2,
+    key: "proposalSummaryModified",
+    defaultLabel: "修改",
+  },
+  rewriteText: {
+    icon: RefreshCcw,
+    key: "proposalSummaryRewrite",
+    defaultLabel: "改写",
+  },
+  suggestSkills: {
+    icon: Wand2,
+    key: "proposalSummaryModified",
+    defaultLabel: "补充技能",
+  },
+  addSection: { icon: Plus, key: "proposalSummaryAdded", defaultLabel: "新增" },
+  removeSection: {
+    icon: Trash2,
+    key: "proposalSummaryRemoved",
+    defaultLabel: "删除",
+  },
 };
 
 export interface ProposalSummary {
@@ -66,25 +93,39 @@ export function summarizeProposal(proposal: Proposal): ProposalSummary {
 /** Compute field changes per affected section (used by both chat card and preview overlay). */
 export function getProposalChangesBySection(
   proposal: Proposal,
-): Map<string, { section: ResumeSection; changes: FieldChange[]; kind: 'modified' | 'added' | 'removed' }> {
-  const map = new Map<string, { section: ResumeSection; changes: FieldChange[]; kind: 'modified' | 'added' | 'removed' }>();
+): Map<
+  string,
+  {
+    section: ResumeSection;
+    changes: FieldChange[];
+    kind: "modified" | "added" | "removed";
+  }
+> {
+  const map = new Map<
+    string,
+    {
+      section: ResumeSection;
+      changes: FieldChange[];
+      kind: "modified" | "added" | "removed";
+    }
+  >();
   const beforeMap = new Map(proposal.beforeSections.map((s) => [s.id, s]));
   const afterMap = new Map(proposal.afterSections.map((s) => [s.id, s]));
 
   for (const a of proposal.afterSections) {
     const b = beforeMap.get(a.id);
     if (!b) {
-      map.set(a.id, { section: a, changes: [], kind: 'added' });
+      map.set(a.id, { section: a, changes: [], kind: "added" });
     } else {
       const changes = diffSectionFields(b, a);
       if (changes.length > 0) {
-        map.set(a.id, { section: a, changes, kind: 'modified' });
+        map.set(a.id, { section: a, changes, kind: "modified" });
       }
     }
   }
   for (const b of proposal.beforeSections) {
     if (!afterMap.has(b.id)) {
-      map.set(b.id, { section: b, changes: [], kind: 'removed' });
+      map.set(b.id, { section: b, changes: [], kind: "removed" });
     }
   }
   return map;
@@ -92,93 +133,63 @@ export function getProposalChangesBySection(
 
 /** Shared accept/reject handlers — used by both chat card and preview overlay. */
 export function useProposalActions(proposal: Proposal | undefined) {
-  const t = useTranslations('ai');
+  const t = useTranslations("ai");
 
-  // 改动在工具执行时已经写库；"采纳"只是确认并收起提案卡。
   const handleAccept = useCallback(() => {
     if (!proposal) return;
-    useProposalsStore.getState().acceptProposal(proposal.id);
-    toast.success(t('proposalAccepted'));
-    const resumeId = useResumeStore.getState().currentResume?.id;
-    if (resumeId) {
-      const label = summarizeProposal(proposal).affectedSectionTitles.slice(0, 2).join('、');
-      api.createResumeVersion(resumeId, 'ai_accept', label).catch((error) =>
-        logError(t('proposalAccepted'), String((error as Error)?.message || error)),
-      );
+    const store = useResumeStore.getState();
+    if (store.currentResume?.id !== proposal.resumeId) return;
+    const before = new Map(
+      proposal.beforeSections.map((section) => [section.id, section]),
+    );
+    const after = new Map(
+      proposal.afterSections.map((section) => [section.id, section]),
+    );
+    const value = (section?: ResumeSection) =>
+      section
+        ? JSON.stringify([
+            section.type,
+            section.title,
+            section.visible,
+            canonical(section.content),
+          ])
+        : "";
+    const changed = new Set(
+      [...before.keys(), ...after.keys()].filter(
+        (id) => value(before.get(id)) !== value(after.get(id)),
+      ),
+    );
+    if (
+      [...changed].some(
+        (id) =>
+          value(store.sections.find((section) => section.id === id)) !==
+          value(before.get(id)),
+      )
+    ) {
+      toast.error(t("proposalDraftConflict"), { position: "bottom-right" });
+      return;
     }
+    const sections = store.sections
+      .map((section) =>
+        changed.has(section.id) ? after.get(section.id) : section,
+      )
+      .filter((section): section is ResumeSection => !!section);
+    for (const section of proposal.afterSections)
+      if (changed.has(section.id) && !before.has(section.id))
+        sections.push(section);
+    useEditorStore.getState().pushSnapshot(store.sections);
+    store.reorderSections(sections);
+    useProposalsStore.getState().acceptProposal(proposal.id);
+    toast.success(t("proposalAppliedDraft"), { position: "bottom-right" });
   }, [proposal, t]);
 
   const handleReject = useCallback(async () => {
     if (!proposal) return;
-    const store = useResumeStore.getState();
-    const current = store.currentResume;
-    if (!current) {
-      useProposalsStore.getState().rejectProposal(proposal.id);
-      return;
-    }
-
-    // Build a map of section IDs that were touched by this proposal
-    const touchedIds = new Set<string>();
-    for (const s of proposal.beforeSections) touchedIds.add(s.id);
-    for (const s of proposal.afterSections) touchedIds.add(s.id);
-
-    // Merge: keep untouched sections from current state, restore touched sections from beforeSections
-    const beforeMap = new Map(proposal.beforeSections.map((s) => [s.id, s]));
-
-    const restoredSections = current.sections
-      .map((currentSection) => {
-        if (!touchedIds.has(currentSection.id)) {
-          // This section wasn't touched by the AI — keep current state
-          return currentSection;
-        }
-        // This section was touched — restore from beforeSections if it existed
-        const before = beforeMap.get(currentSection.id);
-        if (before) {
-          return before;
-        }
-        // Section was added by AI and doesn't exist in before — remove it
-        return null;
-      })
-      .filter((s): s is ResumeSection => s !== null);
-
-    // Re-add any sections that were removed by AI (existed in before but not in current)
-    for (const before of proposal.beforeSections) {
-      if (!current.sections.some((s) => s.id === before.id)) {
-        restoredSections.push(before);
-      }
-    }
-
-    // Sort by original sort order
-    restoredSections.sort((a, b) => a.sortOrder - b.sortOrder);
-
-    store.setResume({
-      ...current,
-      sections: restoredSections,
-    } as any);
-
-    try {
-      await api.updateResume(proposal.resumeId, {
-        title: current.title,
-        template: current.template,
-        themeConfig: current.themeConfig,
-        sections: restoredSections,
-      });
-    } catch (err) {
-      console.error('Failed to persist rejection:', err);
-      logError(t('proposalRejectFailed'));
-      return;
-    }
-
-    const all = useProposalsStore.getState().proposals;
-    const stale = all.filter((p) => p.createdAt >= proposal.createdAt).map((p) => p.id);
-    stale.forEach((id) => useProposalsStore.getState().rejectProposal(id));
-
-    const droppedCount = stale.length - 1;
-    if (droppedCount > 0) {
-      toast.success(t('proposalRejectedCascade', { count: droppedCount }));
-    } else {
-      toast.success(t('proposalRejected'));
-    }
+    const stale = useProposalsStore
+      .getState()
+      .proposals.filter((p) => p.createdAt >= proposal.createdAt);
+    stale.forEach((p) => useProposalsStore.getState().rejectProposal(p.id));
+    toast.success(t("proposalRejected"), { position: "bottom-right" });
   }, [proposal, t]);
 
   return { handleAccept, handleReject };
@@ -199,69 +210,83 @@ export function KnowledgeProposalCard({
   path: string;
   content: string;
   reason: string;
-  onResolved?: (status: 'accepted' | 'rejected') => void;
+  onResolved?: (status: "accepted" | "rejected") => void;
 }) {
-  const [status, setStatus] = useState<'pending' | 'accepted' | 'rejected'>('pending');
+  const [status, setStatus] = useState<"pending" | "accepted" | "rejected">(
+    "pending",
+  );
   const [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const t = useTranslations('ai');
+  const t = useTranslations("ai");
   const accept = async () => {
     setSaving(true);
     try {
       await api.knowledgeWrite(path, content);
-      setStatus('accepted');
-      toast.success(t('knowledgeProposalAccepted'));
-      onResolved?.('accepted');
+      setStatus("accepted");
+      toast.success(t("knowledgeProposalAccepted"));
+      onResolved?.("accepted");
     } catch (error) {
       const message = String((error as Error)?.message || error);
-      logError(t('knowledgeProposalFailed'), message);
+      logError(t("knowledgeProposalFailed"), message);
     } finally {
       setSaving(false);
     }
   };
   const reject = () => {
-    setStatus('rejected');
-    onResolved?.('rejected');
+    setStatus("rejected");
+    onResolved?.("rejected");
   };
   return (
-    <div className="my-2 rounded-xl border border-[var(--whale-divider)] bg-[var(--whale-cream-soft)] px-3 py-2">
-      <div className="text-[12px] font-semibold text-[var(--whale-ink)]">{t('knowledgeProposal')}</div>
-      <div className="mt-1 truncate text-[11px] text-[var(--whale-ink-muted)]">{path}</div>
-      <div className="mt-1 text-[11px] text-[var(--whale-ink-soft)]">{t('knowledgeProposalReason', { reason })}</div>
+    <div className="my-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-muted)] px-3 py-2">
+      <div className="text-[12px] font-semibold text-[var(--app-text)]">
+        {t("knowledgeProposal")}
+      </div>
+      <div className="mt-1 truncate text-[11px] text-[var(--app-text-muted)]">
+        {path}
+      </div>
+      <div className="mt-1 text-[11px] text-[var(--app-text-secondary)]">
+        {t("knowledgeProposalReason", { reason })}
+      </div>
       <button
         type="button"
         onClick={() => setExpanded((value) => !value)}
-        className={`mt-2 w-full cursor-pointer whitespace-pre-wrap text-left text-[11px] text-[var(--whale-ink-muted)] ${
-          expanded ? 'max-h-80 overflow-y-auto' : 'line-clamp-3'
+        className={`mt-2 w-full cursor-pointer whitespace-pre-wrap text-left text-[11px] text-[var(--app-text-muted)] ${
+          expanded ? "max-h-80 overflow-y-auto" : "line-clamp-3"
         }`}
         aria-expanded={expanded}
       >
         {content}
       </button>
       <div className="mt-2 flex justify-end gap-1">
-        {status === 'accepted' && (
-          <span className="text-[11px] text-[var(--whale-mint-deep)]">{t('knowledgeProposalAccepted')}</span>
+        {status === "accepted" && (
+          <span className="text-[11px] text-[var(--app-accent)]">
+            {t("knowledgeProposalAccepted")}
+          </span>
         )}
-        {status === 'rejected' && (
-          <span className="text-[11px] text-[var(--whale-ink-muted)]">{t('proposalRejected')}</span>
+        {status === "rejected" && (
+          <span className="text-[11px] text-[var(--app-text-muted)]">
+            {t("proposalRejected")}
+          </span>
         )}
-        {status === 'pending' && (
+        {status === "pending" && (
           <>
             <button
               type="button"
-              className="cursor-pointer rounded-md border border-[var(--whale-divider)] bg-[var(--whale-card)] px-2 py-1 text-[11px]"
+              className="cursor-pointer rounded-md border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-[11px]"
               onClick={reject}
               disabled={saving}
             >
-              <Undo2 className="mr-1 inline h-3 w-3" />{t('proposalReject')}
+              <Undo2 className="mr-1 inline h-3 w-3" />
+              {t("proposalReject")}
             </button>
             <button
               type="button"
-              className="cursor-pointer rounded-md bg-[var(--whale-ink)] px-2 py-1 text-[11px] text-[var(--whale-cream)] disabled:opacity-50"
+              className="cursor-pointer rounded-md bg-[var(--app-text)] px-2 py-1 text-[11px] text-[var(--app-bg)] disabled:opacity-50"
               onClick={() => void accept()}
               disabled={saving}
             >
-              <Check className="mr-1 inline h-3 w-3" />{saving ? t('knowledgeProposalSaving') : t('proposalAccept')}
+              <Check className="mr-1 inline h-3 w-3" />
+              {saving ? t("knowledgeProposalSaving") : t("proposalAccept")}
             </button>
           </>
         )}
@@ -272,14 +297,14 @@ export function KnowledgeProposalCard({
 
 export function AIProposalCard({ toolCallId }: AIProposalCardProps) {
   const proposal = useProposalsStore((s) =>
-    s.proposals.find((p) => p.toolCallId === toolCallId)
+    s.proposals.find((p) => p.toolCallId === toolCallId),
   );
   const { handleAccept, handleReject } = useProposalActions(proposal);
-  const t = useTranslations('ai');
+  const t = useTranslations("ai");
 
   const summary = useMemo(
     () => (proposal ? summarizeProposal(proposal) : null),
-    [proposal]
+    [proposal],
   );
 
   if (!proposal || !summary) return null;
@@ -288,22 +313,22 @@ export function AIProposalCard({ toolCallId }: AIProposalCardProps) {
   const Icon = meta.icon;
   const sectionLabel =
     summary.affectedSectionTitles.length > 0
-      ? summary.affectedSectionTitles.slice(0, 2).join('、') +
-        (summary.affectedSectionTitles.length > 2 ? '…' : '')
-      : '';
+      ? summary.affectedSectionTitles.slice(0, 2).join("、") +
+        (summary.affectedSectionTitles.length > 2 ? "…" : "")
+      : "";
 
   return (
-    <div className="my-2 flex items-center gap-2 rounded-xl border border-[var(--whale-divider)] bg-[var(--whale-cream-soft)] px-3 py-2">
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--whale-ink)]">
-        <Icon className="h-3 w-3 text-[var(--whale-cream)]" />
+    <div className="my-2 flex items-center gap-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-muted)] px-3 py-2">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--app-text)]">
+        <Icon className="h-3 w-3 text-[var(--app-bg)]" />
       </span>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[12px] font-semibold text-[var(--whale-ink)]">
+        <div className="truncate text-[12px] font-semibold text-[var(--app-text)]">
           {t(meta.key, { section: sectionLabel })}
         </div>
         {summary.totalChanges > 0 && (
-          <div className="text-[11px] text-[var(--whale-ink-muted)]">
-            {t('proposalChangeCount', { count: summary.totalChanges })}
+          <div className="text-[11px] text-[var(--app-text-muted)]">
+            {t("proposalChangeCount", { count: summary.totalChanges })}
           </div>
         )}
       </div>
@@ -311,18 +336,18 @@ export function AIProposalCard({ toolCallId }: AIProposalCardProps) {
         <button
           type="button"
           onClick={handleReject}
-          className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-[var(--whale-divider)] bg-[var(--whale-card)] px-2 py-1 text-[11px] font-medium text-[var(--whale-ink-soft)] transition-colors hover:bg-[var(--whale-cream-deep)]"
+          className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-[11px] font-medium text-[var(--app-text-secondary)] transition-colors hover:bg-[var(--app-hover)]"
         >
           <Undo2 className="h-3 w-3" />
-          {t('proposalReject')}
+          {t("proposalReject")}
         </button>
         <button
           type="button"
           onClick={handleAccept}
-          className="inline-flex cursor-pointer items-center gap-1 rounded-md bg-[var(--whale-ink)] px-2 py-1 text-[11px] font-medium text-[var(--whale-cream)] transition-transform hover:scale-[1.03]"
+          className="inline-flex cursor-pointer items-center gap-1 rounded-md bg-[var(--app-text)] px-2 py-1 text-[11px] font-medium text-[var(--app-bg)] transition-transform hover:scale-[1.03]"
         >
           <Check className="h-3 w-3" />
-          {t('proposalAccept')}
+          {t("proposalAccept")}
         </button>
       </div>
     </div>

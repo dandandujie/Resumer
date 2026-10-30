@@ -61,19 +61,19 @@ interface GrammarCheckDialogProps {
 function getScoreColor(score: number): string {
   if (score < 40) return 'text-red-500';
   if (score <= 70) return 'text-yellow-500';
-  return 'text-emerald-500';
+  return 'text-[var(--app-text-secondary)]';
 }
 
 function getScoreStroke(score: number): string {
   if (score < 40) return 'stroke-red-500';
   if (score <= 70) return 'stroke-yellow-500';
-  return 'stroke-emerald-500';
+  return 'stroke-[var(--app-text-secondary)]';
 }
 
 function getScoreTrack(score: number): string {
   if (score < 40) return 'stroke-red-100';
   if (score <= 70) return 'stroke-yellow-100';
-  return 'stroke-emerald-100';
+  return 'stroke-[var(--app-border)]';
 }
 
 function ScoreCircle({ score, label, size = 'lg' }: { score: number; label: string; size?: 'sm' | 'lg' }) {
@@ -117,7 +117,7 @@ function ScoreCircle({ score, label, size = 'lg' }: { score: number; label: stri
 function ScoreTrend({ current, previous }: { current: number; previous?: number }) {
   if (previous === undefined) return null;
   const diff = current - previous;
-  if (diff > 0) return <ArrowUp className="h-3.5 w-3.5 text-emerald-500" />;
+  if (diff > 0) return <ArrowUp className="h-3.5 w-3.5 text-[var(--app-text-secondary)]" />;
   if (diff < 0) return <ArrowDown className="h-3.5 w-3.5 text-red-500" />;
   return <Minus className="h-3.5 w-3.5 text-muted-foreground" />;
 }
@@ -170,7 +170,7 @@ function GrammarCheckResultView({ result, t }: { result: GrammarCheckResult; t: 
         <h4 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
           {t('summary')}
         </h4>
-        <p className="text-sm leading-relaxed text-[var(--whale-ink-soft)]">
+        <p className="text-sm leading-relaxed text-[var(--app-text-secondary)]">
           {result.summary}
         </p>
       </div>
@@ -358,7 +358,7 @@ export function GrammarCheckDialog({ open, onOpenChange, resumeId }: GrammarChec
                 {isChecking && (
                   <div className="flex flex-col items-center justify-center py-8 text-center">
                     <Loader2 className="h-8 w-8 animate-spin text-brand mb-3" />
-                    <p className="text-sm font-medium text-[var(--whale-ink-soft)]">
+                    <p className="text-sm font-medium text-[var(--app-text-secondary)]">
                       {t('checking')}
                     </p>
                   </div>
@@ -378,7 +378,7 @@ export function GrammarCheckDialog({ open, onOpenChange, resumeId }: GrammarChec
                   <Button
                     onClick={handleCheck}
                     disabled={isChecking}
-                    className="cursor-pointer bg-brand hover:bg-brand-hover"
+                    variant="primary" className="cursor-pointer"
                   >
                     {isChecking ? (
                       <>
@@ -405,7 +405,7 @@ export function GrammarCheckDialog({ open, onOpenChange, resumeId }: GrammarChec
                     {t('checkAgain')}
                   </Button>
                   {result.issues.length > 0 && (
-                    <Button onClick={handleFixAll} className="cursor-pointer gap-1.5 bg-brand hover:bg-brand-hover">
+                    <Button onClick={handleFixAll} variant="primary" className="cursor-pointer gap-1.5">
                       <Wand2 className="h-3.5 w-3.5" />
                       {t('fixAll')}
                     </Button>

@@ -24,13 +24,13 @@ interface EditableSelectProps {
 export function EditableSelect({ label, value, onChange, options, placeholder, field }: EditableSelectProps) {
   return (
     <div className="min-w-0 space-y-1.5">
-      <span className="block text-xs font-medium text-[var(--whale-ink-muted)]">{label}</span>
+      <span className="block text-xs font-medium text-[var(--app-text-muted)]">{label}</span>
       <div className="relative flex items-start gap-1">
         <RichTextInput value={value || ''} onChange={onChange} field={field} ariaLabel={label} placeholder={placeholder || label} collapseOnBlur />
         <Select value={plainText(value || '')} onValueChange={(next) => onChange(serializeInline(replaceText(parseInline(value || ''), 0, plainText(value || '').length, next)))}>
           <SelectTrigger
             aria-label={label}
-            className="h-9 w-9 shrink-0 justify-center bg-[var(--whale-card)] px-2 text-sm"
+            className="h-9 w-9 shrink-0 justify-center bg-[var(--app-surface)] px-2 text-sm"
           >
             <span className="sr-only"><SelectValue placeholder={placeholder || label} /></span>
           </SelectTrigger>
@@ -47,7 +47,7 @@ export function EditableSelect({ label, value, onChange, options, placeholder, f
             type="button"
             onClick={(e) => { e.stopPropagation(); onChange(''); }}
             aria-label={`${label} ×`}
-            className="mt-2 cursor-pointer rounded p-0.5 text-[var(--whale-ink-muted)] transition-colors hover:text-[var(--whale-ink)]"
+            className="mt-2 cursor-pointer rounded p-0.5 text-[var(--app-text-muted)] transition-colors hover:text-[var(--app-text)]"
           >
             <X className="h-3 w-3" />
           </button>

@@ -350,6 +350,7 @@ function syncEditorPrefs(state: SettingsStore) {
       await api.updateSettings({
         autoSave: state.autoSave,
         autoSaveInterval: state.autoSaveInterval,
+        manualSavePolicyVersion: 1,
       });
     } catch {
       // 本地状态已是最新，后端同步失败可忽略
@@ -386,7 +387,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   deepseekBaseURL: loadLocal('resumer_deepseek_search_base', 'https://api.deepseek.com/anthropic/v1'),
   deepseekModel: loadLocal('resumer_deepseek_search_model', 'deepseek-v4-flash'),
   deepseekSearchURL: loadLocal('resumer_deepseek_search_api', 'https://api.deepseek.com/v1/tools'),
-  autoSave: true,
+  autoSave: false,
   autoSaveInterval: 500,
   _hydrated: false,
 
@@ -509,14 +510,13 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       const data = await api.getSettings();
       if (data && typeof data === 'object') {
         set({
-          ...(typeof data.autoSave === 'boolean' && {
-            autoSave: data.autoSave,
-          }),
+          autoSave: data.manualSavePolicyVersion === 1 && data.autoSave === true,
           ...(typeof data.autoSaveInterval === 'number' && {
             autoSaveInterval: data.autoSaveInterval,
           }),
           _hydrated: true,
         });
+        if (data.manualSavePolicyVersion !== 1) syncEditorPrefs(get());
         return;
       }
     } catch {

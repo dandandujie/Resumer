@@ -1,4 +1,4 @@
-//! 简历版本快照：每次保存/导出/投递/AI 采纳/恢复前都留一份完整简历 JSON。
+//! 简历历史：仅保留关键节点，相同内容复用快照并保留事件事实。
 //! 快照是"投给 XX 的那一版"和复盘"当时简历"的唯一数据来源。
 
 use rusqlite::{Connection, OptionalExtension, params};
@@ -8,8 +8,17 @@ use sha2::{Digest, Sha256};
 
 use super::resume::{self, ResumeWithSections};
 
-/// 连续自动保存在这个窗口内只更新同一个 `save` 版本，避免每敲几个字就多一条历史。
-pub const SAVE_COALESCE_SECS: i64 = 10 * 60;
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct VersionEvent {
+    pub event: String,
+    pub label: String,
+    pub created_at: i64,
+}
+fn events(conn: &Connection, id: &str) -> Result<Vec<VersionEvent>, rusqlite::Error> {
+    conn.prepare("SELECT event,label,created_at FROM resume_version_events WHERE version_id=?1 ORDER BY created_at,id")?
+      .query_map([id], |r| Ok(VersionEvent{event:r.get(0)?,label:r.get(1)?,created_at:r.get(2)?}))?.collect()
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -18,8 +27,12 @@ pub struct ResumeVersionSummary {
     pub resume_id: String,
     pub event: String,
     pub label: String,
+    #[serde(default)]
+    pub name: String,
     pub resume_title: String,
     pub created_at: i64,
+    #[serde(default)]
+    pub events: Vec<VersionEvent>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -56,44 +69,18 @@ pub fn content_hash(resume: &ResumeWithSections) -> String {
     format!("{:x}", Sha256::digest(payload.to_string().as_bytes()))
 }
 
-struct LatestVersion {
-    id: String,
-    event: String,
-    label: String,
-    content_hash: String,
-    created_at: i64,
-}
-
-fn latest(conn: &Connection, resume_id: &str) -> Result<Option<LatestVersion>, rusqlite::Error> {
-    conn.query_row(
-        "SELECT id, event, label, content_hash, created_at FROM resume_versions
-         WHERE resume_id = ?1 ORDER BY created_at DESC, rowid DESC LIMIT 1",
-        params![resume_id],
-        |row| {
-            Ok(LatestVersion {
-                id: row.get(0)?,
-                event: row.get(1)?,
-                label: row.get(2)?,
-                content_hash: row.get(3)?,
-                created_at: row.get(4)?,
-            })
-        },
-    )
-    .optional()
-}
-
-/// 写一条版本。返回 `Ok(None)` 表示内容没变且无需记录（未带 label 的重复保存）。
-///
-/// - 带 label 的事件（导出/投递/AI 采纳/恢复前）总是新建一行，它们是事实记录；
-/// - 无 label 的 `save`：内容未变则跳过；与上一条 `save` 间隔小于 `coalesce_secs` 则原地更新。
+/// 工作稿保存不留历史；关键事件复用相同内容，并另外保留事件事实。
 pub fn create_snapshot(
     conn: &Connection,
     resume_id: &str,
     user_id: &str,
     event: &str,
     label: &str,
-    coalesce_secs: Option<i64>,
+    _coalesce_secs: Option<i64>,
 ) -> Result<Option<String>, rusqlite::Error> {
+    if matches!(event, "save" | "ai_accept") {
+        return Ok(None);
+    }
     let Some(current) = resume::find_by_id(conn, resume_id, user_id)? else {
         return Err(rusqlite::Error::QueryReturnedNoRows);
     };
@@ -112,30 +99,26 @@ pub fn create_snapshot(
     }
     let snapshot = snapshot_value.to_string();
     let label = label.trim();
-    let previous = latest(conn, resume_id)?;
-
-    if label.is_empty()
-        && let Some(prev) = &previous
-    {
-        if prev.content_hash == hash {
-            return Ok(None);
-        }
-        let now = chrono::Utc::now().timestamp();
-        let within_window = coalesce_secs.is_some_and(|window| now - prev.created_at < window);
-        if prev.event == event && prev.label.is_empty() && within_window {
-            conn.execute(
-                "UPDATE resume_versions SET snapshot = ?2, content_hash = ?3, resume_title = ?4,
-                    created_at = unixepoch() WHERE id = ?1",
-                params![prev.id, snapshot, hash, current.resume.title],
-            )?;
-            return Ok(Some(prev.id.clone()));
-        }
+    let existing: Option<String> = conn
+        .query_row(
+            "SELECT id FROM resume_versions WHERE resume_id=?1 AND user_id=?2 AND content_hash=?3
+          AND (?4 != 'manual' OR name=?5) ORDER BY created_at DESC,rowid DESC LIMIT 1",
+            params![resume_id, user_id, hash, event, label],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if let Some(id) = existing {
+        conn.execute(
+            "INSERT OR IGNORE INTO resume_version_events(version_id,event,label) VALUES (?1,?2,?3)",
+            params![id, event, label],
+        )?;
+        return Ok(Some(id));
     }
 
     let id = uuid::Uuid::new_v4().to_string();
     conn.execute(
-        "INSERT INTO resume_versions (id, resume_id, user_id, event, label, content_hash, resume_title, snapshot)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        "INSERT INTO resume_versions (id, resume_id, user_id, event, label, content_hash, resume_title, snapshot, name)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![
             id,
             resume_id,
@@ -144,8 +127,13 @@ pub fn create_snapshot(
             label,
             hash,
             current.resume.title,
-            snapshot
+            snapshot,
+            if event == "manual" { label } else { "" }
         ],
+    )?;
+    conn.execute(
+        "INSERT INTO resume_version_events(version_id,event,label) VALUES (?1,?2,?3)",
+        params![id, event, label],
     )?;
     Ok(Some(id))
 }
@@ -156,7 +144,7 @@ pub fn list(
     user_id: &str,
 ) -> Result<Vec<ResumeVersionSummary>, rusqlite::Error> {
     let mut stmt = conn.prepare(
-        "SELECT id, resume_id, event, label, resume_title, created_at FROM resume_versions
+        "SELECT id, resume_id, event, label, resume_title, created_at, name FROM resume_versions
          WHERE resume_id = ?1 AND user_id = ?2 ORDER BY created_at DESC, rowid DESC",
     )?;
     let rows = stmt.query_map(params![resume_id, user_id], |row| {
@@ -167,9 +155,56 @@ pub fn list(
             label: row.get(3)?,
             resume_title: row.get(4)?,
             created_at: row.get(5)?,
+            name: row.get(6)?,
+            events: events(conn, &row.get::<_, String>(0)?)?,
         })
     })?;
     rows.collect()
+}
+
+pub fn rename(
+    conn: &Connection,
+    id: &str,
+    user_id: &str,
+    name: &str,
+) -> Result<(), rusqlite::Error> {
+    let changed = conn.execute(
+        "UPDATE resume_versions SET name=?3 WHERE id=?1 AND user_id=?2",
+        params![id, user_id, name],
+    )?;
+    if changed == 0 {
+        return Err(rusqlite::Error::QueryReturnedNoRows);
+    }
+    Ok(())
+}
+
+pub fn delete(conn: &Connection, id: &str, user_id: &str) -> Result<(), String> {
+    if find(conn, id, user_id)
+        .map_err(|e| e.to_string())?
+        .is_none()
+    {
+        return Err("版本不存在".into());
+    }
+    let linked: bool = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM applications WHERE resume_version_id=?1)",
+            [id],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    if linked {
+        return Err("此版本已关联投递记录，请保留投递时的简历凭据".into());
+    }
+    let changed = conn
+        .execute(
+            "DELETE FROM resume_versions WHERE id=?1 AND user_id=?2",
+            params![id, user_id],
+        )
+        .map_err(|e| e.to_string())?;
+    if changed == 0 {
+        return Err("版本不存在".into());
+    }
+    Ok(())
 }
 
 pub fn find(
@@ -178,7 +213,7 @@ pub fn find(
     user_id: &str,
 ) -> Result<Option<ResumeVersion>, rusqlite::Error> {
     conn.query_row(
-        "SELECT id, resume_id, event, label, resume_title, created_at, snapshot FROM resume_versions
+        "SELECT id, resume_id, event, label, resume_title, created_at, snapshot, name FROM resume_versions
          WHERE id = ?1 AND user_id = ?2",
         params![id, user_id],
         |row| {
@@ -191,6 +226,8 @@ pub fn find(
                     label: row.get(3)?,
                     resume_title: row.get(4)?,
                     created_at: row.get(5)?,
+                    name: row.get(7)?,
+                    events: events(conn, &row.get::<_,String>(0)?)?,
                 },
                 snapshot: serde_json::from_str(&raw).unwrap_or(Value::Null),
             })
@@ -319,75 +356,77 @@ mod tests {
     }
 
     #[test]
-    fn unchanged_save_is_skipped_and_labeled_events_always_recorded() {
-        let (conn, resume_id) = setup();
-        let first = create_snapshot(
-            &conn,
-            &resume_id,
-            "u1",
-            "save",
-            "",
-            Some(SAVE_COALESCE_SECS),
-        )
-        .unwrap();
-        assert!(first.is_some());
-        let again = create_snapshot(
-            &conn,
-            &resume_id,
-            "u1",
-            "save",
-            "",
-            Some(SAVE_COALESCE_SECS),
-        )
-        .unwrap();
-        assert!(again.is_none(), "内容未变不应新建版本");
-        let exported = create_snapshot(&conn, &resume_id, "u1", "export", "PDF", None).unwrap();
-        assert!(exported.is_some());
-        assert_eq!(list(&conn, &resume_id, "u1").unwrap().len(), 2);
+    fn only_milestones_retain_immutable_content() {
+        let (conn, rid) = setup();
+        for _ in 0..5 {
+            assert!(
+                create_snapshot(&conn, &rid, "u1", "save", "", None)
+                    .unwrap()
+                    .is_none()
+            );
+        }
+        assert!(list(&conn, &rid, "u1").unwrap().is_empty());
+        let a = create_snapshot(&conn, &rid, "u1", "export", "PDF", None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            Some(a.clone()),
+            create_snapshot(&conn, &rid, "u1", "apply", "星河 · 开发", None).unwrap()
+        );
+        assert_eq!(
+            Some(a.clone()),
+            create_snapshot(&conn, &rid, "u1", "export", "PDF", None).unwrap()
+        );
+        assert_eq!(list(&conn, &rid, "u1").unwrap().len(), 1);
+        assert_eq!(
+            find(&conn, &a, "u1").unwrap().unwrap().summary.events.len(),
+            2
+        );
+        let section = resume::find_sections_by_resume_id(&conn, &rid).unwrap()[0]
+            .id
+            .clone();
+        resume::update_section(&conn, &section, "简介", 0, true, &json!({"text":"v2"})).unwrap();
+        let b = create_snapshot(&conn, &rid, "u1", "export", "PDF", None)
+            .unwrap()
+            .unwrap();
+        assert_ne!(a, b);
+        assert_eq!(
+            find(&conn, &a, "u1").unwrap().unwrap().snapshot["sections"][0]["content"]["text"],
+            "v1"
+        );
+        rename(&conn, &a, "u1", "第一版").unwrap();
+        assert!(rename(&conn, &a, "other", "错误").is_err());
+        assert!(delete(&conn, &a, "other").is_err());
+        delete(&conn, &b, "u1").unwrap();
+        assert!(resume::find_by_id(&conn, &rid, "u1").unwrap().is_some());
     }
 
     #[test]
-    fn rapid_saves_coalesce_into_one_version() {
-        let (conn, resume_id) = setup();
-        let first = create_snapshot(
-            &conn,
-            &resume_id,
-            "u1",
-            "save",
-            "",
-            Some(SAVE_COALESCE_SECS),
-        )
-        .unwrap()
-        .unwrap();
-        let section_id = resume::find_sections_by_resume_id(&conn, &resume_id).unwrap()[0]
-            .id
-            .clone();
-        resume::update_section(&conn, &section_id, "简介", 0, true, &json!({"text":"v2"})).unwrap();
-        let second = create_snapshot(
-            &conn,
-            &resume_id,
-            "u1",
-            "save",
-            "",
-            Some(SAVE_COALESCE_SECS),
-        )
-        .unwrap()
-        .unwrap();
-        assert_eq!(first, second, "十分钟内的连续保存应合并到同一版本");
-        let version = find(&conn, &first, "u1").unwrap().unwrap();
-        assert_eq!(version.snapshot["sections"][0]["content"]["text"], "v2");
-        // 窗口为 0 时不合并
-        resume::update_section(&conn, &section_id, "简介", 0, true, &json!({"text":"v3"})).unwrap();
-        let third = create_snapshot(&conn, &resume_id, "u1", "save", "", Some(0))
+    fn linked_versions_cannot_be_deleted() {
+        let (conn, rid) = setup();
+        let v = create_snapshot(&conn, &rid, "u1", "apply", "公司 · 岗位", None)
             .unwrap()
             .unwrap();
-        assert_ne!(first, third);
+        conn.execute(
+            "INSERT INTO applications (id,resume_id,resume_version_id) VALUES ('a',?1,?2)",
+            params![rid, v],
+        )
+        .unwrap();
+        assert!(delete(&conn, &v, "u1").unwrap_err().contains("投递"));
+        assert!(find(&conn, &v, "u1").unwrap().is_some());
+        rename(&conn, &v, "u1", "重要投递").unwrap();
+        assert_eq!(
+            snapshot_for_application(&conn, &rid, Some(&v), "")
+                .unwrap()
+                .unwrap(),
+            find(&conn, &v, "u1").unwrap().unwrap().snapshot.to_string()
+        );
     }
 
     #[test]
     fn restore_replaces_sections_and_title() {
         let (conn, resume_id) = setup();
-        let version_id = create_snapshot(&conn, &resume_id, "u1", "save", "", None)
+        let version_id = create_snapshot(&conn, &resume_id, "u1", "manual", "测试留档", None)
             .unwrap()
             .unwrap();
         resume::update(&conn, &resume_id, "u1", "改过的标题", None, None).unwrap();

@@ -86,8 +86,8 @@ export function FormatRibbon() {
     : t('fontSizeStep.custom', { pt: pxToPt(theme.fontSize) });
 
   const control = (label: string, content: React.ReactNode) => (
-    <section className="space-y-3 border-b border-[var(--whale-divider)] pb-5 last:border-0">
-      <h3 className="text-sm font-semibold text-[var(--whale-ink)]">{label}</h3>
+    <section className="space-y-3 border-b border-[var(--app-border)] pb-5 last:border-0">
+      <h3 className="text-sm font-semibold text-[var(--app-text)]">{label}</h3>
       {content}
     </section>
   );
@@ -99,10 +99,10 @@ export function FormatRibbon() {
       {control(
         t('presets'),
         <div className="space-y-3">
-          <Button variant={activePreset === 'standard' ? 'default' : 'outline'} className="w-full justify-start" onClick={() => updateTheme(THEME_PRESETS.standard)} aria-pressed={activePreset === 'standard'}>{t('preset.standard')}</Button>
+          <Button variant="outline" data-theme-preset className="w-full justify-start" onClick={() => updateTheme(THEME_PRESETS.standard)} aria-pressed={activePreset === 'standard'}>{t('preset.standard')}</Button>
           {presets.map((preset) => (
             <div key={preset.id} className="flex items-center gap-2">
-              <Button variant={activePreset === preset.id ? 'default' : 'outline'} className="min-w-0 flex-1 justify-start" title={preset.name} onClick={() => updateTheme(preset.theme)} aria-pressed={activePreset === preset.id}><span className="truncate">{preset.name}</span></Button>
+              <Button variant="outline" data-theme-preset className="min-w-0 flex-1 justify-start" title={preset.name} onClick={() => updateTheme(preset.theme)} aria-pressed={activePreset === preset.id}><span className="truncate">{preset.name}</span></Button>
               <Button variant="ghost" size="icon" disabled={saving} aria-label={t('custom.delete', { name: preset.name })} title={t('custom.delete', { name: preset.name })} onClick={() => setPendingDelete(preset)}><Trash2 className="h-4 w-4" /></Button>
             </div>
           ))}
@@ -119,7 +119,7 @@ export function FormatRibbon() {
       <AlertDialog open={!!pendingDelete} onOpenChange={(open) => { if (!open) setPendingDelete(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader><AlertDialogTitle>{t('custom.delete', { name: pendingDelete?.name || '' })}</AlertDialogTitle><AlertDialogDescription>{t('custom.deleteHint')}</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel>{tc('cancel')}</AlertDialogCancel><AlertDialogAction onClick={() => { if (pendingDelete) void remove(pendingDelete.id).catch(() => toast.error(t('custom.deleteFailed'))); }}>{tc('delete')}</AlertDialogAction></AlertDialogFooter>
+          <AlertDialogFooter><AlertDialogCancel>{tc('cancel')}</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => { if (pendingDelete) void remove(pendingDelete.id).catch(() => toast.error(t('custom.deleteFailed'))); }}>{tc('delete')}</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
       {control(
@@ -171,7 +171,7 @@ export function FormatRibbon() {
             {FONT_SIZE_STEPS.map((step) => (
               <Button
                 key={step.key}
-                variant={theme.fontSize === step.px ? 'default' : 'outline'}
+                variant={theme.fontSize === step.px ? 'selected' : 'outline'}
                 size="sm"
                 className="h-8 cursor-pointer text-xs"
                 onClick={() => updateTheme({ fontSize: step.px })}

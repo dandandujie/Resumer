@@ -91,9 +91,10 @@ fn add_directory(
         } else {
             zip.start_file(name, options)
                 .map_err(|e| error(e.to_string()))?;
-            let bytes =
-                fs::read(&path).map_err(|e| error(format!("读取 {} 失败: {e}", path.display())))?;
-            zip.write_all(&bytes).map_err(|e| error(e.to_string()))?;
+            // 原始面试录音可能较大，边读边压缩，避免备份时整段驻留内存。
+            let mut source = File::open(&path)
+                .map_err(|e| error(format!("读取 {} 失败: {e}", path.display())))?;
+            std::io::copy(&mut source, zip).map_err(|e| error(e.to_string()))?;
         }
     }
     Ok(())

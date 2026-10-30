@@ -14,7 +14,8 @@ function tauriMock(): Plugin {
     transformIndexHtml(html) {
       if (process.env.MOCK_TAURI !== '1') return html;
       const script = readFileSync(path.resolve(__dirname, 'scripts/tauri-mock/index.js'), 'utf8');
-      return html.replace('<script type="module"', `<script>${script}</script>\n    <script type="module"`);
+      // 放在 body 内：不能把大段测试脚本插到 charset 前，导致浏览器把中文按其他编码解析。
+      return html.replace(/<body([^>]*)>/, (_, attributes) => `<body${attributes}><script>${script}</script>`);
     },
   };
 }

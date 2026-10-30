@@ -27,7 +27,7 @@ const COLORS: Record<string, string> = {
   sop: '#4e7b8e',
   company: '#d19a38',
   role: '#7b6ba8',
-  source: '#6a8d73',
+  source: '#8A7658',
   application: '#c45454',
   resume: '#3d7890',
   interview: '#a47747',
@@ -107,8 +107,8 @@ export function KnowledgeGraph({ nodes, edges, onNodeClick }: KnowledgeGraphProp
         context.arc(node.x, node.y, node.id === hovered?.id ? 8 : 5, 0, Math.PI * 2);
         context.fill();
         if (node.id === hovered?.id || scale > 1.25) {
-          context.fillStyle = '#413b36';
-          context.font = '11px Instrument Sans, sans-serif';
+          context.fillStyle = getComputedStyle(canvas).getPropertyValue('--app-text').trim() || '#252425';
+          context.font = '11px system-ui, sans-serif';
           context.fillText(node.title || node.id, node.x + 9, node.y + 4);
         }
       });
@@ -145,8 +145,8 @@ export function KnowledgeGraph({ nodes, edges, onNodeClick }: KnowledgeGraphProp
   };
 
   return (
-    <div className="relative h-full min-h-[520px] overflow-hidden rounded-2xl border border-[var(--whale-divider)] bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,.8),transparent_38%),var(--whale-cream-soft)]">
-      <div className="pointer-events-none absolute left-4 top-4 z-10 text-[11px] text-[var(--whale-ink-muted)]">
+    <div className="relative h-full min-h-[520px] overflow-hidden rounded-2xl border border-[var(--app-border)] bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,.8),transparent_38%),var(--app-surface-muted)]">
+      <div className="pointer-events-none absolute left-4 top-4 z-10 text-[11px] text-[var(--app-text-muted)]">
         拖动节点定位 · 空白处平移 · 滚轮缩放
       </div>
       <canvas

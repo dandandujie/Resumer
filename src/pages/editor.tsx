@@ -19,6 +19,7 @@ import { CoverLetterDialog } from '@/components/editor/cover-letter-dialog';
 import { InterviewDialog } from '@/components/editor/interview-dialog';
 import { JournalDialog } from '@/components/editor/journal-dialog';
 import { VersionHistoryDialog } from '@/components/editor/version-history-dialog';
+import { ImportResumeDialog } from '@/components/import/import-resume-dialog';
 import { useEditorStore } from '@/stores/editor-store';
 import { useResumeStore } from '@/stores/resume-store';
 import { useUIStore } from '@/stores/ui-store';
@@ -66,7 +67,7 @@ export default function EditorPage() {
       const key = e.key.toLowerCase();
       if (key === 's') {
         e.preventDefault();
-        void useResumeStore.getState().flushPendingSave();
+        void useResumeStore.getState().flushPendingSave().catch(() => undefined);
         return;
       }
       if (key !== 'z') return;
@@ -139,9 +140,9 @@ export default function EditorPage() {
       </div>
 
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side="left" className="w-72 border-r border-[var(--whale-divider)] bg-[var(--whale-sidebar)] p-0">
-          <SheetHeader className="border-b border-[var(--whale-divider)] px-4 py-3">
-            <SheetTitle className="text-sm font-semibold text-[var(--whale-ink)]">{t('sidebar.sections')}</SheetTitle>
+        <SheetContent side="left" className="w-72 border-r border-[var(--app-border)] bg-[var(--app-sidebar)] p-0">
+          <SheetHeader className="border-b border-[var(--app-border)] px-4 py-3">
+            <SheetTitle className="text-sm font-semibold text-[var(--app-text)]">{t('sidebar.sections')}</SheetTitle>
           </SheetHeader>
           <EditorSidebar onSectionSelect={() => { setSidebarOpen(false); useEditorStore.getState().setMobileActiveTab('edit'); }} sections={sections} onAddSection={(s) => { addSection(s); setSidebarOpen(false); }} onRemoveSection={removeSection} onReorderSections={reorderSections} />
         </SheetContent>
@@ -151,6 +152,7 @@ export default function EditorPage() {
       <JdAnalysisDialog open={activeModal === 'jd-analysis'} onOpenChange={(open) => open ? openModal('jd-analysis') : closeModal()} resumeId={id!} />
       <TranslateDialog open={activeModal === 'translate'} onOpenChange={(open) => open ? openModal('translate') : closeModal()} resumeId={id!} />
       <ExportDialog open={activeModal === 'export'} onOpenChange={(open) => open ? openModal('export') : closeModal()} resumeId={id!} />
+      <ImportResumeDialog open={activeModal === 'import'} onOpenChange={(open) => open ? openModal('import') : closeModal()} targetResumeId={id!} />
       <GrammarCheckDialog open={activeModal === 'grammar-check'} onOpenChange={(open) => open ? openModal('grammar-check') : closeModal()} resumeId={id!} />
       <CoverLetterDialog open={activeModal === 'cover-letter'} onOpenChange={(open) => open ? openModal('cover-letter') : closeModal()} resumeId={id!} />
       <JournalDialog open={activeModal === 'journal'} onOpenChange={(open) => open ? openModal('journal') : closeModal()} resumeId={id!} />

@@ -37,7 +37,7 @@ node scripts/tauri-mock/audit-requirements.mjs
 node scripts/tauri-mock/test-original-document.mjs
 ```
 
-默认 `MOCK_ORIGIN=http://127.0.0.1:5174`，使用仓库内虚构 DOCX 样本。验证真实导入、未修改字节保留、键盘编辑、选区格式、保存失败/另存抢救、历史恢复及退出保存，并运行 `scripts/verify-original-document.py` 比对 OOXML。文档状态在隔离浏览器 sessionStorage 中持久化，用于刷新回读；不使用用户真实文件。
+默认 `MOCK_ORIGIN=http://127.0.0.1:5174`，使用仓库内虚构 DOCX 样本。通过兼容接口置入既有原文档样本（新文件仍走 AI 结构化导入），验证未修改字节保留、键盘编辑、选区格式、保存失败/另存抢救、历史恢复及退出保存，并运行 `scripts/verify-original-document.py` 比对 OOXML。文档状态在隔离浏览器 sessionStorage 中持久化，用于刷新回读；不使用用户真实文件。
 
 生产包验证：先 `pnpm build:vite` 和 `pnpm exec vite preview --host 127.0.0.1 --port 4174`，再执行：
 
@@ -46,3 +46,33 @@ MOCK_BUILD=1 MOCK_ORIGIN=http://127.0.0.1:4174 node scripts/tauri-mock/test-orig
 ```
 
 可选 `OFFICE_ROUNDTRIP=/绝对路径/word-roundtrip.docx`：使用 Word 打开测试输出的 `formatted.docx`，把日期改为 `2026-10-03` 并另存该文件后，测试会额外验证重新导入时的日期、两页与头像。此选项只用于上述生成样本，不传用户真实文件。测试输出位于 `/tmp/resumer-original-document-tests/`。
+
+## 版本历史与常用操作
+
+`node scripts/tauri-mock/test-version-history.mjs` 验证常显操作、草稿与历史身份、命名、重命名、变更对比、删除与恢复保护、写盘失败、保存队列和过期响应；覆盖中英文四种窗口宽度与 JSON 替换导入保护。Rust 版本仓储测试另覆盖权限、关联投递保护与自动快照合并窗口。
+
+## 录音与低填写成本流程
+
+`node scripts/tauri-mock/test-recording-intake.mjs` 验证一段描述生成草稿、按需配置后返回原任务、文件自动命名、招聘信息先提取预览再应用、录音不自动上传、转写前服务提示、校对稿保存、提炼预览与知识入库、独立语音配置持久化。服务响应为隔离 mock；Rust 另用本机 HTTP 服务器验证真实 multipart 请求，原生应用在独立数据标识下验收系统文件选择器与 FFmpeg 失败重试，不触及真实用户资料。
+
+## 工作区与控件反馈
+
+`node scripts/tauri-mock/test-stats-workspace.mjs` 验证浅深色跨页面继承、设置边界、可读字号、文档纸张的文字色/浅色模式隔离、主从导航与窄窗口。
+
+`node scripts/tauri-mock/test-control-states.mjs` 使用实际指针/键盘事件验证普通与主按钮的悬停、按下和焦点反馈，以及暗色开关、空库单一引导和明确的危险菜单。原生 WebKit 另用隔离标识与虚构资料人工验收深色切换，避免仅检查白色纸张背景而漏掉文字不可见问题。
+
+
+## 自然语言与持续 Wiki
+
+`node scripts/tauri-mock/test-workspace-assistant.mjs` 验证缺失信息追问、后续上下文、预览后采纳、过期投递提案、50个分类检索与键盘操作、混合音频/文档导入、提炼草稿稍后找回、摘要入库、Wiki编译、引用问答保存、维护与窄窗口。服务均为隔离 mock；不代表真实模型输出质量。
+
+`pnpm test` 的 `test-workspace-plan.ts` 验证字段保留、多个新投递别名关联、轮次/目标合法性、真实日历日期与过期保护。
+
+Rust 库测试使用本机 HTTP 服务验证全文末段被发送、完成段缓存及服务隔离；另检查录音原件保留且仅提炼内容入索引、来源变更保护、整批Wiki冲突拒绝、写入失败回滚、重试幂等、符号链接越界拒绝、Obsidian属性保留与问答回链。原生验收使用独立数据标识和本机假AI/语音服务，退出重开核对持久化，不操作真实用户资料。
+
+
+## 多标签与文件式 Wiki
+
+`node scripts/tauri-mock/test-wiki-tags.mjs` 覆盖一集多标签、交集/并集/未打标签筛选、增删标签、目录树、多笔记标签、前后导航、收藏、全文摘要/高亮、跨标签草稿、外部编辑冲突选择、新建文件夹/笔记、标题式双链、属性保存、辅助栏、大纲、快速打开以及1200/900/390px边界。
+
+`test-knowledge-navigation.ts` 验证标签含义、旧分类兼容、大小写、实际目录层级、标题歧义、Markdown大纲、搜索上下文和原件路径。Rust测试另覆盖14→15迁移、标签交集/并集SQL、原有数据完整性、合法Markdown属性、标题链接、全文后段摘要及直接搜索/AI一跳扩展的区别。

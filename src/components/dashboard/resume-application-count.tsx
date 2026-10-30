@@ -13,7 +13,7 @@ export function ResumeApplicationCount({ resumeId, className }: { resumeId: stri
   );
   if (total === 0) return null;
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full bg-[var(--whale-cream-deep)] px-2 py-0.5 text-[10px] font-medium text-[var(--whale-ink-soft)] ${className ?? ''}`}>
+    <span className={`inline-flex items-center gap-1 rounded-full bg-[var(--app-hover)] px-2 py-0.5 text-[10px] font-medium text-[var(--app-text-secondary)] ${className ?? ''}`}>
       <Send className="h-2.5 w-2.5" />
       {open > 0 ? t('cardApplicationsOpen', { total, open }) : t('cardApplications', { total })}
     </span>

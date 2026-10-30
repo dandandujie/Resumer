@@ -59,7 +59,7 @@ export function EditableDate({
 
   return (
     <div className="min-w-0 space-y-1.5">
-      <span className="block text-xs font-medium text-[var(--whale-ink-muted)]">
+      <span className="block text-xs font-medium text-[var(--app-text-muted)]">
         {label}
       </span>
       <div className="flex gap-1">
@@ -144,7 +144,7 @@ export function EditableDate({
         </Popover>
       </div>
       {allowCurrent && (
-        <label className="flex cursor-pointer items-center gap-2 pt-0.5 text-xs text-[var(--whale-ink-muted)]">
+        <label className="flex cursor-pointer items-center gap-2 pt-0.5 text-xs text-[var(--app-text-muted)]">
           <Switch checked={current} onCheckedChange={onCurrentChange} />
           {t('current')}
         </label>

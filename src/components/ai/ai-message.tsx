@@ -297,12 +297,12 @@ function ToolPill({ part }: { part: ToolPart }) {
   const isCompleted = state === 'output-available' || state === 'output-error';
 
   return (
-    <div className="my-1.5 inline-flex items-center gap-1.5 rounded-full border border-[var(--whale-divider)] bg-[var(--whale-cream-soft)] px-2.5 py-0.5 text-[11px] text-[var(--whale-ink-muted)]">
+    <div className="my-1.5 inline-flex items-center gap-1.5 rounded-full border border-[var(--app-border)] bg-[var(--app-surface-muted)] px-2.5 py-0.5 text-[11px] text-[var(--app-text-muted)]">
       {!isCompleted && (
-        <span className="h-2.5 w-2.5 shrink-0 animate-spin rounded-full border-[1.5px] border-[var(--whale-divider)] border-t-[var(--whale-mint-deep)]" />
+        <span className="h-2.5 w-2.5 shrink-0 animate-spin rounded-full border-[1.5px] border-[var(--app-border)] border-t-[var(--app-accent)]" />
       )}
       {isCompleted && (
-        <Wand2 className="h-2.5 w-2.5 shrink-0 text-[var(--whale-mint-deep)]" />
+        <Wand2 className="h-2.5 w-2.5 shrink-0 text-[var(--app-accent)]" />
       )}
       <span>
         {t('toolCalling') || '正在调用'} {part.toolName}
@@ -320,8 +320,8 @@ function WebSearchSources({ result }: { result: unknown }) {
   const results = Array.isArray(value) ? value : [];
   if (results.length === 0) return null;
   return (
-    <div className="my-2 space-y-1.5 rounded-lg border border-[var(--whale-divider)] bg-[var(--whale-card)] p-2 text-xs">
-      <div className="font-medium text-[var(--whale-ink)]">{t('sources')}</div>
+    <div className="my-2 space-y-1.5 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] p-2 text-xs">
+      <div className="font-medium text-[var(--app-text)]">{t('sources')}</div>
       {results.slice(0, 5).map((item, index) => {
         if (!item || typeof item !== 'object') return null;
         const source = item as {
@@ -342,13 +342,13 @@ function WebSearchSources({ result }: { result: unknown }) {
         return (
           <div key={`${source.url || 'source'}-${index}`} className="rounded px-1.5 py-1 hover:bg-muted">
             <a href={source.url} target="_blank" rel="noreferrer" className="block">
-              <div className="truncate font-medium text-[var(--whale-ink)]">{source.title || source.url}</div>
-              <div className="line-clamp-2 text-[var(--whale-ink-muted)]">{source.content}</div>
+              <div className="truncate font-medium text-[var(--app-text)]">{source.title || source.url}</div>
+              <div className="line-clamp-2 text-[var(--app-text-muted)]">{source.content}</div>
             </a>
             <button
               type="button"
               onClick={() => void save()}
-              className="mt-1 cursor-pointer text-[11px] text-[var(--whale-ink-muted)] hover:text-[var(--whale-ink)]"
+              className="mt-1 cursor-pointer text-[11px] text-[var(--app-text-muted)] hover:text-[var(--app-text)]"
             >
               {t('saveToKnowledge')}
             </button>
@@ -453,23 +453,23 @@ function AIMessageImpl({
     >
       <div
         className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-          isUser ? 'bg-[var(--whale-ink)]' : 'bg-[var(--whale-ink)]'
+          isUser ? 'bg-[var(--app-hover)]' : 'bg-[var(--app-accent-soft)]'
         }`}
       >
         {isUser ? (
-          <User className="h-3 w-3 text-[var(--whale-cream)]" />
+          <User className="h-3 w-3 text-[var(--app-text-secondary)]" />
         ) : (
-          <Bot className="h-3 w-3 text-[var(--whale-cream)]" />
+          <Bot className="h-3 w-3 text-[var(--app-text-secondary)]" />
         )}
       </div>
       <div
         className={`flex min-w-0 flex-col gap-1 ${isUser ? 'items-end max-w-[min(720px,calc(100%-2.5rem))]' : 'items-start max-w-[calc(100%-2.5rem)]'}`}
       >
         <div
-          className={`min-w-0 rounded-2xl px-3.5 py-2.5 text-[14px] leading-relaxed ${
+          className={`min-w-0 rounded-lg px-3 py-2.5 text-[13px] leading-relaxed ${
             isUser
-              ? 'bg-[var(--whale-ink)] text-[var(--whale-cream)]'
-              : 'w-fit min-w-0 bg-[var(--whale-cream-soft)] text-[var(--whale-ink-soft)] ring-1 ring-[var(--whale-divider)]'
+              ? 'bg-[var(--app-surface)] text-[var(--app-text)]'
+              : 'w-fit min-w-0 bg-[var(--app-surface-muted)] text-[var(--app-text-secondary)] ring-1 ring-[var(--app-border)]'
           }`}
         >
           {isUser ? (
@@ -575,8 +575,8 @@ function MsgAction({
       title={label}
       className={`inline-flex cursor-pointer items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] transition-colors ${
         dark
-          ? 'text-[var(--whale-cream)]/60 hover:bg-[var(--whale-cream)]/15 hover:text-[var(--whale-cream)]'
-          : 'text-[var(--whale-ink-muted)] hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]'
+          ? 'text-[var(--app-bg)]/60 hover:bg-[var(--app-bg)]/15 hover:text-[var(--app-bg)]'
+          : 'text-[var(--app-text-muted)] hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]'
       }`}
     >
       <Icon className="h-2.5 w-2.5" />
@@ -625,17 +625,17 @@ function ReasoningBlock({
           setManuallyToggled(true);
           setOpen(!effectiveOpen);
         }}
-        className="group/think flex w-full cursor-pointer items-center gap-2 rounded-full py-0.5 text-[11.5px] text-[var(--whale-ink-muted)] transition-colors hover:text-[var(--whale-ink)]"
+        className="group/think flex w-full cursor-pointer items-center gap-2 rounded-full py-0.5 text-[11.5px] text-[var(--app-text-muted)] transition-colors hover:text-[var(--app-text)]"
       >
         <span
           className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-colors ${
             live
-              ? 'bg-[var(--whale-mint)]/40'
-              : 'bg-[var(--whale-cream-deep)]/70 group-hover/think:bg-[var(--whale-cream-deep)]'
+              ? 'bg-[var(--app-accent-soft)]/40'
+              : 'bg-[var(--app-hover)]/70 group-hover/think:bg-[var(--app-hover)]'
           }`}
         >
           <Brain
-            className={`h-3 w-3 ${live ? 'animate-pulse text-[var(--whale-mint-deep)]' : 'text-[var(--whale-ink-muted)]'}`}
+            className={`h-3 w-3 ${live ? 'animate-pulse text-[var(--app-accent)]' : 'text-[var(--app-text-muted)]'}`}
           />
         </span>
         <span className="font-medium tracking-wide">
@@ -643,16 +643,16 @@ function ReasoningBlock({
         </span>
         {elapsedSec && (
           <span
-            className={`tabular-nums ${live ? 'text-[var(--whale-mint-deep)]' : 'text-[var(--whale-ink-muted)]/70'}`}
+            className={`tabular-nums ${live ? 'text-[var(--app-accent)]' : 'text-[var(--app-text-muted)]/70'}`}
           >
             {elapsedSec}s
           </span>
         )}
         {live && (
           <span className="flex gap-0.5">
-            <span className="h-1 w-1 animate-bounce rounded-full bg-[var(--whale-mint-deep)]/70 [animation-delay:0ms]" />
-            <span className="h-1 w-1 animate-bounce rounded-full bg-[var(--whale-mint-deep)]/70 [animation-delay:150ms]" />
-            <span className="h-1 w-1 animate-bounce rounded-full bg-[var(--whale-mint-deep)]/70 [animation-delay:300ms]" />
+            <span className="h-1 w-1 animate-bounce rounded-full bg-[var(--app-accent)]/70 [animation-delay:0ms]" />
+            <span className="h-1 w-1 animate-bounce rounded-full bg-[var(--app-accent)]/70 [animation-delay:150ms]" />
+            <span className="h-1 w-1 animate-bounce rounded-full bg-[var(--app-accent)]/70 [animation-delay:300ms]" />
           </span>
         )}
         <ChevronDown
@@ -660,8 +660,8 @@ function ReasoningBlock({
         />
       </button>
       {effectiveOpen && (
-        <div className="relative mt-1.5 max-h-64 overflow-y-auto rounded-r-lg border-l-2 border-[var(--whale-mint)]/70 bg-gradient-to-r from-[var(--whale-cream-soft)]/80 to-transparent py-2 pl-3.5 pr-2">
-          <p className="whitespace-pre-wrap text-[12px] font-normal leading-[1.8] text-[var(--whale-ink-muted)]">
+        <div className="relative mt-1.5 max-h-64 overflow-y-auto rounded-r-lg border-l-2 border-[var(--app-accent-soft)]/70 bg-gradient-to-r from-[var(--app-surface-muted)]/80 to-transparent py-2 pl-3.5 pr-2">
+          <p className="whitespace-pre-wrap text-[12px] font-normal leading-[1.8] text-[var(--app-text-muted)]">
             {text}
           </p>
         </div>

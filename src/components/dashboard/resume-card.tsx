@@ -30,31 +30,31 @@ function ResumeContentPreview({ resume }: { resume: Resume }) {
   const isEmpty = !hasIdentity && !hasExperience && !(s?.skills?.length);
 
   return (
-    <div className="relative h-28 w-full overflow-hidden rounded-xl bg-[var(--whale-card)] ring-1 ring-[var(--whale-divider)]">
+    <div className="relative h-28 w-full overflow-hidden rounded-md bg-[var(--app-bg)] ring-1 ring-[var(--app-border)]">
       {resume.template === 'original-docx' ? (
         <div className="flex h-full flex-col justify-center px-4">
           <p className="text-sm font-semibold">DOCX</p>
-          <p className="mt-1 text-xs text-[var(--whale-ink-muted)]">{t('originalDocument')}</p>
+          <p className="mt-1 text-xs text-[var(--app-text-muted)]">{t('originalDocument')}</p>
         </div>
       ) : isEmpty ? (
         <div className="flex h-full flex-col items-center justify-center gap-1 px-3 text-center">
-          <p className="text-xs font-medium text-[var(--whale-ink-muted)]">{t('cardEmptyTitle')}</p>
-          <p className="text-[11px] text-[var(--whale-ink-muted)]/70">{t('cardEmptyHint')}</p>
+          <p className="text-xs font-medium text-[var(--app-text-muted)]">{t('cardEmptyTitle')}</p>
+          <p className="text-[11px] text-[var(--app-text-muted)]/70">{t('cardEmptyHint')}</p>
         </div>
       ) : (
         <div className="flex h-full flex-col p-3">
           {/* Identity line */}
           <div className="flex min-w-0 items-baseline gap-1.5 pr-8">
-            <span className="truncate text-[13px] font-semibold text-[var(--whale-ink)]">
+            <span className="truncate text-[13px] font-semibold text-[var(--app-text)]">
               {plainText(s?.fullName || '') || t('cardNoName')}
             </span>
             {s?.jobTitle && (
-              <span className="truncate text-[11px] text-[var(--whale-ink-muted)]">{plainText(s.jobTitle)}</span>
+              <span className="truncate text-[11px] text-[var(--app-text-muted)]">{plainText(s.jobTitle)}</span>
             )}
           </div>
           {/* Latest experience */}
           {hasExperience && (
-            <p className="mt-1 truncate text-[11px] text-[var(--whale-ink-soft)]">
+            <p className="mt-1 truncate text-[11px] text-[var(--app-text-secondary)]">
               {[s?.latestCompany, s?.latestPosition].filter(Boolean).map(value => plainText(value!)).join(' · ')}
             </p>
           )}
@@ -64,13 +64,13 @@ function ResumeContentPreview({ resume }: { resume: Resume }) {
               {s.skills.slice(0, 4).map((skill) => (
                 <span
                   key={plainText(skill)}
-                  className="inline-block max-w-[7rem] truncate rounded-full bg-[var(--whale-mint)]/30 px-1.5 py-0.5 text-[10px] font-medium text-[var(--whale-ink)]"
+                  className="inline-block max-w-[7rem] truncate rounded bg-[var(--app-surface)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--app-text)]"
                 >
                   {plainText(skill)}
                 </span>
               ))}
               {s.skills.length > 4 && (
-                <span className="inline-block rounded-full bg-[var(--whale-cream-deep)] px-1.5 py-0.5 text-[10px] text-[var(--whale-ink-muted)]">
+                <span className="inline-block rounded-full bg-[var(--app-hover)] px-1.5 py-0.5 text-[10px] text-[var(--app-text-muted)]">
                   +{s.skills.length - 4}
                 </span>
               )}
@@ -79,7 +79,7 @@ function ResumeContentPreview({ resume }: { resume: Resume }) {
         </div>
       )}
       {/* Language badge */}
-      <span className="absolute right-2 top-2 rounded-full bg-[var(--whale-ink)] px-1.5 py-0.5 text-[8px] font-bold tracking-wider text-[var(--whale-cream)]">
+      <span className="absolute right-2 top-2 rounded bg-[var(--app-surface)] px-1.5 py-0.5 text-[9px] font-medium tracking-wide text-[var(--app-text-muted)]">
         {(resume.language || 'zh').toUpperCase()}
       </span>
     </div>
@@ -143,10 +143,10 @@ export function ResumeCard({ resume, onDelete, onDuplicate, onRename }: ResumeCa
   }, []);
   return (
     <div
-      className={`group relative overflow-hidden rounded-2xl border border-[var(--whale-divider)] bg-[var(--whale-card)] transition-all duration-200 ${isRenaming ? '' : 'cursor-pointer hover:-translate-y-0.5 hover:border-[var(--whale-ink)]/30 hover:shadow-[0_12px_32px_-12px_rgba(28,26,23,0.18)]'}`}
+      className={`group relative overflow-hidden rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg)] transition-colors duration-150 ${isRenaming ? '' : 'cursor-pointer hover:border-[var(--app-accent)]/50'}`}
       onClick={() => { if (!renamingRef.current) router.push(`/editor/${resume.id}`); }}
     >
-      <div className="bg-[var(--whale-cream-soft)] p-4">
+      <div className="bg-[var(--app-surface)] p-3">
         <ResumeContentPreview resume={resume} />
       </div>
 
@@ -166,15 +166,15 @@ export function ResumeCard({ resume, onDelete, onDuplicate, onRename }: ResumeCa
                 }}
                 onClick={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
-                className="w-full truncate rounded border border-[var(--whale-ink)] bg-[var(--whale-card)] px-1 text-sm font-semibold text-[var(--whale-ink)] outline-none focus:ring-1 focus:ring-[var(--whale-ink)]"
+                className="w-full truncate rounded border border-[var(--app-text)] bg-[var(--app-surface)] px-1 text-sm font-semibold text-[var(--app-text)] outline-none focus:ring-1 focus:ring-[var(--app-text)]"
               />
             ) : (
-              <h3 className="truncate text-sm font-semibold text-[var(--whale-ink)]">
+              <h3 className="truncate text-sm font-semibold text-[var(--app-text)]">
                 {resume.title}
               </h3>
             )}
-            <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-[var(--whale-ink-muted)]">
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--whale-mint-deep)]" />
+            <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-[var(--app-text-muted)]">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--app-accent)]" />
               <span className="truncate">
                 {resume.updatedAt
                   ? t('dashboard.lastEdited', {
@@ -187,10 +187,10 @@ export function ResumeCard({ resume, onDelete, onDuplicate, onRename }: ResumeCa
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger
-              className="cursor-pointer rounded-md p-1 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-[var(--whale-cream-soft)]"
+              className="cursor-pointer rounded-md p-1.5 text-[var(--app-text-muted)] hover:bg-[var(--app-hover)]"
               onClick={(e) => e.stopPropagation()}
             >
-              <MoreVertical className="h-4 w-4 text-[var(--whale-ink-muted)]" />
+              <MoreVertical className="h-4 w-4 text-[var(--app-text-muted)]" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" onCloseAutoFocus={(e) => { if (renamingRef.current) e.preventDefault(); }}>
               <DropdownMenuItem

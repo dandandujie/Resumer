@@ -383,6 +383,10 @@ pub fn update_resume(db: State<AppDb>, payload: Value) -> Result<(), CommandErro
     let mut conn = db.conn.lock().map_err(|e| CommandError {
         message: e.to_string(),
     })?;
+    let language = payload
+        .get("language")
+        .and_then(Value::as_str)
+        .map(String::from);
     let input = parse_update_resume_payload(payload)?;
     let current =
         repo::find_by_id(&conn, &input.id, &input.user_id)?.ok_or("简历不存在".to_owned())?;
@@ -406,16 +410,10 @@ pub fn update_resume(db: State<AppDb>, payload: Value) -> Result<(), CommandErro
     if let Some(incoming) = input.sections {
         sync_sections(&tx, &input.id, &incoming)?;
     }
-    // 每次落库都留快照：十分钟内的连续自动保存合并为一条，内容没变则不记。
-    version_repo::create_snapshot(
-        &tx,
-        &input.id,
-        &input.user_id,
-        "save",
-        "",
-        Some(version_repo::SAVE_COALESCE_SECS),
-    )?;
-
+    if let Some(language) = language {
+        repo::update_language(&tx, &input.id, &language)?;
+    }
+    // 保存仅更新工作稿，历史由导出、投递、手动留档和覆盖保护生成。
     tx.commit()?;
     Ok(())
 }
@@ -453,6 +451,15 @@ pub fn create_resume_version(
     event: String,
     label: Option<String>,
 ) -> Result<Option<String>, CommandError> {
+    if event == "manual"
+        && label
+            .as_deref()
+            .is_none_or(|value| value.trim().is_empty() || value.trim().chars().count() > 80)
+    {
+        return Err(CommandError {
+            message: "版本名称须为 1–80 个字符".into(),
+        });
+    }
     let conn = db.conn.lock().map_err(|e| CommandError {
         message: e.to_string(),
     })?;
@@ -467,7 +474,40 @@ pub fn create_resume_version(
     .map_err(Into::into)
 }
 
-/// 恢复前先把当前状态存成一条 `restore` 版本，恢复永远可以再撤回。
+/// 重命名只修改用户名称，保留事件类型、时间和投递凭据。
+#[tauri::command]
+pub fn rename_resume_version(
+    db: State<AppDb>,
+    id: String,
+    user_id: String,
+    name: String,
+) -> Result<(), CommandError> {
+    let conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
+    let name = name.trim();
+    if name.is_empty() || name.chars().count() > 80 {
+        return Err(CommandError {
+            message: "版本名称须为 1–80 个字符".into(),
+        });
+    }
+    version_repo::rename(&conn, &id, &user_id, name)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn delete_resume_version(
+    db: State<AppDb>,
+    id: String,
+    user_id: String,
+) -> Result<(), CommandError> {
+    let conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
+    version_repo::delete(&conn, &id, &user_id).map_err(|message| CommandError { message })
+}
+
+/// 恢复与保护当前草稿必须在同一事务内完成。
 #[tauri::command]
 pub fn restore_resume_version(
     db: State<AppDb>,

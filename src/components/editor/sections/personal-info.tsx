@@ -82,17 +82,17 @@ export function PersonalInfoSection({ section, onUpdate }: Props) {
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-[var(--whale-divider)] bg-muted transition-colors hover:border-[var(--whale-ink)]/30 hover:bg-[var(--whale-cream-deep)]"
+          className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-[var(--app-border)] bg-muted transition-colors hover:border-[var(--app-text)]/30 hover:bg-[var(--app-hover)]"
         >
           {content.avatar ? (
             <img src={content.avatar} alt="Avatar" className="h-full w-full object-cover" />
           ) : (
-            <Camera className="h-6 w-6 text-[var(--whale-ink-muted)]" />
+            <Camera className="h-6 w-6 text-[var(--app-text-muted)]" />
           )}
         </button>
         <div className="flex flex-col gap-2">
           {/* Segmented shape toggle */}
-          <div className="inline-flex rounded-lg bg-[var(--whale-cream-deep)] p-0.5">
+          <div className="inline-flex rounded-lg bg-[var(--app-hover)] p-0.5">
             {([
               { value: 'circle' as const, icon: Circle, label: tTheme('avatarCircle') },
               { value: 'oneInch' as const, icon: RectangleVertical, label: tTheme('avatarOneInch') },
@@ -103,7 +103,7 @@ export function PersonalInfoSection({ section, onUpdate }: Props) {
                 onClick={() => updateAvatarStyle(value)}
                 className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-all duration-200 ${
                   avatarStyle === value
-                    ? 'bg-card font-medium text-[var(--whale-ink)] shadow-sm'
+                    ? 'bg-card font-medium text-[var(--app-text)] shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -117,7 +117,7 @@ export function PersonalInfoSection({ section, onUpdate }: Props) {
             <button
               type="button"
               onClick={() => onUpdate({ avatar: '' })}
-              className="inline-flex w-fit cursor-pointer items-center gap-1 rounded-md px-2 py-0.5 text-[11px] text-[var(--whale-ink-muted)] transition-colors hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]"
+              className="inline-flex w-fit cursor-pointer items-center gap-1 rounded-md px-2 py-0.5 text-[11px] text-[var(--app-text-muted)] transition-colors hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]"
             >
               <X className="h-3 w-3" />
               {t('clear')}
@@ -164,12 +164,12 @@ export function PersonalInfoSection({ section, onUpdate }: Props) {
       <FieldGroup title={t('customLinks')} defaultOpen={Boolean(content.github || content.linkedin || content.customLinks?.length)}>
         <EditableText field="github" label={t('githubProfile')} value={content.github || ''} onChange={github => onUpdate({ github })} />
         <EditableText field="linkedin" label={t('linkedin')} value={content.linkedin || ''} onChange={linkedin => onUpdate({ linkedin })} />
-        {content.customLinks?.map((link, index) => <div key={index} className="space-y-2 border-t border-[var(--whale-divider)] pt-2">
+        {content.customLinks?.map((link, index) => <div key={index} className="space-y-2 border-t border-[var(--app-border)] pt-2">
           <EditableText field={`customLinks.${index}.label`} label={t('linkLabel')} value={link.label} onChange={label => onUpdate({ customLinks: content.customLinks?.map((item,i) => i===index ? {...item,label} : item) })} />
           <EditableText field={`customLinks.${index}.url`} label={t('linkUrl')} value={link.url} onChange={url => onUpdate({ customLinks: content.customLinks?.map((item,i) => i===index ? {...item,url} : item) })} />
-          <button type="button" className="text-xs text-[var(--whale-ink-muted)]" onClick={() => onUpdate({ customLinks: content.customLinks?.filter((_,i)=>i!==index) })}>{t('removeLink')}</button>
+          <button type="button" className="text-xs text-[var(--app-text-muted)]" onClick={() => onUpdate({ customLinks: content.customLinks?.filter((_,i)=>i!==index) })}>{t('removeLink')}</button>
         </div>)}
-        <button type="button" className="text-xs text-[var(--whale-ink-muted)]" onClick={() => onUpdate({ customLinks: [...(content.customLinks || []), { label:'', url:'' }] })}>{t('addLink')}</button>
+        <button type="button" className="text-xs text-[var(--app-text-muted)]" onClick={() => onUpdate({ customLinks: [...(content.customLinks || []), { label:'', url:'' }] })}>{t('addLink')}</button>
       </FieldGroup>
       {/* 社招简历通常不填这些；已有值时默认展开，避免用户找不到自己填过的内容 */}
       <FieldGroup
@@ -216,15 +216,15 @@ export function PersonalInfoSection({ section, onUpdate }: Props) {
   );
 }
 
-/** 原生 details：键盘可达、无额外依赖；标题栏沿用 Whale Cream 的分隔线与墨色。 */
+/** 原生 details：键盘可达、无额外依赖；标题栏使用共享分隔线与文字色。 */
 function FieldGroup({ title, defaultOpen, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
   return (
-    <details open={defaultOpen} className="group rounded-lg border border-[var(--whale-divider)] bg-[var(--whale-card)]">
-      <summary className="flex cursor-pointer select-none items-center justify-between px-3 py-2 text-xs font-semibold text-[var(--whale-ink-soft)]">
+    <details open={defaultOpen} className="group rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)]">
+      <summary className="flex cursor-pointer select-none items-center justify-between px-3 py-2 text-xs font-semibold text-[var(--app-text-secondary)]">
         {title}
         <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
       </summary>
-      <div className="space-y-3 border-t border-[var(--whale-divider)] p-3">{children}</div>
+      <div className="space-y-3 border-t border-[var(--app-border)] p-3">{children}</div>
     </details>
   );
 }

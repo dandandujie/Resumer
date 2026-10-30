@@ -16,7 +16,7 @@ interface EditableTextProps {
 export function EditableText({ label, value, onChange, placeholder, type = 'text', field }: EditableTextProps) {
   return (
     <label className="block min-w-0 space-y-1.5">
-      <span className="block text-xs font-medium text-[var(--whale-ink-muted)]">{label}</span>
+      <span className="block text-xs font-medium text-[var(--app-text-muted)]">{label}</span>
       <RichTextInput
         value={value || ''}
         onChange={onChange}

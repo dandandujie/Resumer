@@ -26,12 +26,12 @@ export const OUTCOME_KEY: Record<OutcomeResult, string> = {
   ghosted: 'outcomeGhosted',
 };
 
-/** 状态胶囊配色：进行中中性、Offer 薄荷、关闭类偏红。 */
+/** 状态胶囊配色：进行中中性、Offer 强调色、关闭类偏红。 */
 export function statusTone(status: ApplicationStatus): string {
-  if (status === 'offer') return 'bg-[var(--whale-mint)]/40 text-[var(--whale-ink)]';
+  if (status === 'offer') return 'bg-[var(--app-accent-soft)]/40 text-[var(--app-text)]';
   if (status === 'rejected' || status === 'declined' || status === 'ghosted') return 'bg-red-50 text-red-700';
   if (status === 'interview') return 'bg-amber-50 text-amber-700';
-  return 'bg-[var(--whale-cream-deep)] text-[var(--whale-ink-soft)]';
+  return 'bg-[var(--app-hover)] text-[var(--app-text-secondary)]';
 }
 
 export function formatDateTime(value: string | undefined, locale: string): string {

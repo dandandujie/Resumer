@@ -25,3 +25,11 @@ DOCX 只嵌入文档实际引用的内置字体族，并保留完整字形供收
 - https://www.docx-editor.dev/docs/2.x/guides/fonts
 
 内置西文字体是开源替代，不能视为用户原字体的像素级等价。原 DOCX 字体声明保留在文件中；显示效果取决于当前机器和可用字体。
+
+## 本地资料解析
+
+CSV 使用 `csv` 1.4.0（MIT / Unlicense），XLSX 使用 `calamine` 0.37.0（MIT），中文文本编码转换使用 `encoding_rs` 0.8.42（Apache-2.0 或 MIT，另含 BSD-3-Clause 数据）。各自许可和版权文件以组件名前缀保留在本目录，并随应用分发。
+
+## 应用界面字体
+
+界面英文使用 `@fontsource-variable/sora` 的 Sora 变量字体，SIL OFL 1.1，完整许可见 `sora-OFL.txt`；中文使用系统无衬线字体。简历预览与导出仍由简历自己的字体设置控制。

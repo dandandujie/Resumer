@@ -25,8 +25,8 @@ const INLINE_FONTS = { ...CJK_FONTS, ...LATIN_FONTS };
 const keepFocus = (event: React.MouseEvent) => event.preventDefault();
 
 const triggerClass = cn(
-  'flex h-7 cursor-pointer items-center gap-1 rounded-md px-2 text-xs text-[var(--whale-ink-soft)] transition-colors',
-  'hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)] disabled:pointer-events-none disabled:opacity-40',
+  'flex h-7 cursor-pointer items-center gap-1 rounded-md px-2 text-xs text-[var(--app-text-secondary)] transition-colors',
+  'hover:bg-[var(--app-hover)] hover:text-[var(--app-text)] disabled:pointer-events-none disabled:opacity-40',
 );
 
 function Dropdown({
@@ -96,7 +96,7 @@ function Dropdown({
         disabled={disabled}
         onMouseDown={keepFocus}
         onClick={() => setOpen((value) => !value)}
-        className={cn(triggerClass, open && 'bg-[var(--whale-cream-deep)] text-[var(--whale-ink)]', className)}
+        className={cn(triggerClass, open && 'bg-[var(--app-hover)] text-[var(--app-text)]', className)}
       >
         {label}
         <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
@@ -110,7 +110,7 @@ function Dropdown({
           role="menu"
           aria-label={title}
           className={cn(
-            'fixed z-[110] max-h-[calc(100vh-16px)] max-w-[calc(100vw-16px)] overflow-y-auto rounded-xl border border-[var(--whale-divider)] bg-[var(--whale-card)] p-1',
+            'fixed z-[110] max-h-[calc(100vh-16px)] max-w-[calc(100vw-16px)] overflow-y-auto rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-1',
             'shadow-[0_12px_32px_-12px_rgba(28,26,23,0.35)]',
             menuClassName,
           )}
@@ -143,12 +143,12 @@ function MenuItem({
       style={style}
       className={cn(
         'flex w-full cursor-pointer items-center justify-between gap-4 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-left text-[13px]',
-        'text-[var(--whale-ink-soft)] hover:bg-[var(--whale-cream-soft)] hover:text-[var(--whale-ink)]',
-        active && 'text-[var(--whale-ink)]',
+        'text-[var(--app-text-secondary)] hover:bg-[var(--app-surface-muted)] hover:text-[var(--app-text)]',
+        active && 'text-[var(--app-text)]',
       )}
     >
       {children}
-      <Check className={cn('h-3.5 w-3.5 shrink-0 text-[var(--whale-mint-deep)]', !active && 'invisible')} />
+      <Check className={cn('h-3.5 w-3.5 shrink-0 text-[var(--app-accent)]', !active && 'invisible')} />
     </button>
   );
 }
@@ -176,9 +176,9 @@ function ToolButton({
       onMouseDown={keepFocus}
       onClick={onClick}
       className={cn(
-        'flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--whale-ink-soft)] transition-colors',
-        'hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)] disabled:pointer-events-none disabled:opacity-40',
-        pressed && 'bg-[var(--whale-ink)] text-[var(--whale-cream)] hover:bg-[var(--whale-ink-soft)] hover:text-[var(--whale-cream)]',
+        'flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--app-text-secondary)] transition-colors',
+        'hover:bg-[var(--app-hover)] hover:text-[var(--app-text)] disabled:pointer-events-none disabled:opacity-40',
+        pressed && 'bg-[var(--app-hover)] text-[var(--app-text)] hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]',
       )}
     >
       {children}
@@ -186,7 +186,7 @@ function ToolButton({
   );
 }
 
-const Divider = () => <span className="mx-1 h-4 w-px shrink-0 bg-[var(--whale-divider)]" aria-hidden />;
+const Divider = () => <span className="mx-1 h-4 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />;
 
 function NumericSetting({ label, value, min, max, onApply }: {
   label: string; value: number; min: number; max: number; onApply: (value: number) => void;
@@ -199,9 +199,9 @@ function NumericSetting({ label, value, min, max, onApply }: {
   }}>
     <label className="min-w-0 text-xs">{label}
       <input name="number" aria-label={label} type="number" step="any" min={min} max={max} required defaultValue={value}
-        className="mt-1 block h-8 w-24 rounded border border-[var(--whale-divider)] px-2 text-sm" />
+        className="mt-1 block h-8 w-24 rounded border border-[var(--app-border)] px-2 text-sm" />
     </label>
-    <button type="submit" className="h-8 cursor-pointer rounded bg-[var(--whale-ink)] px-3 text-xs text-[var(--whale-cream)]">{t('save')}</button>
+    <button type="submit" className="h-8 cursor-pointer rounded bg-[var(--app-accent)] px-3 text-xs text-white">{t('save')}</button>
   </form>;
 }
 
@@ -235,7 +235,7 @@ export function FormatControls({ target }: { target: FormatTarget | null }) {
             <MenuItem active={!style.font} onSelect={() => { target?.apply({ font: undefined }); close(); }}>
               {t('themeDefault')}
             </MenuItem>
-            <div className="my-1 h-px bg-[var(--whale-divider)]" />
+            <div className="my-1 h-px bg-[var(--app-border)]" />
             {FONT_IDS.map((id) => (
               <MenuItem
                 key={id}
@@ -246,7 +246,7 @@ export function FormatControls({ target }: { target: FormatTarget | null }) {
                 {tFont(id)}
               </MenuItem>
             ))}
-            <div className="my-1 h-px bg-[var(--whale-divider)]" />
+            <div className="my-1 h-px bg-[var(--app-border)]" />
             {LATIN_IDS.map((id) => <MenuItem key={id} active={style.font === id} style={{ fontFamily: LATIN_FONTS[id].screen }} onSelect={() => { target?.apply({ font: id }); close(); }}>{tLatin(id)}</MenuItem>)}
           </>
         )}
@@ -262,12 +262,12 @@ export function FormatControls({ target }: { target: FormatTarget | null }) {
             <MenuItem active={!style.size} onSelect={() => { target?.apply({ size: undefined }); close(); }}>
               {t('themeDefault')}
             </MenuItem>
-            <div className="my-1 h-px bg-[var(--whale-divider)]" />
+            <div className="my-1 h-px bg-[var(--app-border)]" />
             {SIZE_OPTIONS_PT.map((pt) => (
               <MenuItem key={pt} active={style.size === pt} onSelect={() => { target?.apply({ size: pt }); close(); }}>
                 <span className="flex items-baseline gap-2">
                   <span className="w-8 tabular-nums">{pt}</span>
-                  <span className="text-[11px] text-[var(--whale-ink-muted)]">{sizeName(pt)}</span>
+                  <span className="text-[11px] text-[var(--app-text-muted)]">{sizeName(pt)}</span>
                 </span>
               </MenuItem>
             ))}
@@ -312,7 +312,7 @@ export function FormatControls({ target }: { target: FormatTarget | null }) {
         label={
           <span className="flex flex-col items-center leading-none">
             <span className="text-[13px] font-semibold">A</span>
-            <span className="mt-0.5 h-[3px] w-3.5 rounded-full" style={{ background: style.color ?? 'var(--whale-ink)' }} />
+            <span className="mt-0.5 h-[3px] w-3.5 rounded-full" style={{ background: style.color ?? 'var(--app-text)' }} />
           </span>
         }
       >
@@ -320,7 +320,7 @@ export function FormatControls({ target }: { target: FormatTarget | null }) {
           <>
             <MenuItem active={!style.color} onSelect={() => { target?.apply({ color: undefined }); close(); }}>
               <span className="flex items-center gap-2">
-                <span className="h-4 w-4 rounded-full border border-[var(--whale-divider)] bg-[var(--whale-ink)]" />
+                <span className="h-4 w-4 rounded-full border border-[var(--app-border)] bg-[var(--app-text)]" />
                 {t('themeDefault')}
               </span>
             </MenuItem>
@@ -336,13 +336,13 @@ export function FormatControls({ target }: { target: FormatTarget | null }) {
                   onClick={() => { target?.apply({ color }); close(); }}
                   className={cn(
                     'h-6 w-6 cursor-pointer rounded-full ring-1 ring-black/10 transition-transform hover:scale-110',
-                    style.color === color && 'ring-2 ring-[var(--whale-mint-deep)] ring-offset-1',
+                    style.color === color && 'ring-2 ring-[var(--app-accent)] ring-offset-1',
                   )}
                   style={{ background: color }}
                 />
               ))}
             </div>
-            <label className="mt-2 flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] text-[var(--whale-ink-soft)] hover:bg-[var(--whale-cream-soft)]">
+            <label className="mt-2 flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] text-[var(--app-text-secondary)] hover:bg-[var(--app-surface-muted)]">
               <input
                 type="color"
                 value={style.color && style.color.length === 7 ? style.color : CUSTOM_COLOR_FALLBACK}

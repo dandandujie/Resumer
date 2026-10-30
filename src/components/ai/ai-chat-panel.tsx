@@ -307,7 +307,7 @@ export function AIChatContent({ resumeId, hideTitle }: AIChatContentProps) {
                       </p>
                     </div>
                     <button
-                      className="mt-0.5 hidden shrink-0 rounded p-1 text-muted-foreground hover:bg-[var(--whale-cream-deep)] hover:text-foreground group-hover:block"
+                      className="mt-0.5 hidden shrink-0 rounded p-1 text-muted-foreground hover:bg-[var(--app-hover)] hover:text-foreground group-hover:block"
                       onClick={(e) => {
                         e.stopPropagation();
                         deleteSession(session.id);
@@ -356,11 +356,9 @@ export function AIChatContent({ resumeId, hideTitle }: AIChatContentProps) {
             </button>
           )}
           {displayMessages.length === 0 && (
-            <div className="relative overflow-hidden rounded-2xl border border-[var(--whale-divider)] bg-gradient-to-br from-[var(--whale-mint)]/30 via-[var(--whale-cream-soft)] to-[var(--whale-cream)] p-4 text-[13px] leading-relaxed text-[var(--whale-ink-soft)]">
-              <div className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-[var(--whale-mint)]/40 blur-2xl" />
-              <div className="pointer-events-none absolute -bottom-8 -left-4 h-16 w-16 rounded-full bg-[var(--whale-mint-deep)]/10 blur-2xl" />
+            <div className="relative overflow-hidden rounded-[10px] border border-[var(--app-border)] bg-[var(--app-surface)] p-4 text-[13px] leading-relaxed text-[var(--app-text-secondary)]">
               <div className="relative flex items-start gap-2">
-                <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--whale-mint-deep)]" />
+                <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--app-accent)]" />
                 <span>{t('defaultGreeting')}</span>
               </div>
             </div>

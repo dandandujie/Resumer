@@ -5,6 +5,7 @@ type ModalType = 'create-resume' | 'settings' | 'jd-analysis' | 'translate' | 'e
 interface UIStore {
   sidebarOpen: boolean;
   activeModal: ModalType;
+  returnModal: ModalType;
   theme: 'light' | 'dark' | 'system';
   settingsTab: string;
 
@@ -19,13 +20,17 @@ interface UIStore {
 export const useUIStore = create<UIStore>((set) => ({
   sidebarOpen: true,
   activeModal: null,
-  theme: 'light',
-  settingsTab: 'ai',
+  returnModal: null,
+  theme: (localStorage.getItem('resumer_appearance') as 'light' | 'dark' | 'system') || 'light',
+  settingsTab: 'general',
 
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
-  openModal: (modal) => set({ activeModal: modal }),
-  closeModal: () => set({ activeModal: null }),
-  setTheme: (theme) => set({ theme }),
+  openModal: (modal) => set((state) => ({
+    activeModal: modal,
+    returnModal: modal === 'settings' && state.activeModal !== 'settings' ? state.activeModal : modal === 'settings' ? state.returnModal : null,
+  })),
+  closeModal: () => set((state) => ({ activeModal: state.activeModal === 'settings' ? state.returnModal : null, returnModal: null })),
+  setTheme: (theme) => { localStorage.setItem('resumer_appearance', theme); set({ theme }); },
   setSettingsTab: (tab) => set({ settingsTab: tab }),
 }));

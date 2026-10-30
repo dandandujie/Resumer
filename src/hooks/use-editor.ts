@@ -36,7 +36,6 @@ export function useEditor(resumeId: string) {
     loadResume();
     return () => {
       loadRequest.current++;
-      void useResumeStore.getState().flushPendingSave();
       resetResume();
       resetEditor();
     };

@@ -272,7 +272,7 @@ function PreviewSection({
   const sectionClasses = cn(
     'relative group',
     compact && 'text-sm',
-    pendingChange === 'added' && 'ring-2 ring-green-400',
+    pendingChange === 'added' && 'ring-2 ring-[var(--app-accent)]',
     pendingChange === 'modified' && 'ring-2 ring-blue-400',
     pendingChange === 'removed' && 'opacity-50 ring-2 ring-red-400'
   );

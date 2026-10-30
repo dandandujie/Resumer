@@ -10,6 +10,12 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/007_knowledge_raw_sha256.sql"),
     include_str!("../../migrations/008_resume_versions_labels.sql"),
     include_str!("../../migrations/009_original_documents.sql"),
+    include_str!("../../migrations/010_version_names.sql"),
+    include_str!("../../migrations/011_version_events.sql"),
+    include_str!("../../migrations/012_knowledge_library.sql"),
+    include_str!("../../migrations/013_interview_recordings.sql"),
+    include_str!("../../migrations/014_knowledge_compiler.sql"),
+    include_str!("../../migrations/015_knowledge_tags.sql"),
 ];
 
 pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {

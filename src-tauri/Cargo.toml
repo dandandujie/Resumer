@@ -1,6 +1,6 @@
 [package]
 name = "reseumer"
-version = "0.7.0"
+version = "0.7.1"
 description = "AI-powered resume builder"
 authors = ["liuchen"]
 edition = "2024"
@@ -23,7 +23,7 @@ rusqlite = { version = "0.31", features = ["bundled"] }
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.12", features = ["stream", "json"] }
+reqwest = { version = "0.12", features = ["stream", "json", "multipart"] }
 futures = "0.3"
 thiserror = "2"
 log = "0.4"
@@ -42,6 +42,9 @@ zip = "0.6"
 quick-xml = "0.38.4"
 mime_guess = "2"
 which = "6"
+calamine = "0.37.0"
+csv = "1.4.0"
+encoding_rs = "0.8.42"
 
 [profile.release]
 panic = "abort"

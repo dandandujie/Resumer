@@ -20,11 +20,11 @@ export function TextFormatBar() {
       onMouseDown={(event) => {
         if (!(event.target instanceof HTMLInputElement)) event.preventDefault();
       }}
-      className="relative z-20 flex min-h-11 shrink-0 flex-wrap items-center gap-2 border-b border-[var(--whale-divider)] bg-[var(--whale-card)] px-3 py-1.5"
+      className="relative z-20 flex min-h-11 shrink-0 flex-wrap items-center gap-2 border-b border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-1.5"
     >
       <FormatControls key={target?.id ?? 'none'} target={target} />
       {!target && (
-        <span className="min-w-0 truncate text-[11px] text-[var(--whale-ink-muted)]" title={t('barHint')}>
+        <span className="min-w-0 truncate text-[11px] text-[var(--app-text-muted)]" title={t('barHint')}>
           {t('barHintShort')}
         </span>
       )}

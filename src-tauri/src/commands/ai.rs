@@ -29,6 +29,15 @@ pub(crate) async fn prefetch_context(
                 serde_json::to_string(&hits).unwrap_or_default()
             ));
         }
+        if let Ok(conn) = db.conn.lock()
+            && let Ok(hits) = crate::knowledge::library::search(&conn, query, None, None, None, 5)
+            && !hits.is_empty()
+        {
+            sections.push(format!(
+                "资料原文（引用文件名与资料集）：{}",
+                serde_json::to_string(&hits).unwrap_or_default()
+            ));
+        }
         let _ = root;
     }
     if !crate::ai::search::tool_enabled(cfg) {
@@ -385,7 +394,7 @@ pub async fn ai_translate(
         "English"
     };
 
-    let sections = {
+    let draft_conn = {
         let conn = db.conn.lock().map_err(|e| CommandError {
             message: e.to_string(),
         })?;
@@ -396,9 +405,10 @@ pub async fn ai_translate(
             .ok_or(CommandError {
                 message: "Resume not found".into(),
             })?;
-        resume.sections
+        ai::tools::draft_connection(&resume, None).map_err(|message| CommandError { message })?
     };
 
+    let sections = resume_repo::find_sections_by_resume_id(&draft_conn, &resume_id)?;
     let total = sections.len();
     let _ = app.emit(
         "ai-translate-progress",
@@ -436,11 +446,6 @@ pub async fn ai_translate(
         match translation_result {
             Ok(r) => {
                 if let Ok(parsed) = ai::extract_json::extract_json(&r.text) {
-                    let sec_id = parsed
-                        .get("sectionId")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or(&section.id)
-                        .to_string();
                     let title = parsed
                         .get("title")
                         .and_then(|v| v.as_str())
@@ -450,12 +455,9 @@ pub async fn ai_translate(
                         .get("content")
                         .cloned()
                         .unwrap_or(section.content.clone());
-                    let conn = db.conn.lock().map_err(|e| CommandError {
-                        message: e.to_string(),
-                    })?;
                     if resume_repo::update_section(
-                        &conn,
-                        &sec_id,
+                        &draft_conn,
+                        &section.id,
                         &title,
                         section.sort_order,
                         section.visible,
@@ -482,18 +484,12 @@ pub async fn ai_translate(
         );
     }
 
-    {
-        let conn = db.conn.lock().map_err(|e| CommandError {
-            message: e.to_string(),
-        })?;
-        let _ = resume_repo::update_language(&conn, &resume_id, &target_language);
-    }
-
     Ok(json!({
         "success": true,
         "language": target_language,
         "translatedSections": succeeded,
         "failedSections": failed,
+        "sections":resume_repo::find_sections_by_resume_id(&draft_conn,&resume_id)?,
     }))
 }
 

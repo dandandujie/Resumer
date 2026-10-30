@@ -43,11 +43,11 @@ function Chip({
       style={{ transform: CSS.Translate.toString(transform), transition }}
       className={cn(
         'group/chip inline-flex max-w-full cursor-grab items-center gap-0.5 rounded-md border py-0.5 pl-2 pr-0.5 text-[13px] leading-5 active:cursor-grabbing',
-        'border-[var(--whale-divider)] bg-[var(--whale-cream-soft)] text-[var(--whale-ink)] hover:border-[var(--whale-ink)]/25',
+        'border-[var(--app-border)] bg-[var(--app-surface-muted)] text-[var(--app-text)] hover:border-[var(--app-text)]/25',
         isDragging && 'z-10 shadow-md',
       )}
     >
-      <button type="button" {...attributes} {...listeners} aria-label={ariaLabel + ' ↕'} className="cursor-grab px-0.5 text-[var(--whale-ink-muted)]"><GripVertical className="h-3 w-3" /></button>
+      <button type="button" {...attributes} {...listeners} aria-label={ariaLabel + ' ↕'} className="cursor-grab px-0.5 text-[var(--app-text-muted)]"><GripVertical className="h-3 w-3" /></button>
       <RichTextInput value={label} onChange={onChange} field={field} ariaLabel={ariaLabel} className="w-auto min-w-[3rem] min-h-6 border-0 bg-transparent px-1 py-0 text-[13px] shadow-none" />
       <button
         type="button"
@@ -55,7 +55,7 @@ function Chip({
         onPointerDown={(event) => event.stopPropagation()}
         onMouseDown={(event) => event.preventDefault()}
         onClick={onRemove}
-        className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded text-[var(--whale-ink-muted)] opacity-60 hover:bg-[var(--whale-cream-deep)] hover:text-red-600 hover:opacity-100"
+        className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded text-[var(--app-text-muted)] opacity-60 hover:bg-[var(--app-hover)] hover:text-red-600 hover:opacity-100"
       >
         <X className="h-3 w-3" />
       </button>
@@ -107,14 +107,14 @@ export function TagListInput({ label, items, onChange, placeholder, field }: Tag
 
   return (
     <div ref={containerRef} className="min-w-0 space-y-1.5">
-      <span className="block text-xs font-medium text-[var(--whale-ink-muted)]">{label}</span>
+      <span className="block text-xs font-medium text-[var(--app-text-muted)]">{label}</span>
       <div
         onClick={(event) => {
           if (event.target === event.currentTarget) inputRef.current?.focus();
         }}
         className={cn(
-          'flex min-h-9 w-full cursor-text flex-wrap items-center gap-1.5 rounded-md border border-input bg-[var(--whale-card)] px-2 py-1.5 shadow-xs',
-          'transition-[border-color,box-shadow] hover:border-[var(--whale-ink)]/25',
+          'flex min-h-9 w-full cursor-text flex-wrap items-center gap-1.5 rounded-md border border-input bg-[var(--app-surface)] px-2 py-1.5 shadow-xs',
+          'transition-[border-color,box-shadow] hover:border-[var(--app-text)]/25',
           'focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/25',
         )}
       >
@@ -173,7 +173,7 @@ export function TagListInput({ label, items, onChange, placeholder, field }: Tag
             reporter?.clear();
             if (draft.trim()) commit(draft);
           }}
-          className="h-6 min-w-[6rem] flex-1 bg-transparent px-1 text-sm text-[var(--whale-ink)] outline-none placeholder:text-[var(--whale-ink-muted)]/70"
+          className="h-6 min-w-[6rem] flex-1 bg-transparent px-1 text-sm text-[var(--app-text)] outline-none placeholder:text-[var(--app-text-muted)]/70"
         />
       </div>
     </div>

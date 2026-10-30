@@ -45,7 +45,7 @@ export function AiRewriteMenu({ text, context }: { text: string; context: AiRewr
           disabled={disabled}
           aria-label={t('menu')}
           title={t('menu')}
-          className="shrink-0 cursor-pointer text-[var(--whale-mint-deep)] hover:bg-[var(--whale-mint)]/30"
+          className="shrink-0 cursor-pointer text-[var(--app-accent)] hover:bg-[var(--app-accent-soft)]/30"
         >
           <Sparkles className="h-3.5 w-3.5" />
         </Button>

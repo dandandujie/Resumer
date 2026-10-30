@@ -610,10 +610,10 @@ export function RichTextInput({
           }
         }}
         className={cn(
-          'relative w-full min-w-0 cursor-text whitespace-pre-wrap break-words rounded-md border border-input bg-[var(--whale-card)] px-3 py-1.5',
-          'text-sm leading-6 text-[var(--whale-ink)] shadow-xs outline-none transition-[border-color,box-shadow]',
-          'hover:border-[var(--whale-ink)]/25 focus:border-ring focus:ring-[3px] focus:ring-ring/25',
-          'data-[empty]:before:pointer-events-none data-[empty]:before:absolute data-[empty]:before:text-[var(--whale-ink-muted)]/70',
+          'relative w-full min-w-0 cursor-text whitespace-pre-wrap break-words rounded-md border border-input bg-[var(--app-surface)] px-3 py-1.5',
+          'text-sm leading-6 text-[var(--app-text)] shadow-xs outline-none transition-[border-color,box-shadow]',
+          'hover:border-[var(--app-text)]/25 focus:border-ring focus:ring-[3px] focus:ring-ring/25',
+          'data-[empty]:before:pointer-events-none data-[empty]:before:absolute data-[empty]:before:text-[var(--app-text-muted)]/70',
           'data-[empty]:before:content-[attr(data-placeholder)]',
           multiline ? 'min-h-[5.25rem]' : 'min-h-9',
           collapseOnBlur && !focused && !held && 'max-h-9 overflow-hidden whitespace-nowrap text-ellipsis',
@@ -630,7 +630,7 @@ export function RichTextInput({
             if (!(event.target instanceof HTMLInputElement)) event.preventDefault();
           }}
           className={cn(
-            'fixed z-[60] max-w-[calc(100vw-16px)] rounded-xl border border-[var(--whale-divider)] bg-[var(--whale-card)] p-1',
+            'fixed z-[60] max-w-[calc(100vw-16px)] rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-1',
             'shadow-[0_10px_30px_-10px_rgba(28,26,23,0.35)] animate-in fade-in-0 zoom-in-95 duration-100',
           )}
           style={toolbarPos}

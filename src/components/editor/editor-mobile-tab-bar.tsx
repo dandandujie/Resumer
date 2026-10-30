@@ -10,8 +10,8 @@ export function EditorMobileTabBar({ onOpenSections }: { onOpenSections: () => v
   const { mobileActiveTab, setMobileActiveTab } = useEditorStore();
 
   return (
-    <div className="flex shrink-0 border-b border-[var(--whale-divider)] bg-[var(--whale-sidebar)] md:hidden">
-      <button type="button" onClick={onOpenSections} className="flex items-center justify-center gap-1.5 border-r border-[var(--whale-divider)] px-3 py-2 text-xs text-[var(--whale-ink-muted)]">
+    <div className="flex shrink-0 border-b border-[var(--app-border)] bg-[var(--app-sidebar)] md:hidden">
+      <button type="button" onClick={onOpenSections} className="flex items-center justify-center gap-1.5 border-r border-[var(--app-border)] px-3 py-2 text-xs text-[var(--app-text-muted)]">
         <List className="h-4 w-4" />{t('sidebar.sections')}
       </button>
       <button
@@ -20,8 +20,8 @@ export function EditorMobileTabBar({ onOpenSections }: { onOpenSections: () => v
         className={cn(
           "flex flex-1 items-center justify-center gap-2 py-2.5 text-sm font-medium transition-colors md:hidden",
           mobileActiveTab === "edit"
-            ? "border-b-2 border-[var(--whale-mint-deep)] text-[var(--whale-ink)]"
-            : "text-[var(--whale-ink-muted)] hover:text-[var(--whale-ink)]"
+            ? "border-b-2 border-[var(--app-accent)] text-[var(--app-text)]"
+            : "text-[var(--app-text-muted)] hover:text-[var(--app-text)]"
         )}
       >
         <Pencil className="h-4 w-4" />
@@ -33,8 +33,8 @@ export function EditorMobileTabBar({ onOpenSections }: { onOpenSections: () => v
         className={cn(
           "flex flex-1 items-center justify-center gap-2 py-2.5 text-sm font-medium transition-colors md:hidden",
           mobileActiveTab === "preview"
-            ? "border-b-2 border-[var(--whale-mint-deep)] text-[var(--whale-ink)]"
-            : "text-[var(--whale-ink-muted)] hover:text-[var(--whale-ink)]"
+            ? "border-b-2 border-[var(--app-accent)] text-[var(--app-text)]"
+            : "text-[var(--app-text-muted)] hover:text-[var(--app-text)]"
         )}
       >
         <Eye className="h-4 w-4" />

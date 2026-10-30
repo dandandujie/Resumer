@@ -51,14 +51,14 @@ export function SmartFitButton() {
       onClick={handleSmartFit}
       variant="ghost"
       size="sm"
-      className="cursor-pointer gap-1 text-[var(--whale-ink-soft)] hover:bg-[var(--whale-mint)]/40 hover:text-[var(--whale-ink)]"
+      className="cursor-pointer gap-1 text-[var(--app-text-secondary)] hover:bg-[var(--app-accent-soft)]/40 hover:text-[var(--app-text)]"
       disabled={isCalculating}
       title={t('toolbar.smartFitTitle')}
     >
       {isCalculating ? (
         <Loader2 className="h-4 w-4 animate-spin" />
       ) : (
-        <Sparkles className="h-4 w-4 text-[var(--whale-ink)]" />
+        <Sparkles className="h-4 w-4 text-[var(--app-text)]" />
       )}
       <span className="ml-1 text-xs hidden sm:inline">{t('toolbar.smartFit')}</span>
     </Button>

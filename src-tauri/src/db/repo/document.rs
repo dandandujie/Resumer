@@ -159,7 +159,7 @@ pub fn import(
     let result = (|| -> rusqlite::Result<String> {
         let id = if let Some(id) = target {
             resume::find_by_id(&tx,id,user)?.ok_or(rusqlite::Error::QueryReturnedNoRows)?;
-            version::create_snapshot(&tx,id,user,"restore","导入原文档前",None)?;
+            version::create_snapshot(&tx,id,user,"import","导入原文档前",None)?;
             resume::update(&tx,id,user,filename.strip_suffix(".docx").unwrap_or(filename),Some(TEMPLATE),None)?;
             id.to_owned()
         } else {
@@ -168,7 +168,6 @@ pub fn import(
         let hash = store_blob(&tx,bytes)?;
         tx.execute("INSERT INTO resume_documents(resume_id,filename,original_hash,current_hash) VALUES (?1,?2,?3,?3) ON CONFLICT(resume_id) DO UPDATE SET filename=excluded.filename,original_hash=excluded.original_hash,current_hash=excluded.current_hash,revision=resume_documents.revision+1",params![id,filename,hash])?;
         sync_text(&tx,&id,&text)?;
-        version::create_snapshot(&tx,&id,user,"save","导入原文档",None)?;
         Ok(id)
     })().map_err(|e| e.to_string())?;
     tx.commit().map_err(|e| e.to_string())?;
@@ -198,8 +197,6 @@ pub fn save(
     )
     .map_err(|e| e.to_string())?;
     sync_text(&tx, id, &text).map_err(|e| e.to_string())?;
-    version::create_snapshot(&tx, id, user, "save", "", Some(version::SAVE_COALESCE_SECS))
-        .map_err(|e| e.to_string())?;
     tx.commit().map_err(|e| e.to_string())?;
     Ok(revision + 1)
 }
@@ -350,7 +347,7 @@ mod tests {
             &serde_json::json!({}),
         )
         .unwrap();
-        let original = version::create_snapshot(&conn, &id, "u", "save", "结构化原版", None)
+        let original = version::create_snapshot(&conn, &id, "u", "manual", "结构化原版", None)
             .unwrap()
             .unwrap();
         import(&mut conn, "u", "原文件.docx", FIXTURE, Some(&id)).unwrap();

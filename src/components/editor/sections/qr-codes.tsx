@@ -76,7 +76,7 @@ export function QrCodesSection({ section, onUpdate }: Props) {
                 setInvalidIds((prev) => { const next = new Set(prev); next.delete(qr.id); return next; });
               }
             }}
-            className={`h-7 min-w-0 flex-1 rounded border bg-transparent px-2 text-xs outline-none ${invalidIds.has(qr.id) ? 'border-red-400 text-red-500 placeholder:text-red-300 focus:border-red-500' : 'border-[var(--whale-divider)] focus:border-[var(--whale-ink-soft)]'}`}
+            className={`h-7 min-w-0 flex-1 rounded border bg-transparent px-2 text-xs outline-none ${invalidIds.has(qr.id) ? 'border-red-400 text-red-500 placeholder:text-red-300 focus:border-red-500' : 'border-[var(--app-border)] focus:border-[var(--app-text-secondary)]'}`}
           />
           <button
             type="button"

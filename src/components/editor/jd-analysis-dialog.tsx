@@ -49,6 +49,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useEditorStore } from '@/stores/editor-store';
 import { useUIStore } from '@/stores/ui-store';
+import { ApplicationContextPicker } from '@/components/journal/application-context-picker';
 import { useJournalStore } from '@/stores/journal-store';
 import { analyzeJD } from '@/lib/ai/client-ai-service';
 import * as api from '@/lib/tauri-api';
@@ -79,19 +80,19 @@ interface JdAnalysisDialogProps {
 function getScoreColor(score: number): string {
   if (score < 40) return 'text-red-500';
   if (score <= 70) return 'text-yellow-500';
-  return 'text-emerald-500';
+  return 'text-[var(--app-text-secondary)]';
 }
 
 function getScoreStroke(score: number): string {
   if (score < 40) return 'stroke-red-500';
   if (score <= 70) return 'stroke-yellow-500';
-  return 'stroke-emerald-500';
+  return 'stroke-[var(--app-text-secondary)]';
 }
 
 function getScoreTrack(score: number): string {
   if (score < 40) return 'stroke-red-100';
   if (score <= 70) return 'stroke-yellow-100';
-  return 'stroke-emerald-100';
+  return 'stroke-[var(--app-border)]';
 }
 
 function ScoreCircle({
@@ -164,7 +165,7 @@ function ScoreTrend({
 }) {
   if (previous === undefined) return null;
   const diff = current - previous;
-  if (diff > 0) return <ArrowUp className="h-3.5 w-3.5 text-emerald-500" />;
+  if (diff > 0) return <ArrowUp className="h-3.5 w-3.5 text-[var(--app-text-secondary)]" />;
   if (diff < 0) return <ArrowDown className="h-3.5 w-3.5 text-red-500" />;
   return <Minus className="h-3.5 w-3.5 text-muted-foreground" />;
 }
@@ -212,7 +213,7 @@ function JdAnalysisResultView({
           </button>
           {jdExpanded && (
             <div className="border-t border-border px-3.5 py-3">
-              <p className="text-sm leading-relaxed text-[var(--whale-ink-soft)] whitespace-pre-wrap">
+              <p className="text-sm leading-relaxed text-[var(--app-text-secondary)] whitespace-pre-wrap">
                 {jobDescription}
               </p>
             </div>
@@ -232,7 +233,7 @@ function JdAnalysisResultView({
           <Target className="h-4 w-4 text-muted-foreground" />
           {t('summary')}
         </h4>
-        <p className="text-sm leading-relaxed text-[var(--whale-ink-soft)]">
+        <p className="text-sm leading-relaxed text-[var(--app-text-secondary)]">
           {result.summary}
         </p>
       </div>
@@ -241,14 +242,14 @@ function JdAnalysisResultView({
       {result.keywordMatches.length > 0 && (
         <div className="space-y-2">
           <h4 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-            <ShieldCheck className="h-4 w-4 text-emerald-500" />
+            <ShieldCheck className="h-4 w-4 text-[var(--app-text-secondary)]" />
             {t('keywordMatches')}
           </h4>
           <div className="flex flex-wrap gap-1.5">
             {result.keywordMatches.map((keyword) => (
               <Badge
                 key={keyword}
-                className="bg-emerald-50 text-emerald-700 border-emerald-200"
+                className="bg-[var(--app-hover)] text-[var(--app-text-secondary)] border-[var(--app-border)]"
               >
                 {keyword}
               </Badge>
@@ -298,7 +299,7 @@ function JdAnalysisResultView({
                     <span className="text-xs font-medium text-muted-foreground">
                       {t('currentState')}
                     </span>
-                    <p className="text-sm text-[var(--whale-ink-soft)]">
+                    <p className="text-sm text-[var(--app-text-secondary)]">
                       {suggestion.current}
                     </p>
                   </div>
@@ -590,6 +591,8 @@ export function JdAnalysisDialog({
             <TabsContent value="new" className="flex flex-col min-h-0">
               {!result ? (
                 <div className="px-6 py-4 space-y-4">
+                  <ApplicationContextPicker resumeId={resumeId} value={sourceApplicationId} onChoose={application => { setSourceApplicationId(application.id); setCompany(application.company); setRole(application.role); setJobDescription(application.jd); }} />
+                  <details open={!!company || !!role}><summary className="cursor-pointer text-xs text-muted-foreground">公司与岗位（可选）</summary>
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
                       <label className="text-xs text-muted-foreground">
@@ -610,6 +613,7 @@ export function JdAnalysisDialog({
                       />
                     </div>
                   </div>
+                  </details>
                   <Textarea
                     placeholder={t('placeholder')}
                     value={jobDescription}
@@ -637,7 +641,7 @@ export function JdAnalysisDialog({
                     <Button
                       onClick={handleAnalyze}
                       disabled={isAnalyzing || !jobDescription.trim()}
-                      className="cursor-pointer bg-brand hover:bg-brand-hover"
+                      variant="primary" className="cursor-pointer"
                     >
                       {isAnalyzing ? (
                         <>
@@ -709,7 +713,7 @@ export function JdAnalysisDialog({
                         </Button>
                         <Button
                           onClick={handleOptimize}
-                          className="cursor-pointer gap-1.5 bg-brand hover:bg-brand-hover"
+                          variant="primary" className="cursor-pointer gap-1.5"
                         >
                           <Wand2 className="h-3.5 w-3.5" />
                           {t('optimize')}
@@ -828,7 +832,7 @@ export function JdAnalysisDialog({
                                   ATS {item.atsScore}
                                 </Badge>
                               </div>
-                              <p className="text-sm text-[var(--whale-ink-soft)] truncate mt-0.5">
+                              <p className="text-sm text-[var(--app-text-secondary)] truncate mt-0.5">
                                 {item.jobDescription}
                               </p>
                             </div>
@@ -887,7 +891,7 @@ export function JdAnalysisDialog({
               {ct('cancel')}
             </AlertDialogCancel>
             <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700 cursor-pointer"
+              variant="destructive" className="cursor-pointer"
               onClick={() => {
                 if (deleteToConfirm) handleDeleteHistory(deleteToConfirm);
                 setDeleteToConfirm(null);

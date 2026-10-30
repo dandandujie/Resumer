@@ -1,5 +1,9 @@
 'use client';
 
+import { Textarea } from '@/components/ui/textarea';
+import { WorkspaceAssistant } from '@/components/ai/workspace-assistant';
+import { assertUnchanged, validateWorkspaceFields } from '@/lib/workspace-actions';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { listen } from '@tauri-apps/api/event';
@@ -53,6 +57,7 @@ export function InterviewDialog() {
   const [role, setRole] = useState('');
   const [round, setRound] = useState('');
   const [jd, setJd] = useState('');
+  const [focus, setFocus] = useState('');
   const [selectedModel, setSelectedModel] = useState<string | undefined>();
 
   const [messages, setMessages] = useState<UIMessage[]>([]);
@@ -156,7 +161,7 @@ export function InterviewDialog() {
   );
 
   const startInterview = () => {
-    const first: UIMessage = { id: generateId(), role: 'user', parts: [{ type: 'text', text: t('startTrigger') }] };
+    const first: UIMessage = { id: generateId(), role: 'user', parts: [{ type: 'text', text: t('startTrigger') + (focus ? `\n本次练习要求：${focus}` : '') }] };
     void runTurn([first]);
   };
 
@@ -214,6 +219,10 @@ export function InterviewDialog() {
           <DialogTitle>{t('title')}</DialogTitle>
         </DialogHeader>
 
+        {!started && <div className="max-h-[42%] shrink-0 overflow-y-auto border-b p-3"><WorkspaceAssistant scope="mock" title="描述你想怎么练" placeholder="例如：按字节前端二面来练，重点追问我的项目架构，每次只问一道题…" examples={['根据我的投递记录帮我准备一次二面练习']}
+          context={()=>({company,role,round,jd,focus,applications:resumeApplications.map(a=>({id:a.id,company:a.company,role:a.role,jd:a.jd.slice(0,12000),interviews:a.interviews}))})}
+          onApply={async(actions,base)=>{if(started)throw Error('面试已经开始，请先结束本次练习');const b=base as {company:string;role:string;round:string;jd:string;focus:string};assertUnchanged({company:b.company,role:b.role,round:b.round,jd:b.jd,focus:b.focus},{company,role,round,jd,focus});for(const action of actions){validateWorkspaceFields(action);if(action.kind!=='mock')throw Error('不是模拟面试设置');for(const [key,value]of Object.entries(action.fields)){const set={company:setCompany,role:setRole,round:setRound,jd:setJd,focus:setFocus}[key];set?.(String(value));}}}}
+        /></div>}
         <div className="flex min-h-0 flex-1">
           {/* 左：面试设置 */}
           <div className="flex w-[300px] shrink-0 flex-col gap-3 overflow-y-auto border-r border-border p-4">
@@ -233,6 +242,9 @@ export function InterviewDialog() {
                 </Select>
               </div>
             )}
+            <p className="rounded-lg bg-muted p-3 text-xs leading-6 text-muted-foreground">可以直接开始，面试官会先围绕简历提问。选择投递记录可自动带入公司与岗位。</p>
+            {!started && <label className="space-y-1.5 text-xs">练习重点（可选）<Textarea value={focus} onChange={e=>setFocus(e.target.value)} rows={2} placeholder="追问项目取舍、系统设计，或先从基础题开始" /></label>}
+            <details open={!!company || !!role || !!jd} className="space-y-3"><summary className="cursor-pointer text-xs font-medium">补充面试方向（可选）</summary><div className="space-y-3 pt-2">
             <div className="space-y-1.5">
               <Label className="text-xs">{t('company')}</Label>
               <Input value={company} onChange={(e) => setCompany(e.target.value)} placeholder={t('companyPlaceholder')} disabled={started} />
@@ -252,10 +264,11 @@ export function InterviewDialog() {
                 onChange={(e) => setJd(e.target.value)}
                 placeholder={t('jdPlaceholder')}
                 disabled={started}
-                className="min-h-[120px] flex-1 resize-none rounded-md border border-border bg-transparent px-3 py-2 text-xs outline-none focus:border-[var(--whale-ink-muted)] disabled:opacity-60"
+                className="min-h-[120px] flex-1 resize-none rounded-md border border-border bg-transparent px-3 py-2 text-xs outline-none focus:border-[var(--app-text-muted)] disabled:opacity-60"
               />
             </div>
 
+            </div></details>
             <div className="space-y-1.5">
               <Label className="text-xs">{t('channel')}</Label>
               {hasConfigured ? (
@@ -312,7 +325,7 @@ export function InterviewDialog() {
           <div className="flex min-w-0 flex-1 flex-col">
             <div ref={scrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
               {messages.length === 0 ? (
-                <div className="flex h-full items-center justify-center px-6 text-center text-[13px] text-[var(--whale-ink-muted)]">
+                <div className="flex h-full items-center justify-center px-6 text-center text-[13px] text-[var(--app-text-muted)]">
                   {t('emptyHint')}
                 </div>
               ) : (
@@ -342,7 +355,7 @@ export function InterviewDialog() {
                       sendAnswer();
                     }
                   }}
-                  className="min-h-[44px] flex-1 resize-none rounded-lg border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-[var(--whale-ink-muted)] disabled:opacity-50"
+                  className="min-h-[44px] flex-1 resize-none rounded-lg border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-[var(--app-text-muted)] disabled:opacity-50"
                 />
                 {isLoading ? (
                   <Button type="button" onClick={stop} variant="outline" size="icon" className="h-10 w-10 shrink-0 cursor-pointer">

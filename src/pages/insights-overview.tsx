@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import {
   AlarmClock,
+  ArrowLeft,
   Briefcase,
   CalendarClock,
-  ArrowUpRight,
   LayoutList,
   Columns3,
   Network,
@@ -40,7 +40,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Button } from '@/components/ui/button';
+import { ApplicationAssistant } from '@/components/journal/application-assistant';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -164,7 +165,7 @@ export default function InsightsOverviewPage() {
 
   const handleCreate = async () => {
     const app = await createApplication({
-      resumeId: resumeFilter !== ALL_RESUMES ? resumeFilter : null,
+      resumeId: resumeFilter !== ALL_RESUMES ? resumeFilter : resumes.length === 1 ? resumes[0].id : null,
     });
     setSelectedId(app.id);
   };
@@ -176,32 +177,58 @@ export default function InsightsOverviewPage() {
     setPendingDelete(null);
   };
 
+  const deleteDialog = (
+      <AlertDialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('insightsConfirmDelete')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDelete ? [pendingDelete.company, pendingDelete.role].filter(Boolean).join(' · ') || tJournal('untitledCompany') : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="cursor-pointer">{tCommon('cancel')}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" className="cursor-pointer" onClick={() => void confirmDelete()}>
+              {tCommon('delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+  );
+  if (selected) {
+    const detailApps = filtered.some(application => application.id === selected.id) ? filtered : applications;
+    return <div className="application-workspace" data-application-workspace>
+      <header className="application-workspace-header"><Button variant="ghost" size="sm" data-application-back onClick={() => { setSelectedId(null); setSelectedRoundId(null); }}><ArrowLeft />{locale === 'zh' ? '返回投递列表' : 'All applications'}</Button><span className="text-[11px] text-muted-foreground">{selected.company || tJournal('untitledCompany')}</span></header>
+      <div className="application-workspace-columns">
+        <aside className="application-record-list"><div className="flex items-center justify-between border-b p-3"><span className="text-[11px] font-medium text-muted-foreground">{tJournal('applicationsHeading')} · {detailApps.length}</span><Button variant="ghost" size="icon-xs" onClick={() => void handleCreate()} aria-label={tJournal('addApplication')}><Plus /></Button></div><div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">{detailApps.map(application => <button type="button" key={application.id} aria-current={selected.id === application.id ? 'page' : undefined} className="application-record-item" onClick={() => { setSelectedId(application.id); setSelectedRoundId(null); }}><strong className="block truncate text-xs font-medium">{application.company || tJournal('untitledCompany')}</strong><span className="mt-1 block truncate text-[11px] text-muted-foreground">{application.role || '—'}</span><span className="mt-1.5 block text-[10px] text-muted-foreground">{tJournal(STATUS_KEY[application.status])}</span></button>)}</div></aside>
+        <main className="application-record-detail" data-application-detail><div className="mb-4"><p className="app-eyebrow">APPLICATION</p><h1 className="text-xl font-semibold tracking-tight">{[selected.company,selected.role].filter(Boolean).join(' · ') || tJournal('untitledCompany')}</h1></div><ApplicationEditor key={selected.id} app={selected} initialRoundId={selectedRoundId} resumes={resumeOptions} onDelete={() => setPendingDelete(selected)} onBeforeLaunchTool={() => setSelectedId(null)} /></main>
+      </div>{deleteDialog}
+    </div>;
+  }
+
   return (
-    <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
+    <div className="app-page" data-workspace="applications">
+      <header className="app-page-header">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--whale-ink-muted)]">{t('workspace')}</p>
-          <h1 className="font-display mt-1 text-[2.125rem] font-semibold leading-tight text-[var(--whale-ink)]">{t('journalTitle')}</h1>
-          <p className="mt-1 text-[13px] text-[var(--whale-ink-muted)]">{t('insightsHeroSubtitle')}</p>
+          <p className="app-eyebrow">APPLICATIONS</p>
+          <h1 className="app-page-title">{t('journalTitle')}</h1>
+          <p className="app-page-description">{t('insightsHeroSubtitle')}</p>
         </div>
         {finishedCount >= 5 && (
           <button
             type="button"
             onClick={() => void api.knowledgeStrategyReview().catch((error) => logError(tJournal('strategyReview'), String(error)))}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[var(--whale-divider)] px-4 py-2 text-[13px] font-semibold text-[var(--whale-ink)]"
+            className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[var(--app-border)] px-4 py-2 text-[13px] font-semibold text-[var(--app-text)]"
           >{tJournal('strategyReview')}</button>
         )}
-        <button
-          type="button"
-          onClick={() => void handleCreate()}
-          className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-[var(--whale-ink)] px-4 py-2 text-[13px] font-semibold text-[var(--whale-cream)] transition-transform hover:scale-[1.02] active:scale-[0.98]"
-        >
+        <Button variant="primary" size="sm" onClick={() => void handleCreate()}>
           <Plus className="h-3.5 w-3.5" />
           {tJournal('addApplication')}
-        </button>
+        </Button>
       </header>
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label={t('funnelTitle')}>
+      <ApplicationAssistant onCreated={setSelectedId} />
+      <section className="app-metrics" aria-label={t('funnelTitle')}>
         {[
           { key: 'all' as const, label: t('funnelApplied'), count: applications.length, detail: tJournal('metricTotal') },
           { key: 'open' as const, label: t('funnelInProgress'), count: agg.pendingCount, detail: tJournal('metricActive') },
@@ -209,9 +236,9 @@ export default function InsightsOverviewPage() {
           { key: 'overdue' as const, label: t('funnelOverdue'), count: agg.overdueFollowUps, detail: tJournal('metricFollowUp') },
         ].map((metric) => (
           <button key={metric.key} type="button" aria-pressed={filter === metric.key} onClick={() => { setFilter(metric.key); if (view === 'graph') setView('list'); }}
-            className={cn('group min-w-0 cursor-pointer rounded-xl border px-4 py-3 text-left transition-colors', metric.key === 'open' ? 'border-[var(--whale-ink)] bg-[var(--whale-ink)] text-[var(--whale-cream)]' : 'border-[var(--whale-divider)] bg-[var(--whale-card)] hover:border-[var(--whale-ink-muted)]')}>
-            <span className="flex items-center justify-between text-xs opacity-75">{metric.label}<ArrowUpRight className="h-3.5 w-3.5 opacity-50 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" /></span>
-            <span className="mt-1 block font-display text-2xl font-semibold tabular-nums">{metric.count.toString().padStart(2, '0')}</span>
+            className="app-metric cursor-pointer" data-selected={filter === metric.key}>
+            <span className="app-metric-label">{metric.label}</span>
+            <span className="app-metric-value">{metric.count}</span>
             <span className="sr-only">{metric.detail}</span>
           </button>
         ))}
@@ -220,10 +247,10 @@ export default function InsightsOverviewPage() {
       <div className="min-w-0 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-base font-semibold">{tJournal('applicationsHeading')}</h2>
-        <div className="inline-flex rounded-lg bg-[var(--whale-cream-deep)] p-1" role="tablist" aria-label={tJournal('viewLabel')}>
+        <div className="app-segments" role="tablist" aria-label={tJournal('viewLabel')}>
           {(['list', 'kanban', 'graph'] as const).map((item) => {
             const Icon = item === 'list' ? LayoutList : item === 'kanban' ? Columns3 : Network;
-            return <button key={item} type="button" role="tab" aria-selected={view === item} onClick={() => setView(item)} className={cn('inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs transition-colors', view === item ? 'bg-[var(--whale-card)] text-[var(--whale-ink)] shadow-sm' : 'text-[var(--whale-ink-muted)]')}>
+            return <button key={item} type="button" role="tab" aria-selected={view === item} onClick={() => setView(item)} className={cn('inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs transition-colors', view === item ? 'bg-[var(--app-surface)] text-[var(--app-text)] shadow-sm' : 'text-[var(--app-text-muted)]')}>
               <Icon className="h-3.5 w-3.5" />{item === 'list' ? tJournal('viewList') : item === 'kanban' ? tJournal('viewKanban') : tJournal('viewGraph')}
             </button>;
           })}
@@ -240,10 +267,10 @@ export default function InsightsOverviewPage() {
             onClick={() => setFilter(item.key)}
           />
         ))}
-        <span className="h-4 w-px shrink-0 bg-[var(--whale-divider)]" />
+        <span className="h-4 w-px shrink-0 bg-[var(--app-border)]" />
         <Select value={resumeFilter} onValueChange={setResumeFilter}>
-          <SelectTrigger className="h-8 w-auto max-w-[220px] gap-1 rounded-full border-[var(--whale-divider)] bg-[var(--whale-card)] px-3 text-[12px] font-medium text-[var(--whale-ink-soft)] shadow-none hover:bg-[var(--whale-cream-soft)]">
-            <FileText className="h-3.5 w-3.5 text-[var(--whale-ink-muted)]" />
+          <SelectTrigger className="h-8 w-auto max-w-[220px] gap-1 rounded-md border-[var(--app-border)] bg-[var(--app-bg)] px-3 text-[12px] font-medium text-[var(--app-text-secondary)] shadow-none hover:bg-[var(--app-surface-muted)]">
+            <FileText className="h-3.5 w-3.5 text-[var(--app-text-muted)]" />
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -257,19 +284,19 @@ export default function InsightsOverviewPage() {
 
         <div className={cn("flex flex-wrap items-center justify-between gap-3", view === 'graph' && "hidden")}>
           <label className="relative w-full max-w-[300px]">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--whale-ink-muted)]" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--app-text-muted)]" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t('insightsSearchPlaceholder')}
               aria-label={t('insightsSearchPlaceholder')}
-              className="h-8 w-full rounded-lg border border-[var(--whale-divider)] bg-[var(--whale-card)] pl-9 pr-3 text-[12px] outline-none transition-colors placeholder:text-[var(--whale-ink-muted)] focus:border-[var(--whale-ink-muted)]"
+              className="h-8 w-full rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] pl-9 pr-3 text-[12px] outline-none transition-colors placeholder:text-[var(--app-text-muted)] focus:border-[var(--app-text-muted)]"
             />
           </label>
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-[var(--whale-ink-muted)]">{t('insightsTotal', { count: filtered.length })}</span>
+            <span className="text-[11px] text-[var(--app-text-muted)]">{t('insightsTotal', { count: filtered.length })}</span>
             <Select value={sortMode} onValueChange={(v) => setSortMode(v as SortMode)}>
-              <SelectTrigger className="h-8 w-auto shrink-0 gap-1 rounded-lg border-[var(--whale-divider)] bg-[var(--whale-card)] px-3 text-[12px] font-medium text-[var(--whale-ink-soft)] shadow-none hover:bg-[var(--whale-cream-soft)]">
+              <SelectTrigger className="h-8 w-auto shrink-0 gap-1 rounded-lg border-[var(--app-border)] bg-[var(--app-surface)] px-3 text-[12px] font-medium text-[var(--app-text-secondary)] shadow-none hover:bg-[var(--app-surface-muted)]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -286,33 +313,33 @@ export default function InsightsOverviewPage() {
           onNodeClick={(node) => node.id.startsWith('application:') && setSelectedId(node.id.slice('application:'.length))}
         />
       ) : view === 'kanban' ? (
-        <div className="overflow-x-auto rounded-xl border border-[var(--whale-divider)] bg-[var(--whale-card)] p-3">
-          <p className="mb-3 text-xs text-[var(--whale-ink-muted)]">{tJournal('kanbanHint')}</p>
+        <div className="overflow-x-auto rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-3">
+          <p className="mb-3 text-xs text-[var(--app-text-muted)]">{tJournal('kanbanHint')}</p>
           <ApplicationKanban
             applications={filtered}
             onOpen={setSelectedId}
             onStatusChange={(id, status) => void updateApplication(id, { status })}
           />
         </div>
-      ) : <section className="overflow-hidden rounded-2xl bg-[var(--whale-card)] shadow-[0_0_0_1px_var(--whale-divider)]">
+      ) : <section className="overflow-hidden rounded-[10px] bg-[var(--app-surface)] shadow-[0_0_0_1px_var(--app-border)]">
 
 
         {!loaded ? (
-          <div className="py-16 text-center text-[13px] text-[var(--whale-ink-muted)]">{tCommon('loading')}</div>
+          <div className="py-16 text-center text-[13px] text-[var(--app-text-muted)]">{tCommon('loading')}</div>
         ) : applications.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-16 text-center">
-            <p className="text-[13px] text-[var(--whale-ink-muted)]">{t('journalEmpty')}</p>
+            <p className="text-[13px] text-[var(--app-text-muted)]">{t('journalEmpty')}</p>
             <button
               type="button"
               onClick={() => void handleCreate()}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-[var(--whale-divider)] bg-[var(--whale-cream-soft)] px-3.5 py-1.5 text-[12px] font-medium text-[var(--whale-ink)] hover:border-[var(--whale-ink)]/30"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-[var(--app-border)] bg-[var(--app-surface-muted)] px-3.5 py-1.5 text-[12px] font-medium text-[var(--app-text)] hover:border-[var(--app-text)]/30"
             >
               <Plus className="h-3.5 w-3.5" />
               {tJournal('addApplication')}
             </button>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="py-16 text-center text-[13px] text-[var(--whale-ink-muted)]">{t('insightsNoFilteredActivity')}</div>
+          <div className="py-16 text-center text-[13px] text-[var(--app-text-muted)]">{t('insightsNoFilteredActivity')}</div>
         ) : (
           <ul>
             {filtered.map((app) => (
@@ -340,45 +367,7 @@ export default function InsightsOverviewPage() {
       </aside>
       </div>
 
-      {/* 详情抽屉 */}
-      <Sheet open={!!selected} onOpenChange={(open) => { if (!open) { setSelectedId(null); setSelectedRoundId(null); } }}>
-        <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]">
-          <SheetHeader className="border-b border-[var(--whale-divider)] px-5 py-5 pr-12">
-            <SheetTitle className="break-words text-[17px]">
-              {selected ? [selected.company, selected.role].filter(Boolean).join(' · ') || tJournal('untitledCompany') : ''}
-            </SheetTitle>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-            {selected && (
-              <ApplicationEditor
-                key={selected.id}
-                app={selected}
-                initialRoundId={selectedRoundId}
-                resumes={resumeOptions}
-                onDelete={() => setPendingDelete(selected)}
-                onBeforeLaunchTool={() => setSelectedId(null)}
-              />
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      <AlertDialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('insightsConfirmDelete')}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {pendingDelete ? [pendingDelete.company, pendingDelete.role].filter(Boolean).join(' · ') || tJournal('untitledCompany') : ''}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="cursor-pointer">{tCommon('cancel')}</AlertDialogCancel>
-            <AlertDialogAction className="cursor-pointer bg-red-600 hover:bg-red-700" onClick={() => void confirmDelete()}>
-              {tCommon('delete')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {deleteDialog}
     </div>
   );
 }
@@ -390,14 +379,14 @@ function FilterPill({ label, count, active, onClick }: { label: string; count: n
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        'inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors',
+        'inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors',
         active
-          ? 'bg-[var(--whale-ink)] text-[var(--whale-cream)]'
-          : 'bg-[var(--whale-card)] text-[var(--whale-ink-soft)] ring-1 ring-inset ring-[var(--whale-divider)] hover:bg-[var(--whale-cream-soft)]'
+          ? 'bg-[var(--app-accent-soft)] text-[var(--app-accent)]'
+          : 'bg-[var(--app-surface)] text-[var(--app-text-secondary)] ring-1 ring-inset ring-[var(--app-border)] hover:bg-[var(--app-surface-muted)]'
       )}
     >
       <span>{label}</span>
-      <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] tabular-nums', active ? 'bg-[var(--whale-cream)]/14' : 'bg-[var(--whale-cream-deep)] text-[var(--whale-ink-muted)]')}>
+      <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] tabular-nums', active ? 'bg-[var(--app-bg)]/14' : 'bg-[var(--app-hover)] text-[var(--app-text-muted)]')}>
         {count}
       </span>
     </button>
@@ -411,13 +400,13 @@ function AgendaCard({ items, locale, onOpen }: { items: AgendaItem[]; locale: st
   const [expanded, setExpanded] = useState(false);
   const shown = expanded ? items : items.slice(0, 4);
   return (
-    <section className="flex flex-col rounded-2xl border border-[var(--whale-divider)] bg-[var(--whale-card)] p-4 shadow-sm">
+    <section className="flex flex-col rounded-[10px] border border-[var(--app-border)] bg-[var(--app-surface)] p-4 shadow-sm">
       <div className="mb-3 flex items-baseline justify-between">
-        <h3 className="text-[13px] font-semibold text-[var(--whale-ink)]">{t('agendaTitle')}</h3>
-        <span className="text-[11px] text-[var(--whale-ink-muted)]">{t('agendaRange')}</span>
+        <h3 className="text-[13px] font-semibold text-[var(--app-text)]">{t('agendaTitle')}</h3>
+        <span className="text-[11px] text-[var(--app-text-muted)]">{t('agendaRange')}</span>
       </div>
       {shown.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center py-8 text-center text-[13px] text-[var(--whale-ink-muted)]">{t('agendaEmpty')}</div>
+        <div className="flex flex-1 items-center justify-center py-8 text-center text-[13px] text-[var(--app-text-muted)]">{t('agendaEmpty')}</div>
       ) : (
         <ul className="flex flex-1 flex-col gap-1.5">
           {shown.map((item) => {
@@ -430,19 +419,19 @@ function AgendaCard({ items, locale, onOpen }: { items: AgendaItem[]; locale: st
                   type="button"
                   data-agenda-round={item.round?.id}
                   onClick={() => onOpen(item.app.id, item.round?.id)}
-                  className="flex w-full cursor-pointer flex-wrap items-start gap-x-2 gap-y-1 rounded-lg px-1 py-2.5 text-left transition-colors hover:bg-[var(--whale-cream-soft)]"
+                  className="flex w-full cursor-pointer flex-wrap items-start gap-x-2 gap-y-1 rounded-lg px-1 py-2.5 text-left transition-colors hover:bg-[var(--app-surface-muted)]"
                 >
                   <span
                     className={cn(
                       'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg',
-                      isInterview ? 'bg-amber-50 text-amber-700' : overdue ? 'bg-red-50 text-red-600' : 'bg-[var(--whale-mint)]/40 text-[var(--whale-ink)]'
+                      isInterview ? 'bg-amber-50 text-amber-700' : overdue ? 'bg-red-50 text-red-600' : 'bg-[var(--app-accent-soft)]/40 text-[var(--app-text)]'
                     )}
                   >
                     {isInterview ? <CalendarClock className="h-3.5 w-3.5" /> : <AlarmClock className="h-3.5 w-3.5" />}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[12.5px] font-semibold text-[var(--whale-ink)]">{title}</span>
-                    <span className="block truncate text-[11px] text-[var(--whale-ink-muted)]">
+                    <span className="block truncate text-[12.5px] font-semibold text-[var(--app-text)]">{title}</span>
+                    <span className="block truncate text-[11px] text-[var(--app-text-muted)]">
                       {isInterview
                         ? [
                             item.round?.round || tJournal('stageInterview'),
@@ -456,7 +445,7 @@ function AgendaCard({ items, locale, onOpen }: { items: AgendaItem[]; locale: st
                           : t('agendaFollowUpToday')}
                     </span>
                   </span>
-                  <span className={cn('ml-9 w-full text-[11px] font-medium tabular-nums', overdue ? 'text-red-600' : 'text-[var(--whale-ink-soft)]')}>
+                  <span className={cn('ml-9 w-full text-[11px] font-medium tabular-nums', overdue ? 'text-red-600' : 'text-[var(--app-text-secondary)]')}>
                     {isInterview ? formatDateTime(item.round?.scheduledAt, locale) : item.app.nextFollowUp}
                   </span>
                 </button>
@@ -464,7 +453,7 @@ function AgendaCard({ items, locale, onOpen }: { items: AgendaItem[]; locale: st
             );
           })}
           {items.length > shown.length && (
-            <li><button type="button" onClick={() => setExpanded(true)} className="cursor-pointer px-2.5 pt-1 text-xs text-[var(--whale-mint-deep)]">{t('agendaMore', { count: items.length - shown.length })}</button></li>
+            <li><button type="button" onClick={() => setExpanded(true)} className="cursor-pointer px-2.5 pt-1 text-xs text-[var(--app-accent)]">{t('agendaMore', { count: items.length - shown.length })}</button></li>
           )}
         </ul>
       )}
@@ -476,11 +465,11 @@ function PipelineFunnel({ agg }: { agg: JournalAggregate }) {
   const t = useTranslations('dashboard');
   const f = agg.funnel;
   const stages: Array<{ key: string; label: string; count: number; tone: string }> = [
-    { key: 'applied', label: t('funnelApplied'), count: f.applied, tone: 'bg-[var(--whale-ink)]' },
-    { key: 'screening', label: t('funnelScreening'), count: f.screening, tone: 'bg-[var(--whale-ink-soft)]' },
+    { key: 'applied', label: t('funnelApplied'), count: f.applied, tone: 'bg-[var(--app-text)]' },
+    { key: 'screening', label: t('funnelScreening'), count: f.screening, tone: 'bg-[var(--app-text-secondary)]' },
     { key: 'interview', label: t('funnelInterview'), count: f.interview, tone: 'bg-amber-500' },
-    { key: 'offer', label: t('funnelOffer'), count: f.offer, tone: 'bg-emerald-500' },
-    { key: 'closed', label: t('funnelClosed'), count: f.closed, tone: 'bg-[var(--whale-ink-muted)]' },
+    { key: 'offer', label: t('funnelOffer'), count: f.offer, tone: 'bg-[var(--app-text-secondary)]' },
+    { key: 'closed', label: t('funnelClosed'), count: f.closed, tone: 'bg-[var(--app-text-muted)]' },
   ];
   const max = Math.max(1, ...stages.map((s) => s.count));
   const pct = (a: number, b: number) => (b > 0 ? `${Math.round((a / b) * 100)}%` : '—');
@@ -488,41 +477,41 @@ function PipelineFunnel({ agg }: { agg: JournalAggregate }) {
   const isEmpty = f.applied === 0;
 
   return (
-    <section className="flex flex-col rounded-2xl border border-[var(--whale-divider)] bg-[var(--whale-card)] p-4 shadow-sm">
+    <section className="flex flex-col rounded-[10px] border border-[var(--app-border)] bg-[var(--app-surface)] p-4 shadow-sm">
       <div className="mb-3 flex items-baseline justify-between">
-        <h3 className="text-[13px] font-semibold text-[var(--whale-ink)]">{t('funnelTitle')}</h3>
-        <span className="text-[11px] text-[var(--whale-ink-muted)]">
+        <h3 className="text-[13px] font-semibold text-[var(--app-text)]">{t('funnelTitle')}</h3>
+        <span className="text-[11px] text-[var(--app-text-muted)]">
           {t('funnelOfferRate')} {pct(f.offer, f.applied)}
         </span>
       </div>
 
       {isEmpty ? (
-        <div className="flex flex-1 items-center justify-center py-8 text-[13px] text-[var(--whale-ink-muted)]">{t('funnelEmpty')}</div>
+        <div className="flex flex-1 items-center justify-center py-8 text-[13px] text-[var(--app-text-muted)]">{t('funnelEmpty')}</div>
       ) : (
         <div className="flex flex-1 flex-col justify-center gap-2">
           {stages.map((stage, i) => (
             <div key={stage.key} className="flex items-center gap-2">
-              <span className="w-16 shrink-0 text-left text-[11px] font-medium text-[var(--whale-ink-soft)]">{stage.label}</span>
-              <div className="relative h-6 flex-1 overflow-hidden rounded-md bg-[var(--whale-cream-soft)]">
+              <span className="w-16 shrink-0 text-left text-[11px] font-medium text-[var(--app-text-secondary)]">{stage.label}</span>
+              <div className="relative h-6 flex-1 overflow-hidden rounded-md bg-[var(--app-surface-muted)]">
                 <div
                   className={cn('h-full rounded-md transition-all', stage.tone)}
                   style={{ width: `${Math.max(stage.count > 0 ? 6 : 0, (stage.count / max) * 100)}%` }}
                 />
               </div>
-              <span className="w-8 shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--whale-ink)]">{stage.count}</span>
-              <span className="w-8 shrink-0 text-right text-[10px] tabular-nums text-[var(--whale-ink-muted)]">{stageConv[i] || ''}</span>
+              <span className="w-8 shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--app-text)]">{stage.count}</span>
+              <span className="w-8 shrink-0 text-right text-[10px] tabular-nums text-[var(--app-text-muted)]">{stageConv[i] || ''}</span>
             </div>
           ))}
         </div>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[var(--whale-divider)] pt-3 text-[11px]">
-        <span className={cn('flex items-center gap-1', agg.overdueFollowUps > 0 ? 'text-red-600' : 'text-[var(--whale-ink-muted)]')}>
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[var(--app-border)] pt-3 text-[11px]">
+        <span className={cn('flex items-center gap-1', agg.overdueFollowUps > 0 ? 'text-red-600' : 'text-[var(--app-text-muted)]')}>
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-current" />
           {t('funnelOverdue')} {agg.overdueFollowUps}
         </span>
-        <span className="text-[var(--whale-ink-muted)]">{t('funnelInProgress')} {agg.pendingCount}</span>
-        <span className="ml-auto text-[var(--whale-ink-muted)]">{t('funnelOffers')} {agg.offerCount}</span>
+        <span className="text-[var(--app-text-muted)]">{t('funnelInProgress')} {agg.pendingCount}</span>
+        <span className="ml-auto text-[var(--app-text-muted)]">{t('funnelOffers')} {agg.offerCount}</span>
       </div>
     </section>
   );
@@ -558,14 +547,14 @@ function ApplicationRow({
   const overdue = isOverdue(app);
 
   return (
-    <li className="journal-application-row grid grid-cols-[minmax(0,1fr)_110px_28px] items-center gap-x-3 gap-y-3 border-b border-[var(--whale-divider)] p-4 text-[13px] transition-colors hover:bg-[var(--whale-cream-soft)] last:border-b-0">
+    <li className="journal-application-row grid grid-cols-[minmax(0,1fr)_110px_28px] items-center gap-x-3 gap-y-3 border-b border-[var(--app-border)] p-4 text-[13px] transition-colors hover:bg-[var(--app-surface-muted)] last:border-b-0">
       <button type="button" onClick={onOpen} className="flex min-w-0 cursor-pointer items-center gap-2.5 text-left">
-        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--whale-divider)] bg-[var(--whale-card)]">
-          <Briefcase className="h-4 w-4 text-[var(--whale-ink-soft)]" />
+        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)]">
+          <Briefcase className="h-4 w-4 text-[var(--app-text-secondary)]" />
         </span>
         <span className="min-w-0">
-          <span className="block truncate font-semibold text-[var(--whale-ink)]">{app.company || tJournal('untitledCompany')}</span>
-          <span className="mt-1 block break-words text-[12px] leading-relaxed text-[var(--whale-ink-muted)]">
+          <span className="block truncate font-semibold text-[var(--app-text)]">{app.company || tJournal('untitledCompany')}</span>
+          <span className="mt-1 block break-words text-[12px] leading-relaxed text-[var(--app-text-muted)]">
             {[app.role || '—', app.channel, app.appliedDate].filter(Boolean).join(' · ')}
           </span>
         </span>
@@ -583,7 +572,7 @@ function ApplicationRow({
       </Select>
 
       <div className="col-span-3 row-start-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-      <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-[var(--whale-ink-muted)]">
+      <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-[var(--app-text-muted)]">
         <FileText className="h-3.5 w-3.5 shrink-0" />
         <span className={cn('truncate', resumeDeleted && 'text-red-600')}>
           {resumeTitle || (resumeDeleted ? tJournal('resumeDeleted') : tJournal('resumeNone'))}
@@ -599,21 +588,21 @@ function ApplicationRow({
             ) : (
               <Video className="h-3.5 w-3.5 shrink-0 text-amber-600" />
             )}
-            <span className="break-words text-[var(--whale-ink-soft)]">
+            <span className="break-words text-[var(--app-text-secondary)]">
               {[upcoming.round || tJournal('stageInterview'), formatDateTime(upcoming.scheduledAt, locale), upcoming.location].filter(Boolean).join(' · ')}
             </span>
           </>
         ) : app.nextFollowUp && (app.status === 'submitted' || app.status === 'screening' || app.status === 'interview') ? (
           <>
-            <AlarmClock className={cn('h-3.5 w-3.5 shrink-0', overdue ? 'text-red-600' : 'text-[var(--whale-ink-muted)]')} />
-            <span className={cn('break-words', overdue ? 'font-medium text-red-600' : 'text-[var(--whale-ink-soft)]')}>
+            <AlarmClock className={cn('h-3.5 w-3.5 shrink-0', overdue ? 'text-red-600' : 'text-[var(--app-text-muted)]')} />
+            <span className={cn('break-words', overdue ? 'font-medium text-red-600' : 'text-[var(--app-text-secondary)]')}>
               {overdue ? t('agendaFollowUpOverdue', { date: app.nextFollowUp }) : `${tJournal('followUpDue')} ${app.nextFollowUp}`}
             </span>
           </>
         ) : app.interviews.length > 0 ? (
-          <span className="truncate text-[var(--whale-ink-muted)]">{tJournal('roundsCount', { count: app.interviews.length })}</span>
+          <span className="truncate text-[var(--app-text-muted)]">{tJournal('roundsCount', { count: app.interviews.length })}</span>
         ) : (
-          <span className="text-[var(--whale-ink-muted)]">—</span>
+          <span className="text-[var(--app-text-muted)]">—</span>
         )}
       </span>
 
@@ -621,7 +610,7 @@ function ApplicationRow({
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button type="button" aria-label={t('insightsRowDetail')} className="col-start-3 row-start-1 inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--whale-ink-muted)] hover:bg-[var(--whale-cream-deep)] hover:text-[var(--whale-ink)]">
+          <button type="button" aria-label={t('insightsRowDetail')} className="col-start-3 row-start-1 inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--app-text-muted)] hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]">
             <MoreVertical className="h-4 w-4" />
           </button>
         </DropdownMenuTrigger>

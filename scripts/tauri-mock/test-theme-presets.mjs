@@ -19,9 +19,9 @@ try {
  await check("[...document.querySelectorAll('form button')].find(e=>e.textContent==='保存').disabled",'空名称不能保存');
  await click('input[placeholder="例如：我的求职简历"]'); await send('Input.insertText',{text:'标准'});
  await check("[...document.querySelectorAll('form button')].find(e=>e.textContent==='保存').disabled",'不能覆盖标准');
- await key('Meta+a'); await send('Input.insertText',{text:'我的投递样式'}); await click('text:保存');
+ await key('Meta+a'); await send('Input.insertText',{text:'我的投递样式'}); await click('[role=region] form button[type=submit]');
  await waitFor("!document.querySelector('input[placeholder=\"例如：我的求职简历\"]')");
- await check(`(async()=>{const a=await window.__appModule('/src/lib/tauri-api.ts');const s=await a.getSettings();return s.customThemePresets[0].name==='我的投递样式' && s.customThemePresets[0].theme.fontSize===16 && s.autoSave===true})()`,'保存主题快照且不覆盖其他设置');
+ await check(`(async()=>{const s=await window.__TAURI_INTERNALS__.invoke('get_settings');return s.customThemePresets[0].name==='我的投递样式' && s.customThemePresets[0].theme.fontSize===16 && s.autoSave===false})()`,'保存主题快照且不覆盖手动保存偏好');
  await click('text:标准'); assert.equal(await font(),14); checks++;
  await click('text:我的投递样式'); assert.equal(await font(),16); checks++;
  await click('button[title="撤销"]'); assert.equal(await font(),14); checks++;
@@ -29,7 +29,7 @@ try {
  await check("[...document.querySelectorAll('form button')].find(e=>e.textContent==='保存').disabled",'忽略首尾空格拒绝重名');
  await key('Meta+a'); await send('Input.insertText',{text:'失败测试'});
  await evaluate(`window.__settingsInvoke=window.__TAURI_INTERNALS__.invoke;window.__TAURI_INTERNALS__.invoke=(cmd,args)=>cmd==='update_settings'?Promise.reject(new Error('模拟写入失败')):window.__settingsInvoke(cmd,args)`);
- await click('text:保存');await delay(200);
+ await click('[role=region] form button[type=submit]');await delay(200);
  await check(`(async()=>{const s=(await window.__appModule('/src/stores/theme-presets-store.ts')).useThemePresetsStore.getState();return s.presets.length===1 && document.querySelector('input[placeholder="例如：我的求职简历"]').value==='失败测试'})()`,'写入失败不产生虚假预设且保留名称');
  await evaluate('window.__TAURI_INTERNALS__.invoke=window.__settingsInvoke');await click('text:取消');
  await b.navigate(base+'/zh/editor/r-demo-2');await openStyle();

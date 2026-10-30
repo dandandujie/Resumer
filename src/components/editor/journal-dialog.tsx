@@ -96,7 +96,7 @@ export function JournalDialog({ open, onOpenChange, resumeId }: JournalDialogPro
                   onClick={() => setView(v)}
                   className={cn(
                     'flex flex-1 cursor-pointer items-center justify-center gap-1 rounded-md py-1.5 text-[12px] font-medium transition-colors',
-                    view === v ? 'bg-[var(--whale-ink)] text-[var(--whale-cream)]' : 'text-muted-foreground hover:bg-muted'
+                    view === v ? 'bg-[var(--app-selection)] text-[var(--app-text)]' : 'text-muted-foreground hover:bg-muted'
                   )}
                 >
                   {v === 'apps' ? <Briefcase className="h-3.5 w-3.5" /> : <MessagesSquare className="h-3.5 w-3.5" />}
@@ -121,7 +121,7 @@ export function JournalDialog({ open, onOpenChange, resumeId }: JournalDialogPro
                           onClick={() => setSelectedId(a.id)}
                           className={cn(
                             'w-full cursor-pointer rounded-md border px-2.5 py-2 text-left transition-colors',
-                            active ? 'border-[var(--whale-ink)]/30 bg-[var(--whale-cream-soft)]' : 'border-transparent hover:bg-muted'
+                            active ? 'border-[var(--app-text)]/30 bg-[var(--app-surface-muted)]' : 'border-transparent hover:bg-muted'
                           )}
                         >
                           <div className="truncate text-[13px] font-medium text-foreground">{a.company || t('untitledCompany')}</div>
@@ -192,7 +192,7 @@ export function JournalDialog({ open, onOpenChange, resumeId }: JournalDialogPro
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="cursor-pointer">{tCommon('cancel')}</AlertDialogCancel>
-            <AlertDialogAction className="cursor-pointer bg-red-600 hover:bg-red-700" onClick={() => void confirmDelete()}>
+            <AlertDialogAction variant="destructive" className="cursor-pointer" onClick={() => void confirmDelete()}>
               {tCommon('delete')}
             </AlertDialogAction>
           </AlertDialogFooter>

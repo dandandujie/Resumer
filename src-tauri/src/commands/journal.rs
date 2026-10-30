@@ -29,11 +29,25 @@ pub fn save_application(
 }
 
 #[tauri::command]
-pub fn delete_application(db: State<AppDb>, id: String) -> Result<(), CommandError> {
+pub fn delete_application(
+    app: tauri::AppHandle,
+    db: State<AppDb>,
+    id: String,
+) -> Result<(), CommandError> {
     let conn = db.conn.lock().map_err(|e| CommandError {
         message: e.to_string(),
     })?;
-    repo::delete_application(&conn, &id).map_err(Into::into)
+    let root = crate::knowledge::ensure(&app).map_err(CommandError::from)?;
+    let paths = super::recordings::application_paths(&conn, &root, &id)?;
+    repo::delete_application(&conn, &id)?;
+    for path in paths {
+        if path.exists()
+            && let Err(e) = std::fs::remove_file(&path)
+        {
+            log::warn!("删除投递后清理录音失败：{e}");
+        }
+    }
+    Ok(())
 }
 
 /// 旧版本把求职数据存在 WebView 的 localStorage 里；前端首次启动时把它们一次性搬进库。

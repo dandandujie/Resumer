@@ -25,8 +25,12 @@ interface ResumeStore {
   save: () => Promise<void>;
   flushPendingSave: () => Promise<void>;
   _scheduleSave: () => void;
+  cancelAndWait: () => Promise<void>;
   reset: () => void;
 }
+
+let activeSave: Promise<void> | null = null;
+let saveEpoch = 0;
 
 export const useResumeStore = create<ResumeStore>((set, get) => ({
   currentResume: null,
@@ -174,49 +178,58 @@ export const useResumeStore = create<ResumeStore>((set, get) => ({
   },
 
   save: async () => {
+    if (activeSave) return activeSave;
     const { currentResume, sections, isDirty, _saveTimeout } = get();
     if (!currentResume || !isDirty) return;
 
     if (_saveTimeout) clearTimeout(_saveTimeout);
     set({ isSaving: true, _saveTimeout: null });
-    try {
-      const serializedSections = sections.map((s, i) => ({
-        id: s.id,
-        type: s.type,
-        title: s.title,
-        sortOrder: i,
-        visible: s.visible,
-        content: s.content,
-      }));
+    const task = (async () => {
+      try {
+        const serializedSections = sections.map((s, i) => ({
+          id: s.id,
+          type: s.type,
+          title: s.title,
+          sortOrder: i,
+          visible: s.visible,
+          content: s.content,
+        }));
 
-      await api.updateResume(currentResume.id, {
-        title: currentResume.title,
-        template: currentResume.template || 'classic',
-        themeConfig: currentResume.themeConfig,
-        sections: serializedSections,
-      });
+        await api.updateResume(currentResume.id, {
+          title: currentResume.title,
+          language: currentResume.language,
+          template: currentResume.template || 'classic',
+          themeConfig: currentResume.themeConfig,
+          sections: serializedSections,
+        });
 
-      set({ isDirty: false });
-    } catch (error) {
-      console.error('Failed to save resume:', error);
-      import('@/stores/error-log-store').then(({ logError }) => {
-        logError('保存失败', '简历保存失败，请检查网络连接后重试');
-      });
-    } finally {
-      set({ isSaving: false });
-    }
+        // 保存期间的新输入仍是草稿，不能被旧请求清掉 dirty 标记。
+        if (get().currentResume === currentResume && get().sections === sections) set({ isDirty: false });
+      } catch (error) {
+        console.error('Failed to save resume:', error);
+        import('@/stores/error-log-store').then(({ logError }) => {
+          logError('保存失败', '未能写入本机，草稿仍保留，请重试。' + String((error as Error)?.message || error));
+        });
+        throw error;
+      } finally {
+        set({ isSaving: false });
+      }
+    })();
+    activeSave = task;
+    try { await task; } finally { if (activeSave === task) activeSave = null; }
   },
 
   flushPendingSave: async () => {
-    const { _saveTimeout, isDirty } = get();
+    const { _saveTimeout } = get();
     if (_saveTimeout) {
       clearTimeout(_saveTimeout);
       set({ _saveTimeout: null });
     }
 
-    if (isDirty) {
-      await get().save();
-    }
+    const epoch = saveEpoch;
+    if (activeSave) await activeSave;
+    const resumeId = get().currentResume?.id;
+    while (get().isDirty && get().currentResume?.id === resumeId && epoch === saveEpoch) await get().save();
   },
 
   _scheduleSave: () => {
@@ -226,17 +239,24 @@ export const useResumeStore = create<ResumeStore>((set, get) => ({
     const { autoSave, autoSaveInterval, _hydrated } = useSettingsStore.getState();
 
     // If settings are hydrated and autoSave is off, only mark dirty, don't auto-save
-    if (_hydrated && !autoSave) {
+    if (!_hydrated || !autoSave) {
       set({ _saveTimeout: null });
       return;
     }
 
     const delay = _hydrated ? autoSaveInterval : AUTOSAVE_DELAY;
     const timeout = setTimeout(() => {
-      get().save();
+      if (useSettingsStore.getState().autoSave) void get().flushPendingSave().catch(() => undefined);
     }, delay);
 
     set({ _saveTimeout: timeout });
+  },
+
+  cancelAndWait: async () => {
+    saveEpoch++;
+    const timer = get()._saveTimeout; if (timer) clearTimeout(timer);
+    set({_saveTimeout: null});
+    try { await activeSave; } catch { /* 放弃未保存草稿不应被已失败的写入阻止。 */ }
   },
 
   reset: () => {
@@ -251,3 +271,13 @@ export const useResumeStore = create<ResumeStore>((set, get) => ({
     });
   },
 }));
+
+// 切换开关立即取消或启动待保存任务，不能让旧定时器越过“手动保存”的边界。
+useSettingsStore.subscribe((state, previous) => {
+  if (state.autoSave === previous.autoSave) return;
+  const current = useResumeStore.getState();
+  if (!state.autoSave && current._saveTimeout) {
+    void current.cancelAndWait();
+    useResumeStore.setState({ _saveTimeout: null });
+  } else if (state.autoSave && current.isDirty) current._scheduleSave();
+});

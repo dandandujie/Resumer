@@ -178,7 +178,7 @@ export function ExportDialog({ open, onOpenChange, resumeId }: ExportDialogProps
                         }`}
                       >
                         <Icon className={`h-6 w-6 ${isSelected ? 'text-brand' : 'text-muted-foreground'}`} />
-                        <span className={`text-sm font-medium ${isSelected ? 'text-brand' : 'text-[var(--whale-ink-soft)]'}`}>
+                        <span className={`text-sm font-medium ${isSelected ? 'text-brand' : 'text-[var(--app-text-secondary)]'}`}>
                           {t(format.labelKey)}
                         </span>
                         <span className="text-xs text-muted-foreground">
@@ -206,7 +206,7 @@ export function ExportDialog({ open, onOpenChange, resumeId }: ExportDialogProps
           {state === 'exporting' && (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <Loader2 className="h-8 w-8 animate-spin text-brand mb-3" />
-              <p className="text-sm font-medium text-[var(--whale-ink-soft)]">
+              <p className="text-sm font-medium text-[var(--app-text-secondary)]">
                 {t('exporting')}
               </p>
             </div>
@@ -214,8 +214,8 @@ export function ExportDialog({ open, onOpenChange, resumeId }: ExportDialogProps
 
           {state === 'success' && (
             <div className="flex flex-col items-center justify-center py-8 text-center">
-              <CheckCircle2 className="h-8 w-8 text-green-500 mb-3" />
-              <p className="text-sm font-medium text-[var(--whale-ink-soft)]">
+              <CheckCircle2 className="h-8 w-8 text-[var(--app-text-secondary)] mb-3" />
+              <p className="text-sm font-medium text-[var(--app-text-secondary)]">
                 {t('success')}
               </p>
             </div>
@@ -244,7 +244,7 @@ export function ExportDialog({ open, onOpenChange, resumeId }: ExportDialogProps
               <Button
                 onClick={handleExport}
                 disabled={isLoading}
-                className="cursor-pointer bg-brand hover:bg-brand-hover"
+                variant="primary" className="cursor-pointer"
               >
                 {t('export')}
               </Button>

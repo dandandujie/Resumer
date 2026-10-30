@@ -20,9 +20,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
       toastOptions={{
         classNames: {
           toast:
-            "toast-compact border-[var(--whale-divider)] bg-[var(--whale-card)] text-[var(--whale-ink)] shadow-[0_10px_30px_-18px_rgba(28,26,23,0.35)]",
+            "toast-compact border-[var(--app-border)] bg-[var(--app-surface)] text-[var(--app-text)] shadow-[0_10px_30px_-18px_rgba(28,26,23,0.35)]",
           title: "text-[11px] font-medium leading-snug",
-          description: "text-[10px] leading-snug text-[var(--whale-ink-muted)]",
+          description: "text-[10px] leading-snug text-[var(--app-text-muted)]",
           icon: "size-3",
         },
       }}
@@ -35,6 +35,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }}
       style={
         {
+          "--success-bg": "var(--app-surface-muted)",
+          "--success-text": "var(--app-text)",
+          "--success-border": "var(--app-border)",
           "--normal-bg": "var(--popover)",
           "--normal-text": "var(--popover-foreground)",
           "--normal-border": "var(--border)",

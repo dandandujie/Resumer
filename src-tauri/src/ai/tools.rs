@@ -71,13 +71,15 @@ pub fn tool_specs(web_search_enabled: bool) -> Vec<ToolSpec> {
         },
     ];
     specs.extend([
+        ToolSpec {name:"listKnowledgeCollections".into(),description:"列出可用资料集及多标签、用途和已启用 Skill；按主题选择后检索或阅读。".into(),parameters:json!({"type":"object","properties":{}})},
         ToolSpec {
             name: "searchKnowledge".into(),
-            description: "搜索本地知识库，返回相关页面和摘要。".into(),
+            description: "搜索知识库原文分块和旧 Wiki，返回来源与 assetId/offset；用 readKnowledge 继续读取。".into(),
             parameters: json!({
                 "type": "object",
                 "properties": {
                     "query": { "type": "string" },
+                    "collectionId": {"type":"string"}, "category":{"type":"string","description":"兼容旧单标签"}, "tags":{"type":"array","items":{"type":"string"}}, "tagMatch":{"type":"string","enum":["all","any"]}, "kind":{"type":"string","enum":["document","skill"]},
                     "type": { "type": "string" },
                     "limit": { "type": "integer" }
                 },
@@ -86,11 +88,10 @@ pub fn tool_specs(web_search_enabled: bool) -> Vec<ToolSpec> {
         },
         ToolSpec {
             name: "readKnowledge".into(),
-            description: "读取本地知识库页面全文。".into(),
+            description: "按 assetId 分页读取完整资料，依据 nextOffset 继续；旧 Wiki 使用 path。引用文件名和资料集，不要仅凭摘要作答。".into(),
             parameters: json!({
                 "type": "object",
-                "properties": { "path": { "type": "string" } },
-                "required": ["path"]
+                "properties": { "path": { "type": "string" }, "assetId":{"type":"string"}, "offset":{"type":"integer"}, "limit":{"type":"integer"} }
             }),
         },
         ToolSpec {
@@ -470,5 +471,100 @@ pub fn execute_tool(conn: &Connection, resume_id: &str, name: &str, args: &Value
     match result {
         Ok(v) => v,
         Err(e) => json!({ "success": false, "error": e }),
+    }
+}
+
+/// 所有改稿工具只在隔离的工作稿数据库中运行，正式简历只能由用户保存落库。
+pub fn draft_connection(
+    current: &resume_repo::ResumeWithSections,
+    draft: Option<&Value>,
+) -> Result<Connection, String> {
+    if let Some(draft) = draft
+        && draft.get("id").and_then(Value::as_str) != Some(current.resume.id.as_str())
+    {
+        return Err("工作稿与当前简历不匹配".into());
+    }
+    let conn = Connection::open_in_memory().map_err(|e| e.to_string())?;
+    crate::db::migrate::run(&conn).map_err(|e| e.to_string())?;
+    let resume = &current.resume;
+    conn.execute("INSERT INTO users(id) VALUES (?1)", [&resume.user_id])
+        .map_err(|e| e.to_string())?;
+    conn.execute("INSERT INTO resumes(id,user_id,title,template,theme_config,language) VALUES (?1,?2,?3,?4,?5,?6)", rusqlite::params![resume.id,resume.user_id,resume.title,resume.template,resume.theme_config.to_string(),resume.language]).map_err(|e| e.to_string())?;
+    let sections = draft
+        .and_then(|d| d.get("sections"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_else(|| {
+            current
+                .sections
+                .iter()
+                .map(|s| serde_json::to_value(s).unwrap_or(Value::Null))
+                .collect()
+        });
+    for (index, section) in sections.iter().enumerate() {
+        resume_repo::create_section_with_id(
+            &conn,
+            section["id"].as_str().ok_or("草稿模块缺少 id")?,
+            &resume.id,
+            section["type"].as_str().ok_or("草稿模块缺少类型")?,
+            section["title"].as_str().unwrap_or(""),
+            index as i32,
+            section["visible"].as_bool().unwrap_or(true),
+            &section["content"],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(conn)
+}
+
+#[cfg(test)]
+mod draft_tests {
+    use super::*;
+    #[test]
+    fn tools_only_mutate_scratch_and_start_from_unsaved_input() {
+        let conn = Connection::open_in_memory().unwrap();
+        crate::db::migrate::run(&conn).unwrap();
+        conn.execute("INSERT INTO users(id) VALUES ('u')", [])
+            .unwrap();
+        let id = resume_repo::create(&conn, "u", "正式简历", "classic", "zh", &json!({})).unwrap();
+        let sid = resume_repo::create_section(
+            &conn,
+            &id,
+            "summary",
+            "简介",
+            0,
+            true,
+            &json!({"text":"已保存"}),
+        )
+        .unwrap();
+        let original = resume_repo::find_by_id(&conn, &id, "u").unwrap().unwrap();
+        let mut draft = serde_json::to_value(&original).unwrap();
+        draft["id"] = json!(id);
+        draft["sections"][0]["content"]["text"] = json!("未保存的工作稿");
+        let scratch = draft_connection(&original, Some(&draft)).unwrap();
+        assert_eq!(
+            resume_repo::find_sections_by_resume_id(&scratch, &id).unwrap()[0].content["text"],
+            "未保存的工作稿"
+        );
+        let result = execute_tool(
+            &scratch,
+            &id,
+            "rewriteText",
+            &json!({"sectionId":sid,"field":"text","improvedText":"AI提案"}),
+        );
+        assert_eq!(result["success"], true);
+        assert_eq!(
+            resume_repo::find_sections_by_resume_id(&conn, &id).unwrap()[0].content["text"],
+            "已保存"
+        );
+        assert_eq!(
+            resume_repo::find_sections_by_resume_id(&scratch, &id).unwrap()[0].content["text"],
+            "AI提案"
+        );
+        assert!(
+            crate::db::repo::version::list(&conn, &id, "u")
+                .unwrap()
+                .is_empty()
+        );
     }
 }

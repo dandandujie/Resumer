@@ -50,14 +50,14 @@ export function AIInput({
 
   return (
     <form onSubmit={onSubmit} className="p-3">
-      <div className="rounded-2xl border border-[var(--whale-divider)] bg-[var(--whale-cream-soft)] transition-all focus-within:border-[var(--whale-ink)]/30 focus-within:bg-[var(--whale-card)] focus-within:ring-2 focus-within:ring-[var(--whale-ink)]/8">
+      <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface-muted)] transition-all focus-within:border-[var(--app-text)]/30 focus-within:bg-[var(--app-surface)] focus-within:ring-2 focus-within:ring-[var(--app-text)]/8">
         {/* Textarea */}
         <textarea
           value={input}
           onChange={onChange}
           placeholder={t('placeholder')}
           rows={2}
-          className="w-full resize-none bg-transparent px-4 pt-3 pb-2 text-sm text-[var(--whale-ink)] placeholder:text-[var(--whale-ink-muted)] focus:outline-none"
+          className="w-full resize-none bg-transparent px-4 pt-3 pb-2 text-sm text-[var(--app-text)] placeholder:text-[var(--app-text-muted)] focus:outline-none"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
@@ -79,8 +79,8 @@ export function AIInput({
                     else onSelectChannel(value);
                   }}
                 >
-                  <SelectTrigger className="h-7 max-w-[160px] gap-1 rounded-full border-[var(--whale-divider)] bg-[var(--whale-card)] px-2.5 text-[11px] font-medium text-[var(--whale-ink-soft)] shadow-none hover:bg-[var(--whale-cream-soft)]">
-                    <ServerCog className="h-3 w-3 shrink-0 text-[var(--whale-ink-muted)]" />
+                  <SelectTrigger className="h-7 max-w-[160px] gap-1 rounded-full border-[var(--app-border)] bg-[var(--app-surface)] px-2.5 text-[11px] font-medium text-[var(--app-text-secondary)] shadow-none hover:bg-[var(--app-surface-muted)]">
+                    <ServerCog className="h-3 w-3 shrink-0 text-[var(--app-text-muted)]" />
                     <SelectValue>{activeChannel?.name || t('selectChannel')}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
@@ -98,9 +98,9 @@ export function AIInput({
                 <button
                   type="button"
                   onClick={() => onOpenSettings?.()}
-                  className="flex h-7 shrink-0 items-center gap-1 rounded-full border border-dashed border-[var(--whale-ink)]/30 bg-[var(--whale-card)] px-2.5 text-[11px] font-medium text-[var(--whale-ink-soft)] hover:bg-[var(--whale-cream-soft)]"
+                  className="flex h-7 shrink-0 items-center gap-1 rounded-full border border-dashed border-[var(--app-text)]/30 bg-[var(--app-surface)] px-2.5 text-[11px] font-medium text-[var(--app-text-secondary)] hover:bg-[var(--app-surface-muted)]"
                 >
-                  <Settings2 className="h-3 w-3 shrink-0 text-[var(--whale-ink-muted)]" />
+                  <Settings2 className="h-3 w-3 shrink-0 text-[var(--app-text-muted)]" />
                   <span>{t('needChannelSetup')}</span>
                 </button>
               )
@@ -110,15 +110,15 @@ export function AIInput({
               <button
                 type="button"
                 onClick={() => onOpenSettings?.()}
-                className="flex h-7 shrink-0 items-center gap-1 rounded-full border border-dashed border-[var(--whale-ink)]/30 bg-[var(--whale-card)] px-2.5 text-[11px] font-medium text-[var(--whale-ink-soft)] hover:bg-[var(--whale-cream-soft)]"
+                className="flex h-7 shrink-0 items-center gap-1 rounded-full border border-dashed border-[var(--app-text)]/30 bg-[var(--app-surface)] px-2.5 text-[11px] font-medium text-[var(--app-text-secondary)] hover:bg-[var(--app-surface-muted)]"
               >
-                <Settings2 className="h-3 w-3 shrink-0 text-[var(--whale-ink-muted)]" />
+                <Settings2 className="h-3 w-3 shrink-0 text-[var(--app-text-muted)]" />
                 <span>{t('needModelSetup')}</span>
               </button>
             ) : (
               <Select value={modelValue} onValueChange={onModelChange}>
-                <SelectTrigger className="h-7 max-w-[190px] gap-1 rounded-full border-[var(--whale-divider)] bg-[var(--whale-card)] px-2.5 text-[11px] font-medium text-[var(--whale-ink-soft)] shadow-none hover:bg-[var(--whale-cream-soft)]">
-                  <span className="mr-0.5 inline-block h-1.5 w-1.5 rounded-full bg-[var(--whale-ink-muted)]" />
+                <SelectTrigger className="h-7 max-w-[190px] gap-1 rounded-full border-[var(--app-border)] bg-[var(--app-surface)] px-2.5 text-[11px] font-medium text-[var(--app-text-secondary)] shadow-none hover:bg-[var(--app-surface-muted)]">
+                  <span className="mr-0.5 inline-block h-1.5 w-1.5 rounded-full bg-[var(--app-text-muted)]" />
                   <SelectValue placeholder={t('model')} />
                 </SelectTrigger>
                 <SelectContent>
@@ -143,7 +143,7 @@ export function AIInput({
               type="button"
               onClick={onStop}
               title={t('stopGenerate')}
-              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-[var(--whale-ink)] text-[var(--whale-cream)] transition-all hover:scale-105 hover:bg-red-500"
+              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md bg-[var(--app-accent)] text-white transition-all hover:opacity-90 hover:bg-red-500"
             >
               <Square className="h-3 w-3 fill-current" />
             </button>
@@ -151,7 +151,7 @@ export function AIInput({
             <button
               type="submit"
               disabled={isLoading || !input.trim()}
-              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-[var(--whale-cream-deep)] text-[var(--whale-ink-muted)] transition-all hover:bg-[var(--whale-cream-deep)] disabled:cursor-not-allowed disabled:opacity-40 [&:not(:disabled)]:bg-[var(--whale-ink)] [&:not(:disabled)]:text-[var(--whale-cream)] [&:not(:disabled)]:hover:scale-105 [&:not(:disabled)]:hover:bg-[var(--whale-ink-soft)]"
+              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md bg-[var(--app-hover)] text-[var(--app-text-muted)] transition-all hover:bg-[var(--app-hover)] disabled:cursor-not-allowed disabled:opacity-40 [&:not(:disabled)]:bg-[var(--app-accent)] [&:not(:disabled)]:text-white [&:not(:disabled)]:hover:opacity-90 [&:not(:disabled)]:hover:bg-[var(--app-text-secondary)]"
             >
               <SendHorizonal className="h-4 w-4" />
             </button>

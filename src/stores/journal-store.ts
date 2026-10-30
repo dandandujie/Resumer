@@ -1,3 +1,4 @@
+import { useRecordingStore } from './recording-store';
 import { create } from 'zustand';
 import { listen } from '@tauri-apps/api/event';
 import { generateId } from '@/lib/utils';
@@ -27,33 +28,9 @@ export const NO_PROPOSALS: KnowledgeProposal[] = [];
    数据存 SQLite（与简历同库同备份）；本 store 是内存镜像 + 写穿透。
    ──────────────────────────────────────────────────────────────────────────── */
 
-export type ApplicationStatus =
-  | 'submitted'
-  | 'screening'
-  | 'interview'
-  | 'offer'
-  | 'rejected'
-  | 'declined'
-  | 'ghosted';
-
-export const APPLICATION_STATUSES: ApplicationStatus[] = [
-  'submitted',
-  'screening',
-  'interview',
-  'offer',
-  'rejected',
-  'declined',
-  'ghosted',
-];
-
-/** 还在进行中的状态：待跟进 / 逾期提醒只针对它们。 */
-export const OPEN_STATUSES: ApplicationStatus[] = ['submitted', 'screening', 'interview'];
-
-export type InterviewFormat = 'phone' | 'video' | 'onsite' | 'take-home' | 'other';
-export const INTERVIEW_FORMATS: InterviewFormat[] = ['phone', 'video', 'onsite', 'take-home', 'other'];
-
-export type OutcomeResult = 'offer' | 'rejected' | 'withdrew' | 'ghosted';
-export const OUTCOME_RESULTS: OutcomeResult[] = ['offer', 'rejected', 'withdrew', 'ghosted'];
+export { APPLICATION_STATUSES, INTERVIEW_FORMATS, OUTCOME_RESULTS, OPEN_STATUSES } from '@/lib/journal-values';
+export type { ApplicationStatus, InterviewFormat, OutcomeResult } from '@/lib/journal-values';
+import { APPLICATION_STATUSES, OPEN_STATUSES, type ApplicationStatus, type InterviewFormat, type OutcomeResult } from '@/lib/journal-values';
 
 export interface InterviewRound {
   id: string;
@@ -277,6 +254,7 @@ interface JournalStore {
   hydrate: () => Promise<void>;
   createApplication: (data: Partial<Application>) => Promise<Application>;
   updateApplication: (id: string, patch: Partial<Application>) => void;
+  flushApplication: (id: string) => Promise<void>;
   deleteApplication: (id: string) => Promise<void>;
   addInterview: (appId: string, round?: Partial<InterviewRound>) => InterviewRound | undefined;
   updateInterview: (appId: string, roundId: string, patch: Partial<InterviewRound>) => void;
@@ -443,6 +421,15 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
     }
   },
 
+  flushApplication: async (id) => {
+    const timer = persistTimers.get(id); if (timer) clearTimeout(timer); persistTimers.delete(id);
+    await enqueuePersist(id, async () => {
+      const application = get().applications.find(a => a.id === id);
+      if (!application) throw new Error('投递记录不存在');
+      await api.saveApplication(toRecord(application));
+    });
+  },
+
   deleteApplication: async (id) => {
     versionRequests.delete(id);
     const timer = persistTimers.get(id);
@@ -450,11 +437,12 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
       clearTimeout(timer);
       persistTimers.delete(id);
     }
+    await enqueuePersist(id, () => api.deleteApplication(id));
+    for (const [key, draft] of Object.entries(useRecordingStore.getState().drafts)) if (draft.applicationId === id) useRecordingStore.getState().clear(key);
     set((state) => ({
       applications: state.applications.filter((a) => a.id !== id),
       mocks: state.mocks.map((m) => (m.applicationId === id ? { ...m, applicationId: null } : m)),
     }));
-    await enqueuePersist(id, () => api.deleteApplication(id));
   },
 
   addInterview: (appId, round = {}) => {
@@ -518,6 +506,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
   reflectApplication: async (id) => {
     set((state) => ({ reflections: { ...state.reflections, [id]: { status: 'running' } } }));
     try {
+      await get().flushApplication(id);
       const result = await api.knowledgeReflect(id);
       set((state) => ({ reflections: { ...state.reflections, [id]: { status: 'done', result } } }));
     } catch (error) {

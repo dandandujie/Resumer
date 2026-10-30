@@ -233,7 +233,7 @@ function PreviewSection({
 
   const pendingRingClass =
     pendingChange === 'added'
-      ? 'rounded-lg ring-1 ring-[var(--whale-mint-deep)]/30'
+      ? 'rounded-lg ring-1 ring-[var(--app-accent)]/30'
       : pendingChange === 'removed'
         ? 'rounded-lg ring-1 ring-red-300/60'
         : pendingChange === 'modified'

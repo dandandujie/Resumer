@@ -124,7 +124,7 @@ try {
   await waitFor("!!document.querySelector('.knowledge-workspace article')");
   record('knowledge-no-blank', '知识库进入后正文可见且无运行时错误', browser.errors, browser.errors.length === 0);
   await click('text:编辑');
-  await click('.knowledge-workspace textarea');
+  await click('.knowledge-workspace main textarea');
   await key('Meta+a');
   const draft = '核对草稿：离开知识库返回后仍应可恢复';
   await send('Input.insertText', { text: draft });
@@ -133,23 +133,23 @@ try {
   await click('text:知识库');
   await waitFor("!!document.querySelector('.knowledge-workspace article')");
   await click('text:编辑');
-  const returnedDraft = await evaluate("document.querySelector('.knowledge-workspace textarea').value");
+  const returnedDraft = await evaluate("document.querySelector('.knowledge-workspace main textarea').value");
   record('knowledge-draft-navigation', '正常应用内导航不静默丢弃未保存草稿', { returnedDraft }, returnedDraft === draft);
 
   await visit('/zh/knowledge');
   await click('text:编辑');
-  const refreshedDraft = await evaluate("document.querySelector('.knowledge-workspace textarea').value");
+  const refreshedDraft = await evaluate("document.querySelector('.knowledge-workspace main textarea').value");
   record('knowledge-draft-refresh', '刷新后恢复未保存草稿', refreshedDraft, refreshedDraft === draft);
   await evaluate(`window.__writeOriginal=window.__TAURI_INTERNALS__.invoke;
     window.__TAURI_INTERNALS__.invoke=(cmd,args)=>cmd==='knowledge_write'
       ? new Promise(resolve=>{window.__finishWrite=()=>window.__writeOriginal(cmd,args).then(resolve);}) : window.__writeOriginal(cmd,args);`);
   await click('text:保存');
   await waitFor("typeof window.__finishWrite==='function'");
-  await click('.knowledge-workspace textarea'); await key('Meta+a');
+  await click('.knowledge-workspace main textarea'); await key('Meta+a');
   await send('Input.insertText',{text:'保存等待期间的新草稿'});
   await evaluate('window.__finishWrite()');
   await delay(200);
-  const duringSave = await evaluate("document.querySelector('.knowledge-workspace textarea')?.value");
+  const duringSave = await evaluate("document.querySelector('.knowledge-workspace main textarea')?.value");
   record('knowledge-edit-during-save', '保存旧快照时继续输入，新草稿不得被清掉', duringSave, duringSave === '保存等待期间的新草稿');
   await evaluate('window.__TAURI_INTERNALS__.invoke=window.__writeOriginal');
   await visit('/zh/insights');

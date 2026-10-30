@@ -9,7 +9,8 @@ mod import;
 mod knowledge;
 
 use db::AppDb;
-use tauri::Manager;
+use std::sync::atomic::Ordering;
+use tauri::{Emitter, Manager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -42,10 +43,24 @@ pub fn run() {
             knowledge::reindex(&db, &root).expect("failed to index knowledge vault");
             knowledge::index::rebuild_from_disk(&root).expect("failed to write knowledge index");
             app.manage(db);
+            app.manage(commands::lifecycle::ExitGuard::default());
+            #[cfg(target_os = "macos")]
+            commands::lifecycle::install_macos_guard(app.handle())?;
 
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let state = window.state::<commands::lifecycle::ExitGuard>();
+                if state.ready.load(Ordering::SeqCst) && !state.allowed.load(Ordering::SeqCst) {
+                    api.prevent_close();
+                    let _ = window.emit("app-close-requested", ());
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
+            commands::lifecycle::set_exit_guard_ready,
+            commands::lifecycle::finish_app_exit,
             commands::document::import_original_docx,
             commands::document::get_original_docx,
             commands::document::save_original_docx,
@@ -61,6 +76,8 @@ pub fn run() {
             commands::resume::get_resume_version,
             commands::resume::create_resume_version,
             commands::resume::restore_resume_version,
+            commands::resume::rename_resume_version,
+            commands::resume::delete_resume_version,
             commands::user::ensure_user,
             commands::user::get_settings,
             commands::user::update_settings,
@@ -89,6 +106,28 @@ pub fn run() {
             commands::chat::cancel_ai_stream,
             commands::chat::truncate_chat_messages,
             commands::interview::interview_chat,
+            commands::recordings::recording_list,
+            commands::recordings::recording_import,
+            commands::recordings::recording_save,
+            commands::recordings::recording_open,
+            commands::recordings::recording_delete,
+            commands::recordings::recording_transcribe,
+            commands::recordings::recording_publish,
+            commands::recordings::intake_extract,
+            commands::workspace::workspace_assist,
+            commands::knowledge_ai::library_audio_state,
+            commands::knowledge_ai::library_audio_save,
+            commands::knowledge_ai::library_audio_transcribe,
+            commands::knowledge_ai::knowledge_distill_prepare,
+            commands::knowledge_ai::knowledge_drafts,
+            commands::knowledge_ai::knowledge_discard_draft,
+            commands::knowledge_ai::knowledge_update_draft,
+            commands::knowledge_wiki::knowledge_compile_prepare,
+            commands::knowledge_wiki::knowledge_apply_draft,
+            commands::knowledge_wiki::knowledge_save_answer,
+            commands::knowledge_wiki::knowledge_maintain_prepare,
+            commands::knowledge_wiki::knowledge_open_vault,
+            commands::knowledge_wiki::knowledge_propose_edit,
             commands::journal::list_applications,
             commands::journal::save_application,
             commands::journal::delete_application,
@@ -105,6 +144,20 @@ pub fn run() {
             commands::backup::backup_create,
             commands::backup::backup_restore,
             commands::backup::app_restart,
+            commands::knowledge::library_choose_files,
+            commands::knowledge::library_release_picks,
+            commands::knowledge::library_import_picked_file,
+            commands::knowledge::library_collections,
+            commands::knowledge::library_put_collection,
+            commands::knowledge::library_assets,
+            commands::knowledge::library_import_file,
+            commands::knowledge::library_read_asset,
+            commands::knowledge::library_search,
+            commands::knowledge::library_open_original,
+            commands::knowledge_files::knowledge_folders,
+            commands::knowledge_files::knowledge_create_folder,
+            commands::knowledge_files::knowledge_update_properties,
+            commands::knowledge_files::knowledge_open_file,
             commands::knowledge::knowledge_list,
             commands::knowledge::knowledge_read,
             commands::knowledge::knowledge_write,
@@ -119,6 +172,15 @@ pub fn run() {
             commands::knowledge::knowledge_interview_prep,
             commands::knowledge::knowledge_purpose,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if let tauri::RunEvent::ExitRequested { api, .. } = event {
+                let state = app.state::<commands::lifecycle::ExitGuard>();
+                if state.ready.load(Ordering::SeqCst) && !state.allowed.load(Ordering::SeqCst) {
+                    api.prevent_exit();
+                    let _ = app.emit("app-close-requested", ());
+                }
+            }
+        });
 }

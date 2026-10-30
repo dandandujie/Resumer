@@ -22,7 +22,12 @@ export function ResumePreview({ resume, interactive, exportMode, onReorderSectio
   const scope = `[data-theme-scope="${scopeId}"]`;
 
   return (
-    <div data-theme-scope={scopeId} data-avatar-style={theme.avatarStyle}>
+    <div
+      data-theme-scope={scopeId}
+      data-avatar-style={theme.avatarStyle}
+      // 文档是独立的浅色画布，不能继承工作区深色的默认文本/原生控件颜色。
+      style={{ colorScheme: 'only light', color: theme.bodyColor, backgroundColor: '#fff' }}
+    >
       <style dangerouslySetInnerHTML={{ __html: buildThemeCss(scope, theme, { export: exportMode }) }} />
       <TemplateComponent resume={themedResume} interactive={interactive} onReorderSections={onReorderSections} />
     </div>

@@ -58,7 +58,7 @@ export function EditableList({
 
   return (
     <div className="space-y-1.5" ref={listRef}>
-      <span className="block text-xs font-medium text-[var(--whale-ink-muted)]">{label}</span>
+      <span className="block text-xs font-medium text-[var(--app-text-muted)]">{label}</span>
       <div className="space-y-1.5">
         <SortableList items={values.map((_, index) => `list-${index}`)} onMove={moveItem}>
           {(_, index) => (
@@ -81,7 +81,7 @@ export function EditableList({
               <Button
                 variant="ghost"
                 size="icon-xs"
-                className="mt-1.5 shrink-0 cursor-pointer text-[var(--whale-ink-muted)] opacity-60 transition-opacity hover:text-red-500 group-hover/row:opacity-100"
+                className="mt-1.5 shrink-0 cursor-pointer text-[var(--app-text-muted)] opacity-60 transition-opacity hover:text-red-500 group-hover/row:opacity-100"
                 onClick={() => removeItem(index)}
                 aria-label={tItems('removeItem')}
               >
@@ -95,7 +95,7 @@ export function EditableList({
         variant="ghost"
         size="sm"
         onClick={addItem}
-        className="h-7 cursor-pointer gap-1 px-2 text-xs text-[var(--whale-ink-muted)] hover:text-[var(--whale-ink)]"
+        className="h-7 cursor-pointer gap-1 px-2 text-xs text-[var(--app-text-muted)] hover:text-[var(--app-text)]"
       >
         <Plus className="h-3 w-3" />
         {t('add')}

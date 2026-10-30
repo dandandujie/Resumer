@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "./styles/workspace.css";
 
 @font-face { font-family: 'Reseumer Hei'; src: url('/fonts/NotoSansSC-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
 @font-face { font-family: 'Reseumer Hei'; src: url('/fonts/NotoSansSC-Bold.woff2') format('woff2'); font-weight: 700; font-display: swap; }
@@ -8,22 +9,15 @@
 @font-face { font-family: 'Reseumer Song'; src: url('/fonts/NotoSerifSC-Bold.woff2') format('woff2'); font-weight: 700; font-display: swap; }
 @font-face { font-family: 'Reseumer Kai'; src: url('/fonts/LXGWWenKai-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
 
-/* Keep the class-based dark variant registered so stray `dark:` utilities in
-   components stay inert (the app is deliberately light-only — the `.dark`
-   class is never applied). Without this, Tailwind's default media-query dark
-   variant would activate them under OS dark mode. */
+/* 应用外观由 data-appearance 的语义色决定，不让残留 dark: 工具类跟随系统自行覆盖。 */
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  /* Typography — Instrument Sans for UI, Fraunces for display/editorial moments.
-     CJK falls back to system fonts (PingFang SC / Microsoft YaHei) for UI, and
-     to serif CJK faces (Songti SC) under the display stack so zh headings keep
-     the editorial voice. */
-  --font-sans: 'Instrument Sans Variable', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', ui-sans-serif, system-ui, sans-serif;
-  --font-display: 'Fraunces Variable', 'Songti SC', 'STSong', 'SimSun', ui-serif, serif;
-  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Consolas', monospace;
+  --font-sans: 'Sora Variable', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-display: var(--font-sans);
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Consolas, monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -88,7 +82,7 @@
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
   --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-2: oklch(0.6 0.06 70);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
@@ -100,11 +94,11 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --brand: oklch(0.64 0.15 168);
+  --brand: var(--primary);
   --brand-foreground: oklch(1 0 0);
-  --brand-hover: oklch(0.56 0.14 168);
-  --brand-muted: oklch(0.94 0.05 168);
-  --brand-ring: oklch(0.64 0.15 168 / 40%);
+  --brand-hover: oklch(0.3 0.01 70);
+  --brand-muted: oklch(0.94 0.02 80);
+  --brand-ring: oklch(0.4 0.02 80 / 40%);
 }
 
 @layer base {
@@ -118,17 +112,13 @@
     -webkit-font-smoothing: antialiased;
   }
   ::selection {
-    background: rgba(168, 232, 216, 0.55);
+    background: rgba(230, 101, 32, 0.55);
     color: #1c1a17;
   }
 }
 
-/* Editorial display type — Fraunces with gentle optical tuning */
-.font-display {
-  font-family: var(--font-display);
-  font-optical-sizing: auto;
-  letter-spacing: -0.01em;
-}
+.font-display { font-family: var(--font-sans); letter-spacing: -0.025em; }
+html[lang^="zh"] { --font-sans: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
 
 [data-tauri-drag-region] {
   -webkit-app-region: drag;
@@ -156,131 +146,110 @@ select,
   border-radius: 8px !important;
 }
 
-/* ──────────────────────────────────────────────────────────────
-   Whale Cream — app-wide design tokens
-   Activated by [data-design="whale"] on layout roots.
-   Warm paper + ink + mint: the chrome reads as cream stationery
-   so the white A4 sheet in the preview pops as "paper on a desk".
-   ────────────────────────────────────────────────────────────── */
-[data-design="whale"] {
-  --whale-cream: #FAF7F0;
-  --whale-sidebar: #F1EDE3;
-  --whale-cream-soft: #F3EFE6;
-  --whale-cream-deep: #E7E1D2;
-  --whale-ink: #1C1A17;
-  --whale-ink-soft: #3A352D;
-  --whale-ink-muted: #6E665A;
-  --whale-mint: #A8E8D8;
-  --whale-mint-deep: #12A98E;
-  --whale-divider: #E3DDCC;
-  --whale-card: #FFFFFF;
-
-  /* Alias shadcn brand tokens to Whale tokens so every existing bg-brand /
-     text-brand / border-brand / brand-muted picks up the whale palette
-     without per-file edits. Portal-rendered dialogs inherit this when the
-     [data-design="whale"] attribute is also set on <html>. */
-  --brand: var(--whale-ink);
-  --brand-foreground: var(--whale-cream);
-  --brand-hover: var(--whale-ink-soft);
-  --brand-muted: #DCF2EA;
-  --brand-ring: rgba(20, 184, 154, 0.35);
-
-  /* Alias shadcn core tokens — inputs, borders, focus rings, popovers all
-     inherit Whale styling automatically. */
-  --background: var(--whale-cream);
-  --foreground: var(--whale-ink);
-  --card: var(--whale-card);
-  --card-foreground: var(--whale-ink);
-  --popover: var(--whale-card);
-  --popover-foreground: var(--whale-ink);
-  --primary: var(--whale-ink);
-  --primary-foreground: var(--whale-cream);
-  --secondary: var(--whale-cream-soft);
-  --secondary-foreground: var(--whale-ink);
-  --muted: var(--whale-cream-soft);
-  --muted-foreground: var(--whale-ink-muted);
-  --accent: var(--whale-cream-soft);
-  --accent-foreground: var(--whale-ink);
-  --border: var(--whale-divider);
-  --input: var(--whale-divider);
-  --ring: var(--whale-mint-deep);
-  --sidebar: var(--whale-sidebar);
-  --sidebar-foreground: var(--whale-ink);
-  --sidebar-border: var(--whale-divider);
-  --sidebar-accent: var(--whale-cream-deep);
-  --sidebar-accent-foreground: var(--whale-ink);
+/* 参考 Claude Stats 主窗口的独立 React 实现。此版待用户体验确认，规范暂不锁定。 */
+html[data-design="stats"] {
+  --app-bg: #EDEDEF;
+  --app-sidebar: #E5E3E8;
+  --app-surface: #F4F4F5;
+  --app-summary: #F5F2E9;
+  --app-control: #FFFFFF;
+  --app-surface-muted: #EAEAEC;
+  --app-hover: #E1DFE4;
+  --app-text: #252425;
+  --app-text-secondary: #505055;
+  --app-text-muted: #6D6D75;
+  --app-accent: #C2521D;
+  --app-accent-soft: #E7DCD6;
+  --app-border: #D7D6DC;
+  --app-inverse: #FFFFFF;
+  --app-field: #FBFBFC;
+  --app-selection: #DAD8DD;
+  --background: var(--app-bg);
+  --foreground: var(--app-text);
+  --card: var(--app-surface);
+  --card-foreground: var(--app-text);
+  --popover: var(--app-bg);
+  --popover-foreground: var(--app-text);
+  --primary: var(--app-accent);
+  --primary-foreground: #FFFFFF;
+  --secondary: var(--app-surface);
+  --secondary-foreground: var(--app-text);
+  --muted: var(--app-surface-muted);
+  --muted-foreground: var(--app-text-muted);
+  --accent: var(--app-hover);
+  --accent-foreground: var(--app-text);
+  --border: var(--app-border);
+  --input: var(--app-border);
+  --ring: var(--app-accent);
+  --brand: var(--app-accent);
+  --brand-foreground: #FFFFFF;
+  --brand-hover: #CF5817;
+  --brand-muted: var(--app-accent-soft);
+  --brand-ring: rgba(230, 101, 32, .2);
+  --sidebar: var(--app-sidebar);
+  --sidebar-foreground: var(--app-text);
+  --sidebar-border: var(--app-border);
+  --sidebar-accent: var(--app-selection);
+  --sidebar-accent-foreground: var(--app-text);
+  --radius: .625rem;
+  color-scheme: light;
+}
+html[data-design="stats"][data-appearance="dark"] {
+  --app-bg: #0D0D0F;
+  --app-sidebar: #161619;
+  --app-surface: #18181C;
+  --app-summary: #201E1C;
+  --app-control: #303035;
+  --app-surface-muted: #202024;
+  --app-hover: #2D2D33;
+  --app-text: #F1F1F3;
+  --app-text-secondary: #C0C0C6;
+  --app-text-muted: #AAA8B2;
+  --app-border: #303036;
+  --app-selection: #303037;
+  --app-field: #222227;
+  --app-accent-soft: #3B271E;
+  color-scheme: dark;
 }
 
-/* Soft scrollbars everywhere inside the whale scope */
-[data-design="whale"] ::-webkit-scrollbar {
+/* 应用工作区使用低对比滚动条。 */
+[data-design="stats"] ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
-[data-design="whale"] ::-webkit-scrollbar-track {
+[data-design="stats"] ::-webkit-scrollbar-track {
   background: transparent;
 }
-[data-design="whale"] ::-webkit-scrollbar-thumb {
-  background: var(--whale-divider);
+[data-design="stats"] ::-webkit-scrollbar-thumb {
+  background: var(--app-border);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
-[data-design="whale"] ::-webkit-scrollbar-thumb:hover {
-  background: var(--whale-ink-muted);
+[data-design="stats"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--app-text-muted);
   background-clip: padding-box;
 }
 
-/* Map hardcoded green/emerald utilities to Whale mint inside [data-design="whale"].
-   Keeps "good = green" semantics but unifies the hue with the design system. */
-[data-design="whale"] :is(.text-green-400, .text-emerald-400) {
-  color: #4ECCB4 !important;
-}
-[data-design="whale"]
-  :is(.text-green-500, .text-emerald-500, .text-green-600, .text-emerald-600,
-      .text-green-700, .text-emerald-700) {
-  color: var(--whale-mint-deep) !important;
-}
-[data-design="whale"] :is(.text-green-900, .text-emerald-900) {
-  color: var(--whale-ink) !important;
-}
-[data-design="whale"] :is(.stroke-emerald-500, .stroke-green-500) {
-  stroke: var(--whale-mint-deep) !important;
-}
-[data-design="whale"] :is(.stroke-emerald-100, .stroke-green-100) {
-  stroke: rgba(168, 232, 216, 0.4) !important;
-}
-[data-design="whale"] :is(.bg-green-50, .bg-emerald-50) {
-  background-color: rgba(168, 232, 216, 0.15) !important;
-}
-[data-design="whale"] :is(.bg-green-100, .bg-emerald-100) {
-  background-color: rgba(168, 232, 216, 0.35) !important;
-}
-[data-design="whale"] :is(.border-green-200, .border-emerald-200) {
-  border-color: rgba(168, 232, 216, 0.6) !important;
-}
-[data-design="whale"] :is(.border-green-300, .border-emerald-300) {
-  border-color: rgba(168, 232, 216, 0.8) !important;
-}
-
-@keyframes whale-sparkle {
+@keyframes app-sparkle {
   0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.85; }
   50% { transform: scale(1.06) rotate(2deg); opacity: 1; }
 }
 
 /* ──────────────────────────────────────────────────────────────
-   AI message markdown — whale-toned, compact chat typography
+   AI 消息采用紧凑的工作区排版
    ────────────────────────────────────────────────────────────── */
 .ai-markdown {
   font-size: 14px;
   font-weight: 500;
-  color: var(--whale-ink-soft);
+  color: var(--app-text-secondary);
   line-height: 1.75;
 }
 
 .ai-markdown h1 {
   font-size: 1.1875rem;
   font-weight: 700;
-  color: var(--whale-ink);
+  color: var(--app-text);
   margin-top: 1.25rem;
   margin-bottom: 0.75rem;
 }
@@ -288,17 +257,17 @@ select,
 .ai-markdown h2 {
   font-size: 1.125rem;
   font-weight: 700;
-  color: var(--whale-ink);
+  color: var(--app-text);
   margin-top: 1.25rem;
   margin-bottom: 0.75rem;
-  border-bottom: 1px solid var(--whale-divider);
+  border-bottom: 1px solid var(--app-border);
   padding-bottom: 0.375rem;
 }
 
 .ai-markdown h3 {
   font-size: 1rem;
   font-weight: 600;
-  color: var(--whale-ink);
+  color: var(--app-text);
   margin-top: 1rem;
   margin-bottom: 0.5rem;
 }
@@ -306,7 +275,7 @@ select,
 .ai-markdown h4 {
   font-size: 0.9375rem;
   font-weight: 600;
-  color: var(--whale-ink-soft);
+  color: var(--app-text-secondary);
   margin-top: 0.875rem;
   margin-bottom: 0.5rem;
 }
@@ -351,8 +320,8 @@ select,
 }
 
 .ai-markdown code {
-  background-color: var(--whale-cream-deep);
-  color: var(--whale-ink);
+  background-color: var(--app-hover);
+  color: var(--app-text);
   padding: 0.125rem 0.375rem;
   border-radius: 0.25rem;
   font-size: 0.875em;
@@ -360,8 +329,8 @@ select,
 }
 
 .ai-markdown pre {
-  background-color: var(--whale-cream-deep);
-  border: 1px solid var(--whale-divider);
+  background-color: var(--app-hover);
+  border: 1px solid var(--app-border);
   border-radius: 0.5rem;
   padding: 0.875rem;
   overflow-x: auto;
@@ -378,12 +347,12 @@ select,
 }
 
 .ai-markdown blockquote {
-  border-left: 3px solid var(--whale-mint-deep);
+  border-left: 3px solid var(--app-accent);
   padding-left: 1rem;
   margin-left: 0;
   margin-top: 0.75rem;
   margin-bottom: 0.75rem;
-  color: var(--whale-ink-muted);
+  color: var(--app-text-muted);
   font-style: italic;
 }
 
@@ -396,40 +365,40 @@ select,
 }
 
 .ai-markdown th {
-  background-color: var(--whale-cream-soft);
-  border: 1px solid var(--whale-divider);
+  background-color: var(--app-surface-muted);
+  border: 1px solid var(--app-border);
   padding: 0.5rem 0.75rem;
   text-align: left;
   font-weight: 600;
-  color: var(--whale-ink);
+  color: var(--app-text);
 }
 
 .ai-markdown td {
-  border: 1px solid var(--whale-divider);
+  border: 1px solid var(--app-border);
   padding: 0.5rem 0.75rem;
 }
 
 .ai-markdown a {
-  color: var(--whale-mint-deep);
+  color: var(--app-accent);
   text-decoration: underline;
-  text-decoration-color: rgba(168, 232, 216, 0.4);
+  text-decoration-color: rgba(230, 101, 32, 0.4);
   text-underline-offset: 2px;
 }
 
 .ai-markdown a:hover {
-  text-decoration-color: var(--whale-mint-deep);
+  text-decoration-color: var(--app-accent);
 }
 
 .ai-markdown hr {
   border: none;
-  border-top: 1px solid var(--whale-divider);
+  border-top: 1px solid var(--app-border);
   margin-top: 1.25rem;
   margin-bottom: 1.25rem;
 }
 
 .ai-markdown strong {
   font-weight: 700;
-  color: var(--whale-ink);
+  color: var(--app-text);
 }
 
 .ai-markdown em {
@@ -443,37 +412,40 @@ select,
 }
 
 .ai-markdown details {
-  border: 1px solid var(--whale-divider);
+  border: 1px solid var(--app-border);
   border-radius: 0.5rem;
   padding: 0.75rem;
   margin-top: 0.75rem;
   margin-bottom: 0.75rem;
-  background-color: var(--whale-cream-soft);
+  background-color: var(--app-surface-muted);
 }
 
 .ai-markdown summary {
   cursor: pointer;
   font-weight: 500;
-  color: var(--whale-ink);
+  color: var(--app-text);
   user-select: none;
 }
 
 .ai-markdown summary:hover {
-  color: var(--whale-mint-deep);
+  color: var(--app-accent);
 }
 
 /* ──────────────────────────────────────────────────────────────
-   编辑 ↔ 预览联动：右栏正在编辑的字段在预览里描薄荷色框，
+   编辑 ↔ 预览联动：右栏正在编辑的字段在预览里描强调色框，
    选中的字用 CSS Custom Highlight 标底色（不改预览 DOM，导出不受影响）
    ────────────────────────────────────────────────────────────── */
 [data-editing] {
-  outline: 1.5px solid rgba(18, 169, 142, 0.75);
+  outline: 1.5px solid rgba(230, 101, 32, 0.75);
   outline-offset: 2px;
   border-radius: 2px;
-  background-color: rgba(168, 232, 216, 0.22);
+  background-color: rgba(230, 101, 32, 0.22);
   transition: background-color 120ms ease;
 }
 
 ::highlight(resume-editing-selection) {
-  background-color: rgba(18, 169, 142, 0.34);
+  background-color: rgba(230, 101, 32, 0.34);
 }
+
+/* WebKit 可能漏发退场 animationend；关闭态立即移除，避免透明遮罩阻塞后续操作。 */
+html[data-design="stats"] :is([data-slot="alert-dialog-content"], [data-slot="alert-dialog-overlay"], [data-slot="dialog-content"], [data-slot="dialog-overlay"])[data-state="closed"] { animation: none !important; }

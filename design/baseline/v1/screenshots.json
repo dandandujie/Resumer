@@ -1,0 +1,37 @@
+[
+  {
+    "path": "wiki-light-1440.png",
+    "label": "Wiki · 浅色 · 1440×900",
+    "width": 1440,
+    "height": 900,
+    "sha256": "9d2a0ce6491d171c1fcfa51f3149b406335fda21c01d3e59a700585eddc3a13f"
+  },
+  {
+    "path": "wiki-dark-1200.png",
+    "label": "Wiki · 深色 · 1200×800",
+    "width": 1200,
+    "height": 800,
+    "sha256": "dc7c3b8ccfa15b4e04491c95532af58fbf1556368aaeae058c78715995ab0fa7"
+  },
+  {
+    "path": "wiki-dark-390.png",
+    "label": "Wiki · 深色窄窗口 · 390×700",
+    "width": 390,
+    "height": 700,
+    "sha256": "229fbc3cfbdabd2a787a8cbcb39715c406d4df45bd26120e47ed9c89c1428fed"
+  },
+  {
+    "path": "editor-1200.png",
+    "label": "简历编辑器 · 1200×900",
+    "width": 1200,
+    "height": 900,
+    "sha256": "af70c23ecc38341736313969f6c57715121b6c08441e86de26c3316d8110dd5c"
+  },
+  {
+    "path": "application-detail.png",
+    "label": "投递记录详情",
+    "width": 1440,
+    "height": 900,
+    "sha256": "81ba2a643bd9566a53dee221640189ae0c5a2c04b5024b92e9541eee4fe3f2f6"
+  }
+]

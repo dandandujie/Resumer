@@ -39,7 +39,7 @@ export function ItemBox({ sectionId, itemId, interactive, className, children }:
       onClick={() => setActiveItem({ sectionId, itemId })}
       className={cn(
         'item -mx-1 rounded px-1 transition-shadow',
-        isActive ? 'ring-1 ring-[var(--whale-mint-deep)]/70 bg-[var(--whale-mint)]/10' : 'hover:ring-1 hover:ring-[var(--whale-divider)]',
+        isActive ? 'ring-1 ring-[var(--app-accent)]/70 bg-[var(--app-accent-soft)]/10' : 'hover:ring-1 hover:ring-[var(--app-border)]',
         className,
       )}
     >

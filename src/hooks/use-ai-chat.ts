@@ -123,23 +123,6 @@ export function useAIChat({ resumeId, sessionId, initialMessages, selectedModel 
   }, [initialMessages]);
 
   // Reload resume data after tool execution changes DB
-  const reloadResume = useCallback(async () => {
-    if (!resumeId) return;
-    try {
-      const store = useResumeStore.getState();
-      if (store._saveTimeout) clearTimeout(store._saveTimeout);
-      const data = await api.getResume(resumeId);
-      if (data) {
-        store.setResume({
-          ...data,
-          sections: (data as any).sections || [],
-          themeConfig: (data as any).themeConfig || {},
-        } as any);
-      }
-    } catch (err) {
-      console.error('Failed to reload resume:', err);
-    }
-  }, [resumeId]);
 
   // Subscribe to Tauri streaming events
   useEffect(() => {
@@ -245,26 +228,15 @@ export function useAIChat({ resumeId, sessionId, initialMessages, selectedModel 
             const pending = pendingMutationsRef.current.get(toolResultId);
             if (pending) {
               pendingMutationsRef.current.delete(toolResultId);
-              void (async () => {
-                await reloadResume();
-                // Shallow clone sections (content is already loaded from DB and doesn't need deep clone)
-                const afterSections = useResumeStore
-                  .getState()
-                  .sections.map((s) => ({ ...s, content: s.content }));
+              const result = payload.event.result as { proposalOnly?: boolean; beforeSections?: ResumeSection[]; afterSections?: ResumeSection[] };
+              if (result.proposalOnly && Array.isArray(result.afterSections)) {
                 useProposalsStore.getState().addProposal({
-                  id: toolResultId,
-                  resumeId,
-                  messageId: pending.messageId,
-                  toolName: pending.name,
-                  toolCallId: toolResultId,
-                  args: pending.args,
-                  beforeSections: pending.beforeSections,
-                  afterSections,
-                  createdAt: Date.now(),
+                  id: toolResultId, resumeId, messageId: pending.messageId, toolName: pending.name,
+                  toolCallId: toolResultId, args: pending.args,
+                  beforeSections: result.beforeSections || pending.beforeSections,
+                  afterSections: result.afterSections, createdAt: Date.now(),
                 });
-              })();
-            } else {
-              reloadResume();
+              }
             }
             break;
           }
@@ -298,7 +270,7 @@ export function useAIChat({ resumeId, sessionId, initialMessages, selectedModel 
         flushTimerRef.current = null;
       }
     };
-  }, [reloadResume, flushTextBuffer, resumeId]);
+  }, [flushTextBuffer, resumeId]);
 
   const sendMessage = useCallback(
     async (data: { text: string }) => {
@@ -339,6 +311,7 @@ export function useAIChat({ resumeId, sessionId, initialMessages, selectedModel 
           resumeId,
           sessionId,
           selectedModel,
+          draft: useResumeStore.getState().currentResume,
         });
       } catch (err: any) {
         setError(err instanceof Error ? err : new Error(String(err)));

@@ -37,7 +37,7 @@ export function SearchSettings() {
   };
   const radio = (id: WebSearchMode, title: string) => (
     <label className="flex min-w-0 cursor-pointer items-center gap-2 text-sm font-medium">
-      <input type="radio" name="web-search-service" value={id} checked={s.webSearchMode === id} onChange={() => { clearTest(); s.setWebSearchMode(id); }} className="shrink-0 accent-[var(--whale-ink)]" />
+      <input type="radio" name="web-search-service" value={id} checked={s.webSearchMode === id} onChange={() => { clearTest(); s.setWebSearchMode(id); }} className="shrink-0 accent-[var(--app-text)]" />
       {title}
       {s.webSearchMode === id && <span className="ml-auto shrink-0 text-xs font-normal text-muted-foreground">{t('active')}</span>}
     </label>
@@ -66,7 +66,7 @@ export function SearchSettings() {
         </div>
         <p className="mt-3 text-xs leading-5 text-muted-foreground">{t('basicHint')}</p>
         {!['off', 'native'].includes(s.webSearchMode) && basic.some(({id}) => id === s.webSearchMode) && <Button type="button" variant="outline" size="sm" className="mt-3" disabled={!!testing} onClick={() => void testSearch(s.webSearchMode)}>{testing ? t('testing') : t('test')}</Button>}
-        {testResult && basic.some(({id}) => id === testResult.id) && <p role="status" className={cn('mt-2 break-words text-xs', testResult.ok ? 'text-emerald-700' : 'text-destructive')}>{testResult.message}</p>}
+        {testResult && basic.some(({id}) => id === testResult.id) && <p role="status" className={cn('mt-2 break-words text-xs', testResult.ok ? 'text-[var(--app-text-secondary)]' : 'text-destructive')}>{testResult.message}</p>}
       </div>
       <div className="space-y-3">
         {services.map(({ id, title, hint, ready, fields }) => (
@@ -79,7 +79,7 @@ export function SearchSettings() {
             <div className={cn('mt-3 grid gap-3', fields.length === 3 ? 'sm:grid-cols-3' : fields.length === 2 ? 'sm:grid-cols-2' : '')}>
               {fields.map((field) => <label key={field.label} className="block min-w-0 space-y-1.5 text-xs text-muted-foreground"><span>{field.label}</span><Input type={field.secret ? 'password' : 'text'} value={field.value} onChange={(event) => { clearTest(); field.update(event.target.value); }} placeholder={field.placeholder} autoComplete="off" /></label>)}
             </div>
-            {testResult?.id === id && <p role="status" className={cn('mt-2 break-words text-xs leading-5', testResult.ok ? 'text-emerald-700' : 'text-destructive')}>{testResult.message}</p>}
+            {testResult?.id === id && <p role="status" className={cn('mt-2 break-words text-xs leading-5', testResult.ok ? 'text-[var(--app-text-secondary)]' : 'text-destructive')}>{testResult.message}</p>}
           </section>
         ))}
       </div>

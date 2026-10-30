@@ -57,9 +57,16 @@ pub fn build(root: &Path) -> Result<KnowledgeGraph, String> {
             node_type: page.frontmatter.page_type.clone(),
         })
         .collect::<Vec<_>>();
+    let catalog = pages
+        .iter()
+        .map(|(path, page)| (path.clone(), page.frontmatter.title.clone()))
+        .collect::<Vec<_>>();
     let mut edges = Vec::new();
     for (path, page) in &pages {
-        for target in vault::wikilinks(&page.body) {
+        for raw_target in vault::wikilinks(&page.body) {
+            let Some(target) = vault::resolve_link(path, &raw_target, &catalog) else {
+                continue;
+            };
             if known.contains(target.as_str()) && &target != path {
                 edges.push(GraphEdge {
                     source: path.clone(),

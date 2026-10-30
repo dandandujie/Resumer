@@ -71,9 +71,9 @@ export const AutoGrowInput = forwardRef<HTMLTextAreaElement, Props>(function Aut
       }}
       data-row-input=""
       className={cn(
-        'block w-full min-w-0 resize-none overflow-hidden rounded-md border border-input bg-[var(--whale-card)] px-3 py-1.5',
-        'text-sm leading-6 text-[var(--whale-ink)] shadow-xs outline-none transition-[border-color,box-shadow]',
-        'placeholder:text-[var(--whale-ink-muted)]/70 hover:border-[var(--whale-ink)]/25',
+        'block w-full min-w-0 resize-none overflow-hidden rounded-md border border-input bg-[var(--app-surface)] px-3 py-1.5',
+        'text-sm leading-6 text-[var(--app-text)] shadow-xs outline-none transition-[border-color,box-shadow]',
+        'placeholder:text-[var(--app-text-muted)]/70 hover:border-[var(--app-text)]/25',
         'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25',
         'disabled:cursor-not-allowed disabled:opacity-50',
         className,

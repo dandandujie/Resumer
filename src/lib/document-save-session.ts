@@ -1,7 +1,9 @@
-export type DocumentSaveState = 'saved' | 'dirty' | 'saving' | 'error';
+export type DocumentSaveState = "saved" | "dirty" | "saving" | "error";
 
 /** 串行导出与保存，保存中的新输入继续保持 dirty；错误不清除本地编辑。 */
 export class DocumentSaveSession {
+  private discardRequested = false;
+  private manualRequested = false;
   private edits = 0;
   private persisted = 0;
   private pending: Promise<void> | null = null;
@@ -9,12 +11,23 @@ export class DocumentSaveSession {
   constructor(
     private revision: number,
     private serialize: () => Promise<number[]>,
-    private readonly write: (revision: number, bytes: number[]) => Promise<number>,
-    private readonly report: (state: DocumentSaveState, error?: unknown) => void,
+    private readonly write: (
+      revision: number,
+      bytes: number[],
+    ) => Promise<number>,
+    private readonly report: (
+      state: DocumentSaveState,
+      error?: unknown,
+    ) => void,
+    private readonly shouldAutoSave: () => boolean = () => false,
   ) {}
 
-  get dirty() { return this.edits !== this.persisted; }
-  get currentRevision() { return this.revision; }
+  get dirty() {
+    return this.edits !== this.persisted;
+  }
+  get currentRevision() {
+    return this.revision;
+  }
 
   /** 编辑器销毁前截取最终内容；排队中的旧保存完成后也只能读取这份快照。 */
   finish(bytes: Promise<number[]>): Promise<void> {
@@ -26,31 +39,58 @@ export class DocumentSaveSession {
 
   changed() {
     this.edits++;
-    this.report('dirty');
-    clearTimeout(this.timer);
-    this.timer = setTimeout(() => { void this.flush().catch(() => {}); }, 1200);
+    this.report("dirty");
+    this.scheduleAutoSave();
   }
 
-  flush(): Promise<void> {
+  scheduleAutoSave() {
     clearTimeout(this.timer);
-    if (this.pending) return this.pending;
+    if (this.dirty && this.shouldAutoSave())
+      this.timer = setTimeout(() => {
+        if (this.shouldAutoSave()) void this.flush(false).catch(() => {});
+      }, 1200);
+  }
+
+  async discard() {
+    clearTimeout(this.timer);
+    this.discardRequested = true;
+    try {
+      await this.pending;
+    } catch {
+      /* 丢弃本地编辑不重试失败写入。 */
+    }
+    this.persisted = this.edits;
+    this.discardRequested = false;
+    this.report("saved");
+  }
+
+  flush(manual = true): Promise<void> {
+    clearTimeout(this.timer);
+    if (this.pending) {
+      if (manual) this.manualRequested = true;
+      return this.pending;
+    }
     if (!this.dirty) return Promise.resolve();
-    this.pending = this.save().finally(() => { this.pending = null; });
+    this.manualRequested = manual;
+    this.pending = this.save().finally(() => {
+      this.manualRequested = false;
+      this.pending = null;
+    });
     return this.pending;
   }
 
   private async save() {
     try {
-      while (this.dirty) {
-        this.report('saving');
+      while (this.dirty && !this.discardRequested && (this.manualRequested || this.shouldAutoSave())) {
+        this.report("saving");
         const generation = this.edits;
         const bytes = await this.serialize();
         this.revision = await this.write(this.revision, bytes);
         this.persisted = generation;
       }
-      this.report('saved');
+      this.report(this.dirty ? "dirty" : "saved");
     } catch (error) {
-      this.report('error', error);
+      this.report("error", error);
       throw error;
     }
   }

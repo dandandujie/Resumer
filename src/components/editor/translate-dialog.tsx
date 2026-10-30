@@ -137,7 +137,7 @@ export function TranslateDialog({ open, onOpenChange, resumeId }: TranslateDialo
           {state === 'idle' && (
             <>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-[var(--whale-ink-soft)]">
+                <label className="text-sm font-medium text-[var(--app-text-secondary)]">
                   {t('targetLanguage')}
                 </label>
                 <LanguageSelect value={targetLanguage} onValueChange={(v) => setTargetLanguage(v as 'zh' | 'en')} />
@@ -156,7 +156,7 @@ export function TranslateDialog({ open, onOpenChange, resumeId }: TranslateDialo
                         'relative flex flex-col items-center gap-1.5 rounded-xl border-2 px-3 py-3 text-center transition-all cursor-pointer',
                         active
                           ? 'border-brand bg-brand-muted'
-                          : 'border-border bg-card hover:border-[var(--whale-ink-muted)]'
+                          : 'border-border bg-card hover:border-[var(--app-text-muted)]'
                       )}
                     >
                       <span className={cn(
@@ -169,7 +169,7 @@ export function TranslateDialog({ open, onOpenChange, resumeId }: TranslateDialo
                       </span>
                       <span className={cn(
                         'text-sm font-semibold',
-                        active ? 'text-brand' : 'text-[var(--whale-ink-soft)]'
+                        active ? 'text-brand' : 'text-[var(--app-text-secondary)]'
                       )}>
                         {opt.label}
                       </span>
@@ -187,14 +187,14 @@ export function TranslateDialog({ open, onOpenChange, resumeId }: TranslateDialo
           {state === 'translating' && (
             <div className="flex flex-col items-center justify-center py-6 text-center">
               <Loader2 className="h-8 w-8 animate-spin text-brand mb-3" />
-              <p className="text-sm font-medium text-[var(--whale-ink-soft)] mb-3">
+              <p className="text-sm font-medium text-[var(--app-text-secondary)] mb-3">
                 {progress.total > 0
                   ? t('progress', { completed: progress.completed, total: progress.total })
                   : t('translating')}
               </p>
               {progress.total > 0 && (
                 <div className="w-full max-w-xs">
-                  <div className="h-2 bg-[var(--whale-cream-deep)] rounded-full overflow-hidden">
+                  <div className="h-2 bg-[var(--app-hover)] rounded-full overflow-hidden">
                     <div
                       className="h-full bg-brand rounded-full transition-all duration-300 ease-out"
                       style={{ width: `${progressPercent}%` }}
@@ -208,8 +208,8 @@ export function TranslateDialog({ open, onOpenChange, resumeId }: TranslateDialo
           {/* Success State */}
           {state === 'success' && (
             <div className="flex flex-col items-center justify-center py-6 text-center">
-              <CheckCircle2 className="h-8 w-8 text-green-500 mb-3" />
-              <p className="text-sm font-medium text-[var(--whale-ink-soft)]">
+              <CheckCircle2 className="h-8 w-8 text-[var(--app-text-secondary)] mb-3" />
+              <p className="text-sm font-medium text-[var(--app-text-secondary)]">
                 {failedCount > 0
                   ? t('partialSuccess', { failed: failedCount })
                   : t('success')}
@@ -241,7 +241,7 @@ export function TranslateDialog({ open, onOpenChange, resumeId }: TranslateDialo
               </Button>
               <Button
                 onClick={handleTranslate}
-                className="cursor-pointer bg-brand hover:bg-brand-hover"
+                variant="primary" className="cursor-pointer"
               >
                 {t('translateAll')}
               </Button>
@@ -258,7 +258,7 @@ export function TranslateDialog({ open, onOpenChange, resumeId }: TranslateDialo
               </Button>
               <Button
                 onClick={handleTranslate}
-                className="cursor-pointer bg-brand hover:bg-brand-hover"
+                variant="primary" className="cursor-pointer"
               >
                 {t('translateAll')}
               </Button>

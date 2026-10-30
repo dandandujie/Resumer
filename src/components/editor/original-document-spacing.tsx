@@ -56,13 +56,13 @@ export function OriginalDocumentSpacing({ engine }: { engine: Editor | null }) {
     if (!event.currentTarget.contains(event.relatedTarget as Node | null) && pin.current && engine) {
       engine.releaseSelection(pin.current); pin.current = null;
     }
-  }} className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--whale-divider)] bg-white px-5 py-2 text-xs">
-    <span className="text-[var(--whale-ink-muted)]">{t('spacing')}</span>
+  }} className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--app-border)] bg-[var(--app-bg)] px-5 py-2 text-xs">
+    <span className="text-[var(--app-text-muted)]">{t('spacing')}</span>
     {(['before', 'after', 'line', 'letter'] as const).map((key) => <label key={key} className="flex items-center gap-2">
       {t(key)}
       <input type="number" aria-label={t(key)} placeholder="—" min={key === 'letter' ? -2 : key === 'line' ? 0.5 : 0} max={key === 'letter' ? 10 : key === 'line' ? 5 : 200} step={key === 'line' ? 0.1 : 0.5} disabled={!engine} value={values[key]}
         onChange={(event) => setValues((old) => ({ ...old, [key]: event.target.value }))}
-        className="h-7 w-16 rounded border border-[var(--whale-divider)] px-2" />{key === 'line' ? '×' : 'pt'}
+        className="h-7 w-16 rounded border border-[var(--app-border)] px-2" />{key === 'line' ? '×' : 'pt'}
     </label>)}
     <Button variant="outline" size="sm" className="h-7 text-xs" disabled={!enabled || !Object.values(values).some(Boolean)} onMouseDown={(event) => event.preventDefault()} onClick={apply}>{t('applySpacing')}</Button>
   </div>;

@@ -13,7 +13,8 @@ try {
   await check("!!window.__TAURI_INTERNALS__ && document.documentElement.outerHTML.includes('Tauri 假后端')",'使用隔离后端');
   await waitFor("!!document.querySelector('[data-module-id=\"s-we\"]')");
   const before = await order();
-  await click('[data-module-id="s-we"] button[aria-label="上移：工作经历"]');
+  await click('[data-module-id="s-we"] button[aria-pressed]');
+  await click('[data-module-actions="s-we"] button[aria-label="上移：工作经历"]');
   assert.notEqual(await order(),before,'上移实际改变保存顺序'); checks++;
   await check("[...document.querySelectorAll('[data-section][data-section-id]')].findIndex(e=>e.dataset.sectionId==='s-we') < [...document.querySelectorAll('[data-section][data-section-id]')].findIndex(e=>e.dataset.sectionId==='s-sum')",'预览同步排序');
   await undo(); assert.equal(await order(),before,'排序可撤销'); checks++;
@@ -22,7 +23,7 @@ try {
   await key('Space'); await key('ArrowDown'); await key('Space'); await delay(150);
   assert.notEqual(await order(),before,'拖拽手柄支持键盘排序'); checks++;
   await undo(); assert.equal(await order(),before); checks++;
-  await click('[data-module-id="s-we"] button[aria-label="删除模块：工作经历"]');
+  await click('[data-module-actions="s-we"] button[aria-label="删除模块：工作经历"]');
   await check("!document.querySelector('[data-module-id=\"s-we\"]') && !document.querySelector('[data-section-id=\"s-we\"]')",'删除同步列表和预览');
   await undo(); assert.equal(await order(),before,'删除可撤销'); checks++;
   await click('text:自定义模块');

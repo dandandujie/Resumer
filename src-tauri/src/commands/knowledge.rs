@@ -36,8 +36,17 @@ pub fn knowledge_write(
     db: State<'_, AppDb>,
     path: String,
     content: String,
+    expected: Option<String>,
 ) -> Result<(), CommandError> {
     let root = knowledge::ensure(&app).map_err(error)?;
+    if let Some(expected) = expected {
+        let current = knowledge::vault::read_raw(&root, &path).map_err(error)?;
+        if current != expected {
+            return Err(error(
+                "笔记已在其他编辑器更新，请重新读取后再保存；当前草稿仍保留".into(),
+            ));
+        }
+    }
     knowledge::write_page(&db, &root, &path, &content).map_err(error)
 }
 
@@ -76,6 +85,7 @@ pub fn knowledge_search(
     query: String,
     kind: Option<String>,
     limit: Option<usize>,
+    expand: Option<bool>,
 ) -> Result<Vec<knowledge::fts::SearchHit>, CommandError> {
     knowledge::ensure(&app).map_err(error)?;
     let conn = db
@@ -83,7 +93,14 @@ pub fn knowledge_search(
         .lock()
         .map_err(|error| error.to_string())
         .map_err(error)?;
-    knowledge::fts::search(&conn, &query, kind.as_deref(), limit.unwrap_or(8)).map_err(error)
+    knowledge::fts::search_with_options(
+        &conn,
+        &query,
+        kind.as_deref(),
+        limit.unwrap_or(8),
+        expand.unwrap_or(true),
+    )
+    .map_err(error)
 }
 
 #[tauri::command]
@@ -207,8 +224,20 @@ fn reflect_context(db: &AppDb, application_id: &str) -> Result<String, String> {
         serde_json::to_string(&application).unwrap_or_default(),
         snapshot.unwrap_or_default(),
         current.unwrap_or_default(),
-        application.interviews,
-        local_hits
+        format_args!(
+            "{}\n录音原始素材（识别稿须审慎引用）：{}",
+            application.interviews,
+            super::recordings::context(&conn, application_id).unwrap_or_default()
+        ),
+        format_args!(
+            "{}\n资料原文：{}",
+            local_hits,
+            serde_json::to_string(
+                &knowledge::library::search(&conn, &search_text, None, None, None, 8)
+                    .unwrap_or_default()
+            )
+            .unwrap_or_default()
+        )
     ))
 }
 
@@ -417,4 +446,271 @@ mod tests {
         assert!(context.contains("JD事实"));
         assert!(context.contains("一面"));
     }
+}
+
+#[tauri::command]
+pub fn library_collections(
+    db: State<AppDb>,
+) -> Result<Vec<knowledge::library::Collection>, CommandError> {
+    knowledge::library::collections(&*db.conn.lock().map_err(|e| error(e.to_string()))?, false)
+        .map_err(error)
+}
+#[tauri::command]
+pub fn library_put_collection(
+    db: State<AppDb>,
+    id: Option<String>,
+    title: String,
+    purpose: String,
+    category: String,
+    kind: String,
+    enabled: bool,
+    tags: Option<Vec<String>>,
+) -> Result<String, CommandError> {
+    knowledge::library::put_collection_tags(
+        &*db.conn.lock().map_err(|e| error(e.to_string()))?,
+        id.as_deref(),
+        &title,
+        &purpose,
+        &category,
+        &kind,
+        enabled,
+        Some(&tags.unwrap_or_else(|| {
+            if category.trim().is_empty() {
+                vec![]
+            } else {
+                vec![category.clone()]
+            }
+        })),
+    )
+    .map_err(error)
+}
+#[tauri::command]
+pub fn library_assets(
+    db: State<AppDb>,
+    collection_id: String,
+) -> Result<Vec<knowledge::library::Asset>, CommandError> {
+    knowledge::library::assets(
+        &*db.conn.lock().map_err(|e| error(e.to_string()))?,
+        &collection_id,
+    )
+    .map_err(error)
+}
+#[tauri::command]
+pub async fn library_import_file(
+    app: AppHandle,
+    collection_id: String,
+    filename: String,
+    bytes: Vec<u8>,
+) -> Result<knowledge::library::Asset, CommandError> {
+    let root = knowledge::ensure(&app).map_err(error)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri::Manager;
+        let db = app.state::<AppDb>();
+        let mut conn = db.conn.lock().map_err(|e| error(e.to_string()))?;
+        knowledge::library::import(&mut conn, &root, &collection_id, &filename, &bytes)
+            .map_err(error)
+    })
+    .await
+    .map_err(|e| error(e.to_string()))?
+}
+#[tauri::command]
+pub fn library_read_asset(
+    db: State<AppDb>,
+    asset_id: String,
+    offset: Option<usize>,
+    limit: Option<usize>,
+) -> Result<Value, CommandError> {
+    knowledge::library::read(
+        &*db.conn.lock().map_err(|e| error(e.to_string()))?,
+        &asset_id,
+        offset.unwrap_or(0),
+        limit.unwrap_or(6000),
+        false,
+    )
+    .map_err(error)
+}
+#[tauri::command]
+pub fn library_search(
+    db: State<AppDb>,
+    query: String,
+    collection_id: Option<String>,
+    category: Option<String>,
+    kind: Option<String>,
+    tags: Option<Vec<String>>,
+    tag_match: Option<String>,
+    untagged: Option<bool>,
+) -> Result<Vec<Value>, CommandError> {
+    knowledge::library::search_tagged(
+        &*db.conn.lock().map_err(|e| error(e.to_string()))?,
+        &query,
+        collection_id.as_deref(),
+        &tags.unwrap_or_else(|| {
+            category
+                .as_ref()
+                .filter(|s| !s.is_empty())
+                .cloned()
+                .into_iter()
+                .collect()
+        }),
+        tag_match.as_deref().unwrap_or("all"),
+        untagged.unwrap_or(category.as_deref() == Some("")),
+        kind.as_deref(),
+        12,
+    )
+    .map_err(error)
+}
+#[tauri::command]
+pub fn library_open_original(
+    app: AppHandle,
+    db: State<AppDb>,
+    asset_id: String,
+) -> Result<(), CommandError> {
+    use tauri_plugin_shell::ShellExt;
+    let root = knowledge::ensure(&app).map_err(error)?;
+    let conn = db.conn.lock().map_err(|e| error(e.to_string()))?;
+    let path: String = conn.query_row(
+        "SELECT storage_path FROM knowledge_assets WHERE id=?1",
+        [asset_id],
+        |r| r.get(0),
+    )?;
+    let path = root
+        .join(path)
+        .canonicalize()
+        .map_err(|e| error(e.to_string()))?;
+    if !path.starts_with(root.canonicalize().map_err(|e| error(e.to_string()))?) {
+        return Err(error("文件路径无效".into()));
+    }
+    #[allow(deprecated)]
+    app.shell()
+        .open(path.to_string_lossy().to_string(), None)
+        .map_err(|e| error(e.to_string()))
+}
+
+// 原生选择器返回临时票据，不把任意磁盘路径读取能力暴露给前端。
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PickedLibraryFile {
+    token: String,
+    name: String,
+    size: u64,
+    last_modified: u64,
+}
+static LIBRARY_PICKS: std::sync::OnceLock<
+    std::sync::Mutex<std::collections::HashMap<String, std::path::PathBuf>>,
+> = std::sync::OnceLock::new();
+fn library_picks()
+-> &'static std::sync::Mutex<std::collections::HashMap<String, std::path::PathBuf>> {
+    LIBRARY_PICKS.get_or_init(Default::default)
+}
+#[tauri::command]
+pub async fn library_choose_files(
+    app: AppHandle,
+    kind: String,
+) -> Result<Vec<PickedLibraryFile>, CommandError> {
+    use tauri_plugin_dialog::DialogExt;
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    let extensions = match kind.as_str() {
+        "skill" => vec!["md", "zip"],
+        "document" => vec![
+            "pdf", "docx", "csv", "xlsx", "md", "txt", "mp3", "m4a", "wav", "mp4", "webm", "ogg",
+            "flac",
+        ],
+        _ => return Err(error("资料类型无效".into())),
+    };
+    app.dialog()
+        .file()
+        .set_title("选择同一主题的资料（可多选）")
+        .add_filter("支持的资料", &extensions)
+        .pick_files(move |files| {
+            let _ = sender.send(files);
+        });
+    let selected = receiver
+        .await
+        .map_err(|e| error(e.to_string()))?
+        .unwrap_or_default();
+    if selected.len() > 100 {
+        return Err(error("一次最多选择 100 个文件".into()));
+    }
+    let mut files = Vec::new();
+    let mut picks = library_picks().lock().map_err(|e| error(e.to_string()))?;
+    if picks.len() + selected.len() > 300 {
+        return Err(error("待处理文件过多，请完成当前导入再继续".into()));
+    }
+    for file in selected {
+        let path = file.into_path().map_err(|e| error(e.to_string()))?;
+        let metadata = std::fs::metadata(&path).map_err(|e| error(e.to_string()))?;
+        let name = path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .ok_or_else(|| error("文件名无法识别".into()))?
+            .to_string();
+        let token = uuid::Uuid::new_v4().to_string();
+        let last_modified = metadata
+            .modified()
+            .ok()
+            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|time| time.as_millis() as u64)
+            .unwrap_or(0);
+        files.push(PickedLibraryFile {
+            token: token.clone(),
+            name,
+            size: metadata.len(),
+            last_modified,
+        });
+        picks.insert(token, path);
+    }
+    Ok(files)
+}
+#[tauri::command]
+pub fn library_release_picks(tokens: Vec<String>) {
+    if let Ok(mut picks) = library_picks().lock() {
+        for token in tokens {
+            picks.remove(&token);
+        }
+    }
+}
+#[tauri::command]
+pub async fn library_import_picked_file(
+    app: AppHandle,
+    collection_id: String,
+    token: String,
+) -> Result<knowledge::library::Asset, CommandError> {
+    let path = library_picks()
+        .lock()
+        .map_err(|e| error(e.to_string()))?
+        .get(&token)
+        .cloned()
+        .ok_or_else(|| error("文件选择已失效，请重新选择".into()))?;
+    let root = knowledge::ensure(&app).map_err(error)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        use std::io::Read;
+        use tauri::Manager;
+        let filename = path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .ok_or_else(|| error("文件名无效".into()))?;
+        let mut bytes = Vec::new();
+        std::fs::File::open(&path)
+            .map_err(|e| error(e.to_string()))?
+            .take((knowledge::library::file_limit(filename) + 1) as u64)
+            .read_to_end(&mut bytes)
+            .map_err(|e| error(e.to_string()))?;
+        if bytes.len() > knowledge::library::file_limit(filename) {
+            return Err(error("文档最大30 MB，录音最大250 MB".into()));
+        }
+        let db = app.state::<AppDb>();
+        let mut conn = db.conn.lock().map_err(|e| error(e.to_string()))?;
+        let result = knowledge::library::import(&mut conn, &root, &collection_id, filename, &bytes)
+            .map_err(error)?;
+        if matches!(
+            result.status.as_str(),
+            "ready" | "needs_transcription" | "needs_distillation"
+        ) && let Ok(mut picks) = library_picks().lock()
+        {
+            picks.remove(&token);
+        }
+        Ok(result)
+    })
+    .await
+    .map_err(|e| error(e.to_string()))?
 }

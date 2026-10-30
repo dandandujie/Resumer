@@ -1,0 +1,83 @@
+{
+  "version": "1.0",
+  "status": "approved",
+  "approvedOn": "2026-10-30",
+  "approvedAppSha256": "825686105af19eb244c121e55d656a8b905c92bd9348752632f898f3bd2b97bc",
+  "palette": {
+    "light": {
+      "--app-bg": "#EDEDEF",
+      "--app-sidebar": "#E5E3E8",
+      "--app-surface": "#F4F4F5",
+      "--app-summary": "#F5F2E9",
+      "--app-control": "#FFFFFF",
+      "--app-surface-muted": "#EAEAEC",
+      "--app-hover": "#E1DFE4",
+      "--app-text": "#252425",
+      "--app-text-secondary": "#505055",
+      "--app-text-muted": "#6D6D75",
+      "--app-accent": "#C2521D",
+      "--app-accent-soft": "#E7DCD6",
+      "--app-border": "#D7D6DC",
+      "--app-inverse": "#FFFFFF",
+      "--app-field": "#FBFBFC",
+      "--app-selection": "#DAD8DD"
+    },
+    "dark": {
+      "--app-bg": "#0D0D0F",
+      "--app-sidebar": "#161619",
+      "--app-surface": "#18181C",
+      "--app-summary": "#201E1C",
+      "--app-control": "#303035",
+      "--app-surface-muted": "#202024",
+      "--app-hover": "#2D2D33",
+      "--app-text": "#F1F1F3",
+      "--app-text-secondary": "#C0C0C6",
+      "--app-text-muted": "#AAA8B2",
+      "--app-accent": "#C2521D",
+      "--app-accent-soft": "#3B271E",
+      "--app-border": "#303036",
+      "--app-inverse": "#FFFFFF",
+      "--app-field": "#222227",
+      "--app-selection": "#303037"
+    }
+  },
+  "scaleRules": [
+    {
+      "selector": "html[data-design=\"stats\"]",
+      "properties": { "font-size": "16px" }
+    },
+    {
+      "selector": "[data-design=\"stats\"] body, div[data-design=\"stats\"]",
+      "properties": { "font-size": "13px" }
+    },
+    { "selector": ".app-sidebar", "properties": { "width": "192px" } },
+    {
+      "selector": ".app-page-title",
+      "properties": { "font-size": "24px", "font-weight": "650" }
+    },
+    { "selector": ".app-panel", "properties": { "border-radius": "10px" } },
+    {
+      "selector": "html[data-design=\"stats\"] [data-ui-button]",
+      "properties": { "font-size": "12px", "border-radius": "6px" }
+    }
+  ],
+  "buttonVariants": [
+    "default",
+    "outline",
+    "primary",
+    "selected",
+    "ghost",
+    "destructive"
+  ],
+  "scanDirectories": ["src/pages", "src/components", "src/styles"],
+  "contentAppearanceExceptions": [
+    {
+      "path": "src/components/preview/",
+      "reason": "简历纸张由用户简历主题控制，可使用独立颜色与字体。"
+    },
+    {
+      "path": "src/components/dashboard/template-thumbnail.tsx",
+      "reason": "缩略图展示简历模板，不是应用按钮或品牌色。"
+    }
+  ]
+}

@@ -154,7 +154,7 @@
     "startTrigger": "开始面试",
     "startFirst": "先点「开始面试」",
     "answerPlaceholder": "输入你的回答，Enter 发送…",
-    "emptyHint": "左侧选择一条投递或手动填好公司/岗位/JD，点「开始面试」。说「结束」可让面试官给出评价。",
+    "emptyHint": "直接点「开始面试」，先围绕简历练习；也可以选择投递记录或按需补充面试方向。说「结束」可获得评价。",
     "application": "关联投递",
     "applicationNone": "不关联",
     "applicationUntitled": "未命名投递",
@@ -197,7 +197,10 @@
       "smartFit": "智能排版",
       "smartFitTitle": "一键智能单页",
       "smartFitError": "智能排版失败",
-      "back": "返回工作台"
+      "back": "返回工作台",
+      "savedLocally": "已保存到本机",
+      "saveFailed": "保存失败，草稿仍保留，请重试",
+      "autoSave": "自动保存"
     },
     "aiPolish": "AI 润色",
     "invalidSectionContent": "该模块数据异常，请使用 AI 重新生成内容",
@@ -411,7 +414,9 @@
     "thinkingLive": "正在思考",
     "thinkingDone": "思考过程",
     "editResend": "编辑重发",
-    "sourceOrigin": "来源"
+    "sourceOrigin": "来源",
+    "proposalDraftConflict": "此板块在提案后已有修改，请重新生成建议，避免覆盖你的编辑。",
+    "proposalAppliedDraft": "已采纳到工作稿，保存状态见工具栏"
   },
   "pdf": {
     "exporting": "正在生成 PDF..."
@@ -863,7 +868,8 @@
     "fileTooLarge": "文件不能超过 {max} MB",
     "newResume": "新建简历",
     "replaceCurrent": "替换当前简历（保留历史版本）",
-    "aiImport": "AI 分析文件，转换为 Resumer 简历，可继续编辑和排版"
+    "aiImport": "AI 分析文件，转换为 Resumer 简历，可继续编辑和排版",
+    "beforeJsonReplace": "JSON 导入替换前"
   },
   "coverLetter": {
     "title": "求职文案",
@@ -945,20 +951,26 @@
     "viewLabel": "知识库视图",
     "browsePages": "文档目录",
     "maintenance": "资料库维护",
-    "draftPending": "有未保存的草稿，点击编辑可继续。"
+    "draftPending": "有未保存的草稿，点击编辑可继续。",
+    "typeConcept": "概念",
+    "typeGuide": "准备指南",
+    "typeQuestion": "综合问答"
   },
   "versionHistory": {
     "title": "版本历史",
-    "description": "每次保存、导出、投递和采纳 AI 修改都会留下一版；恢复前会自动保存当前状态。",
-    "empty": "还没有历史版本。保存一次或导出一次之后就会出现在这里。",
+    "description": "保存重要节点，找回修改前的内容；选择历史版本后可预览、对比和恢复。",
+    "empty": "还没有历史版本。点击「保存为版本」留下第一个重要节点。",
     "loading": "加载中…",
     "loadFailed": "版本历史加载失败",
     "event": {
-      "save": "保存",
+      "save": "自动快照",
       "export": "导出",
       "apply": "投递",
       "ai_accept": "AI 修改",
-      "restore": "恢复前"
+      "restore": "恢复前",
+      "manual": "命名版本",
+      "other": "历史记录",
+      "import": "导入前"
     },
     "appliedTo": "投递：{target}",
     "exportedAs": "导出 {format}",
@@ -969,10 +981,64 @@
     "restoreConfirmTitle": "恢复到这个版本？",
     "restoreConfirmBody": "当前内容会先自动存为一版「恢复前」，随时可以再切回来。",
     "restoreLabel": "恢复前（{time}）",
-    "current": "当前",
+    "current": "当前草稿",
     "preview": "预览",
     "selectVersion": "选择左侧的一个版本查看预览",
-    "viewApplied": "查看投递时的简历版本"
+    "viewApplied": "查看投递时的简历版本",
+    "create": "保存为版本",
+    "policy": "普通保存只更新工作稿；仅手动留档、导出/投递和覆盖保护保留版本。相同内容复用，不生成定时快照。",
+    "name": "版本名称",
+    "namePlaceholder": "例如：产品经理 · 投递前定稿",
+    "nameInvalid": "请输入 1–80 个字符的版本名称",
+    "saveFailed": "版本保存失败，请重试",
+    "created": "已保存命名版本",
+    "rename": "重命名",
+    "renamed": "版本名称已更新",
+    "delete": "删除",
+    "deleted": "已删除该历史版本",
+    "deleteTitle": "删除这个历史版本？",
+    "deleteBody": "仅删除选中的历史记录，不改变当前草稿。删除后无法恢复；已关联投递的版本不能删除。",
+    "linkedProtected": "此版本已关联投递记录，保留它才能查阅当时投出去的简历。",
+    "unsavedDraft": "有未保存修改 · 创建版本时会先保存",
+    "savedDraft": "已保存到本机 · 继续编辑的工作稿",
+    "currentHint": "这里是正在编辑的简历，历史记录不会被标成当前草稿。",
+    "search": "搜索版本名称或时间",
+    "filterLabel": "筛选历史版本",
+    "filter": {
+      "all": "全部记录",
+      "named": "命名版本"
+    },
+    "noResults": "没有匹配的记录，试试其他关键词或筛选。",
+    "detailView": "版本查看方式",
+    "compare": "变更对比",
+    "identical": "与当前内容相同",
+    "compareHint": "左侧为所选历史版本，右侧为当前草稿；对比覆盖内容、模块顺序、显示状态与排版。",
+    "noChanges": "该版本与当前草稿的内容和排版相同，无需恢复。",
+    "before": "所选历史版本",
+    "after": "当前草稿",
+    "visible": "显示",
+    "hidden": "隐藏",
+    "restoreSafety": "恢复前自动保留当前草稿，恢复后也能找回来。",
+    "done": "完成",
+    "retry": "重试",
+    "missing": "该版本已不存在，请重新加载历史列表。",
+    "originalCompare": "原 DOCX 的排版由文档引擎保留，请用预览查看；暂不提供逐字对比。",
+    "change": {
+      "added": "新增模块",
+      "removed": "删除模块",
+      "changed": "内容修改",
+      "format": "格式或条目结构修改",
+      "visibility": "显示状态修改",
+      "order": "模块顺序",
+      "title": "简历标题",
+      "template": "模板",
+      "language": "语言",
+      "theme": "排版样式"
+    },
+    "changeHint": {
+      "theme": "颜色、字体、间距或页面设置有变化，请切换预览查看所选版本。",
+      "format": "文字格式、条目结构或图片有变化，纯文字相同；请结合版本预览检查。"
+    }
   },
   "errors": {
     "hint": {
@@ -1013,5 +1079,15 @@
     "retry": "重新打开",
     "line": "行距",
     "invalidLine": "行距须在 0.5～5 倍之间"
+  },
+  "unsaved": {
+    "title": "有尚未保存的修改",
+    "body": "离开前要保存这些修改吗？选择不保存将放弃本次工作稿。",
+    "requiredTitle": "先保存当前工作稿",
+    "requiredBody": "此操作需要使用已保存的简历。保存后继续，或取消回到编辑。",
+    "cancel": "取消",
+    "discard": "不保存",
+    "saveContinue": "保存并继续",
+    "saveLeave": "保存并离开"
   }
 }

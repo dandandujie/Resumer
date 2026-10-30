@@ -180,6 +180,7 @@ export async function updateResume(
   id: string,
   data: {
     title: string;
+    language?: string;
     template?: string;
     themeConfig?: any;
     sections?: any[];
@@ -191,6 +192,7 @@ export async function updateResume(
       id,
       userId,
       title: data.title,
+      language: data.language,
       template: data.template,
       themeConfig: data.themeConfig,
       sections: data.sections,
@@ -240,14 +242,16 @@ export async function saveDocxCopy(filename: string, bytes: number[]) {
 
 // ── 版本历史 ──
 
-export type ResumeVersionEvent = 'save' | 'export' | 'apply' | 'ai_accept' | 'restore';
+export type ResumeVersionEvent = 'save' | 'manual' | 'import' | 'export' | 'apply' | 'ai_accept' | 'restore';
 
 export interface ResumeVersionSummary {
+  events?: {event: string; label: string; createdAt: number}[];
   id: string;
   resumeId: string;
   event: ResumeVersionEvent | string;
   label: string;
   resumeTitle: string;
+  name: string;
   /** unix 秒 */
   createdAt: number;
 }
@@ -277,6 +281,14 @@ export async function restoreResumeVersion(versionId: string, label: string) {
   return invoke<void>('restore_resume_version', { versionId, userId, label });
 }
 
+export async function renameResumeVersion(id: string, name: string) {
+  return invoke<void>('rename_resume_version', { id, name, userId: await getCachedUserId() });
+}
+
+export async function deleteResumeVersion(id: string) {
+  return invoke<void>('delete_resume_version', { id, userId: await getCachedUserId() });
+}
+
 // ── 知识库 ──
 
 export interface KnowledgePageSummary {
@@ -297,8 +309,8 @@ export async function knowledgeRead(path: string) {
   return invoke<string>('knowledge_read', { path });
 }
 
-export async function knowledgeWrite(path: string, content: string) {
-  return invoke<void>('knowledge_write', { path, content });
+export async function knowledgeWrite(path: string, content: string, expected?: string) {
+  return invoke<void>('knowledge_write', { path, content, expected:expected??null });
 }
 
 export interface KnowledgeGraphData {
@@ -306,8 +318,9 @@ export interface KnowledgeGraphData {
   edges: Array<{ source: string; target: string; type: string }>;
 }
 
-export async function knowledgeSearch(query: string, type?: string, limit = 8) {
-  return invoke<any[]>('knowledge_search', { query, kind: type, limit });
+export interface KnowledgeSearchHit {path:string;title:string;type:string;summary:string;excerpt:string}
+export async function knowledgeSearch(query: string, type?: string, limit = 8, expand=true) {
+  return invoke<KnowledgeSearchHit[]>('knowledge_search', { query, kind: type, limit, expand });
 }
 
 export async function knowledgeGraph() {
@@ -566,12 +579,14 @@ export async function aiChat(data: {
   resumeId: string;
   sessionId?: string;
   selectedModel?: string;
+  draft?: unknown;
 }) {
   return invoke<any>('ai_chat', {
     streamId: data.streamId,
     config: getAIConfig(data.selectedModel),
     messages: data.messages,
     resumeId: data.resumeId,
+    draft: data.draft,
     sessionId: data.sessionId,
   });
 }
@@ -757,3 +772,62 @@ export async function exportDocx(
 ) {
   return invoke<string | null>('export_docx', { resumeId, theme, filename });
 }
+
+// 资料集：普通文档和 Skill 使用独立存储及索引，导入不依赖模型服务。
+export interface LibraryCollection { id: string; title: string; purpose: string; category: string; tags: string[]; kind: 'document' | 'skill'; enabled: boolean; assetCount: number; readyCount: number; updatedAt: number }
+export interface LibraryAsset { id: string; collectionId: string; filename: string; extension: string; status: 'ready' | 'error' | 'needs_ocr' | 'needs_transcription' | 'needs_distillation' | 'archived_transcript'; error: string; characters: number }
+export interface LibraryRead { assetId: string; filename: string; status: string; error: string; content: string; offset: number; total: number; nextOffset: number | null }
+export interface LibraryHit { assetId: string; filename: string; collectionId: string; collection: string; category: string; tags: string[]; kind: string; offset: number; excerpt: string }
+export const libraryCollections = () => invoke<LibraryCollection[]>('library_collections');
+export const libraryPutCollection = (data: { id?: string; title: string; purpose: string; category?: string; tags?: string[]; kind: 'document' | 'skill'; enabled: boolean }) => invoke<string>('library_put_collection', { ...data, category: data.category ?? data.tags?.[0] ?? '', tags:data.tags??null, id: data.id ?? null });
+export const libraryAssets = (collectionId: string) => invoke<LibraryAsset[]>('library_assets', { collectionId });
+export const libraryImportFile = (collectionId: string, filename: string, bytes: number[]) => invoke<LibraryAsset>('library_import_file', { collectionId, filename, bytes });
+export const libraryReadAsset = (assetId: string, offset = 0) => invoke<LibraryRead>('library_read_asset', { assetId, offset });
+export const librarySearch = (query: string, collectionId?: string, category?: string, kind?: string, filter?: {tags:string[];match:'all'|'any';untagged:boolean}) => invoke<LibraryHit[]>('library_search', { query, collectionId: collectionId ?? null, category: category ?? null, kind: kind ?? null, tags:filter?.tags??null,tagMatch:filter?.match??'all',untagged:filter?.untagged??null });
+export const libraryOpenOriginal = (assetId: string) => invoke<void>('library_open_original', { assetId });
+export interface LibraryPickedFile {token: string; name: string; size: number; lastModified: number}
+export const libraryChooseFiles = (kind: string) => invoke<LibraryPickedFile[] | null>('library_choose_files', {kind});
+export const libraryReleasePicks = (tokens: string[]) => invoke<void>('library_release_picks', {tokens});
+export const libraryImportPickedFile = (collectionId: string, token: string) => invoke<LibraryAsset>('library_import_picked_file', {collectionId, token});
+
+export interface SpeechConfig { baseUrl: string; apiKey: string; model: string; language: string; ffmpegPath: string }
+export interface InterviewRecording { id: string; applicationId: string; roundId: string | null; filename: string; extension: string; size: number; transcript: string; error: string; createdAt: number; completedParts: number }
+export const recordingList = (applicationId: string) => invoke<InterviewRecording[]>('recording_list', { applicationId });
+export const recordingImport = (applicationId: string, roundId: string | null = null) => invoke<InterviewRecording[]>('recording_import', { applicationId, roundId });
+export const recordingSave = (id: string, transcript: string, roundId: string | null) => invoke<InterviewRecording>('recording_save', { id, transcript, roundId });
+export const recordingOpen = (id: string) => invoke<void>('recording_open', { id });
+export const recordingDelete = (id: string) => invoke<void>('recording_delete', { id });
+export const recordingTranscribe = (id: string, config: SpeechConfig) => invoke<InterviewRecording>('recording_transcribe', { id, config });
+export const recordingPublish = (id: string) => invoke<string>('recording_publish', { id });
+export const intakeExtract = (text: string) => invoke<{ company: string; role: string; jd: string }>('intake_extract', { text, config: getAIConfig() });
+
+export type WorkspaceScope = 'activity' | 'application' | 'mock' | 'library' | 'upload' | 'wiki';
+export interface WorkspaceAction { kind: 'application' | 'interview' | 'outcome' | 'collection' | 'mock' | 'wiki'; before?:string; targetId: string; roundId: string; fields: Record<string,string | number | string[]>; reason: string }
+export interface WorkspaceCitation { sourceId: string; title: string; path?: string; assetId?: string; offset?: number; quote: string }
+export interface WorkspaceAnswer { question?:string; reply: string; actions: WorkspaceAction[]; citations: WorkspaceCitation[] }
+export const workspaceAssist = (scope:WorkspaceScope,text:string,context:unknown) => invoke<WorkspaceAnswer>('workspace_assist',{scope,text,context,config:getAIConfig()});
+
+export const isAudioAsset=(filename:string)=>/\.(mp3|m4a|wav|mp4|webm|ogg|flac)$/i.test(filename);
+export interface AudioKnowledgeState { assetId:string;filename:string;status:string;transcript:string;distillation:string }
+export const libraryAudioState=(assetId:string)=>invoke<AudioKnowledgeState>('library_audio_state',{assetId});
+export const libraryAudioSave=(assetId:string,transcript:string)=>invoke<AudioKnowledgeState>('library_audio_save',{assetId,transcript});
+export const libraryAudioTranscribe=(assetId:string,config:SpeechConfig)=>invoke<AudioKnowledgeState>('library_audio_transcribe',{assetId,config});
+export interface WikiPlannedPage {path:string;title:string;kind:string;body:string;before:string|null;sources:string[];stamp:string}
+export interface KnowledgeDraft {id:string;kind:'distill'|'wiki'|'maintenance'|'answer';status:string;createdAt?:number;payload:{title:string;markdown?:string;source?:string;sourceKind?:string;sourceId?:string;chunks?:number;pages?:WikiPlannedPage[];questions?:string[];insights?:string[];conflicts?:string[];evidence?:{quote:string}[];coverage?:{files?:number;chunks?:number;pages?:number;skipped?:{filename:string;status:string}[]};structural?:{issues:string[]}}}
+export const knowledgeDistillPrepare=(sourceKind:'asset'|'recording',sourceId:string,instructions='')=>invoke<KnowledgeDraft>('knowledge_distill_prepare',{sourceKind,sourceId,instructions,config:getAIConfig()});
+export const knowledgeDrafts=()=>invoke<KnowledgeDraft[]>('knowledge_drafts');
+export const knowledgeDiscardDraft=(id:string)=>invoke<void>('knowledge_discard_draft',{id});
+export const knowledgeCompilePrepare=(collectionId:string,instructions='')=>invoke<KnowledgeDraft>('knowledge_compile_prepare',{collectionId,instructions,config:getAIConfig()});
+export const knowledgeMaintainPrepare=(instructions='检查冲突、过时结论与知识空缺')=>invoke<KnowledgeDraft>('knowledge_maintain_prepare',{instructions,config:getAIConfig()});
+export const knowledgeApplyDraft=(id:string,markdown?:string)=>invoke<{assetId?:string;collectionId?:string;pages:string[]}>('knowledge_apply_draft',{id,markdown});
+export const knowledgeSaveAnswer=(answer:WorkspaceAnswer)=>invoke<string>('knowledge_save_answer',{question:answer.question||'知识问答',reply:answer.reply,citations:answer.citations});
+export const knowledgeOpenVault=()=>invoke<void>('knowledge_open_vault');
+
+export const knowledgeProposeEdit=(actions:WorkspaceAction[])=>invoke<KnowledgeDraft>('knowledge_propose_edit',{actions});
+
+export const knowledgeUpdateDraft=(id:string,markdown:string)=>invoke<void>('knowledge_update_draft',{id,markdown});
+
+export const knowledgeFolders=()=>invoke<string[]>('knowledge_folders');
+export const knowledgeCreateFolder=(path:string)=>invoke<void>('knowledge_create_folder',{path});
+export const knowledgeUpdateProperties=(path:string,title:string,tags:string[],expected:string)=>invoke<void>('knowledge_update_properties',{path,title,tags,expected});
+export const knowledgeOpenFile=(path:string)=>invoke<void>('knowledge_open_file',{path});

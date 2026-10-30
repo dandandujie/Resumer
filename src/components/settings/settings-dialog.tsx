@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import {
-  Settings,
+  ArrowLeft,
+  SlidersHorizontal,
+  AudioLines,
+  Sparkles,
   Eye,
   EyeOff,
   ChevronsUpDown,
@@ -49,6 +52,7 @@ import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { LocaleSwitcher } from '@/components/layout/locale-switcher';
+import { SpeechSettings } from '@/components/settings/speech-settings';
 import { SearchSettings } from '@/components/settings/search-settings';
 import { BackupPanel } from '@/components/settings/backup-panel';
 
@@ -77,7 +81,7 @@ export function SettingsDialog() {
   const t = useTranslations('settings');
   const tErrorHint = useTranslations('errors.hint');
   const tCommon = useTranslations('common');
-  const { activeModal, closeModal } = useUIStore();
+  const { activeModal, closeModal, settingsTab, setSettingsTab, theme, setTheme } = useUIStore();
   const {
     aiProvider,
     aiApiKey,
@@ -324,20 +328,24 @@ export function SettingsDialog() {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && closeModal()}>
-      <DialogContent className="flex h-[min(760px,calc(100dvh-32px))] max-h-[calc(100dvh-32px)] flex-col overflow-hidden p-0 gap-0 sm:max-w-[820px]">
-        <DialogHeader className="shrink-0 border-b border-border px-6 py-5 pr-12">
-          <DialogTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5 text-muted-foreground" />
-            {t('title')}
-          </DialogTitle>
-          <DialogDescription>{t('panelDescription')}</DialogDescription>
-        </DialogHeader>
-        <Tabs defaultValue="general" className="min-h-0 flex-1 gap-0">
-          <TabsList className="mx-5 my-3 grid h-auto w-auto shrink-0 grid-cols-2 group-data-[orientation=horizontal]/tabs:h-auto">
-            <TabsTrigger value="general">{t('general')}</TabsTrigger>
-            <TabsTrigger value="ai">{t('ai.channelsTab')}</TabsTrigger>
-          </TabsList>
-          <TabsContent value="general" className="min-h-0 flex-1 space-y-6 overflow-y-auto p-5 sm:p-6">
+      <DialogContent className="settings-workspace" showCloseButton={false} data-settings-workspace>
+        <DialogHeader className="sr-only"><DialogTitle>{t('title')}</DialogTitle><DialogDescription>{t('panelDescription')}</DialogDescription></DialogHeader>
+        <Tabs orientation="vertical" value={["general", "ai", "speech"].includes(settingsTab) ? settingsTab : "general"} onValueChange={setSettingsTab} className="settings-layout">
+          <aside className="settings-sidebar">
+            <div data-tauri-drag-region className="h-11 shrink-0" />
+            <Button variant="ghost" size="sm" className="mb-4 justify-start" onClick={closeModal}><ArrowLeft />返回应用</Button>
+            <p className="app-nav-caption">SETTINGS</p>
+            <TabsList className="settings-navigation">
+              <TabsTrigger value="general"><SlidersHorizontal />{t('general')}</TabsTrigger>
+              <TabsTrigger value="ai"><Sparkles />{t('ai.channelsTab')}</TabsTrigger>
+              <TabsTrigger value="speech"><AudioLines />语音转写</TabsTrigger>
+            </TabsList>
+            <p className="mt-auto px-3 py-4 text-[10px] text-muted-foreground">Resumer · 本机偏好设置</p>
+          </aside>
+          <div className="settings-main">
+            <div className="settings-heading"><p className="app-eyebrow">SETTINGS</p><h2 className="app-page-title">{settingsTab === 'ai' ? t('ai.channelsTab') : settingsTab === 'speech' ? '语音转写' : t('general')}</h2><p className="app-page-description">{settingsTab === 'ai' ? '选择服务渠道，配置模型与连接。' : settingsTab === 'speech' ? '将面试录音转换为可校对的复盘素材。' : '调整应用外观、编辑偏好、搜索与备份。'}</p></div>
+          <TabsContent data-settings-page="general" value="general" className="min-h-0 flex-1 space-y-6 overflow-y-auto p-5 sm:p-6">
+          <section className="space-y-3"><div><h3 className="app-panel-title">外观</h3><p className="app-panel-description">应用界面的显示方式，简历纸张始终保持原有排版。</p></div><div className="grid grid-cols-3 gap-3" role="radiogroup" aria-label="应用外观">{(['light', 'dark', 'system'] as const).map(value => <button type="button" role="radio" aria-checked={theme === value} key={value} className="appearance-choice" data-appearance-choice={value} onClick={() => setTheme(value)}><span className={`appearance-preview appearance-preview-${value}`}><span /><span /></span><span className="flex items-center justify-between text-xs">{value === 'light' ? '浅色' : value === 'dark' ? '深色' : '跟随系统'}<span className="appearance-radio">{theme === value && <Check className="size-2.5" />}</span></span></button>)}</div></section>
           <section className="flex flex-wrap items-center gap-x-6 gap-y-4 rounded-xl border p-4 text-sm" aria-label={t('general')}>
             <div className="flex items-center gap-4"><span>{t('language')}</span><LocaleSwitcher /></div>
             <label className="flex items-center gap-2">
@@ -361,11 +369,13 @@ export function SettingsDialog() {
           <BackupPanel className="m-0 border-t pt-5" />
           </TabsContent>
 
+        <TabsContent data-settings-page="speech" value="speech" className="min-h-0 flex-1 overflow-y-auto"><SpeechSettings /></TabsContent>
+
         {/* 左：渠道列表；右：选中渠道的配置 */}
-        <TabsContent value="ai" className="min-h-0 flex-1 overflow-hidden">
+        <TabsContent data-settings-page="ai" value="ai" className="min-h-0 flex-1 overflow-hidden">
           <div className="flex h-full min-h-0 max-sm:flex-col">
             {/* Left: channel rail */}
-            <div className="flex w-48 shrink-0 flex-col border-r border-border max-sm:max-h-36 max-sm:w-full max-sm:border-b max-sm:border-r-0">
+            <div className="flex w-60 shrink-0 flex-col border-r border-border max-sm:max-h-36 max-sm:w-full max-sm:border-b max-sm:border-r-0">
               <div className="min-h-0 flex-1 overflow-y-auto p-2">
                 <div className="space-y-0.5">
                   {channels.map((ch) => {
@@ -403,7 +413,7 @@ export function SettingsDialog() {
                           />
                         ) : (
                           <>
-                            <span className="min-w-0 flex-1 truncate">
+                            <span className="min-w-0 flex-1 break-words leading-5">
                               {ch.name}
                             </span>
                             <button
@@ -451,7 +461,7 @@ export function SettingsDialog() {
             </div>
 
             {/* Right: config for the active channel */}
-            <div className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto p-5">
+            <div className="min-h-0 min-w-0 max-w-[800px] flex-1 space-y-4 overflow-y-auto p-5">
               {!activeChannel ? (
                 <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">
                   {t('ai.channelNone')}
@@ -761,7 +771,7 @@ export function SettingsDialog() {
                           <Button
                             type="button"
                             size="sm"
-                            className="cursor-pointer bg-brand hover:bg-brand-hover"
+                            variant="primary" className="cursor-pointer"
                             onClick={() => setPickerOpen(false)}
                           >
                             {t('ai.modelPickerDone')}
@@ -806,7 +816,7 @@ export function SettingsDialog() {
                         disabled={
                           !canQueryAI || isTestingConnection || modelsFetching
                         }
-                        className="cursor-pointer bg-brand hover:bg-brand-hover"
+                        variant="primary" className="cursor-pointer"
                       >
                         {isTestingConnection ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -826,7 +836,7 @@ export function SettingsDialog() {
                         className={cn(
                           'flex items-start gap-2 rounded-md px-3 py-2 text-xs',
                           connectionState === 'success' &&
-                            'bg-emerald-50 text-emerald-700',
+                            'bg-[var(--app-hover)] text-[var(--app-text-secondary)]',
                           connectionState === 'warning' &&
                             'bg-amber-50 text-amber-700',
                           connectionState === 'error' &&
@@ -854,11 +864,8 @@ export function SettingsDialog() {
             </div>
           </div>
         </TabsContent>
-        </Tabs>
-        <div className="flex shrink-0 items-center justify-between border-t px-6 py-3">
-          <span className="text-xs text-muted-foreground">{t('savedLocally')}</span>
-          <Button onClick={closeModal}>{tCommon('done')}</Button>
-        </div>
+        <div className="settings-footer"><span className="text-[11px] text-muted-foreground">{t('savedLocally')}</span><Button size="sm" onClick={closeModal}>{tCommon('done')}</Button></div>
+        </div></Tabs>
       </DialogContent>
     </Dialog>
   );

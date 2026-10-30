@@ -107,6 +107,8 @@ export function ImportResumeDialog({
         const data = JSON.parse(await file.text());
         if (!Array.isArray(data.sections)) throw new Error(t('invalidFormat'));
         if (mode === 'replace' && targetResumeId) {
+          await useResumeStore.getState().flushPendingSave();
+          await api.createResumeVersion(targetResumeId, 'import', t('beforeJsonReplace'));
           await api.updateResume(targetResumeId, {
             title: data.title || '未命名简历',
             sections: normalizeResumeDates(data.sections),
@@ -224,7 +226,7 @@ export function ImportResumeDialog({
             />
             {file ? (
               <>
-                <FileText className="mb-2 h-8 w-8 text-green-500" />
+                <FileText className="mb-2 h-8 w-8 text-[var(--app-text-secondary)]" />
                 <p className="max-w-full truncate text-sm font-medium">
                   {file.name}
                 </p>
@@ -246,7 +248,7 @@ export function ImportResumeDialog({
             </p>
           )}
           {state === 'success' && (
-            <p className="flex items-center justify-center gap-2 text-sm text-green-600">
+            <p className="flex items-center justify-center gap-2 text-sm text-[var(--app-text-secondary)]">
               <CheckCircle2 className="h-4 w-4" />
               {t('success')}
             </p>
@@ -269,7 +271,7 @@ export function ImportResumeDialog({
           <Button
             onClick={importFile}
             disabled={!file || state === 'importing'}
-            className="bg-brand hover:bg-brand-hover"
+            variant="primary"
           >
             {t('importBtn')}
           </Button>

@@ -105,6 +105,31 @@ fn fts_expression(terms: &[String]) -> String {
         .join(" OR ")
 }
 
+fn excerpt_near(body: &str, terms: &[String]) -> String {
+    let lower = body.to_lowercase();
+    let at = terms
+        .iter()
+        .filter_map(|t| lower.find(&t.to_lowercase()))
+        .min()
+        .unwrap_or(0);
+    let chars_before = body.char_indices().take_while(|(i, _)| *i < at).count();
+    let start = chars_before.saturating_sub(70);
+    let excerpt = body
+        .chars()
+        .skip(start)
+        .take(EXCERPT_CHARS)
+        .collect::<String>();
+    format!(
+        "{}{}{}",
+        if start > 0 { "…" } else { "" },
+        excerpt,
+        if body.chars().count() > start + EXCERPT_CHARS {
+            "…"
+        } else {
+            ""
+        }
+    )
+}
 fn row_hit(row: &rusqlite::Row<'_>) -> rusqlite::Result<SearchHit> {
     Ok(SearchHit {
         path: row.get(0)?,
@@ -134,6 +159,15 @@ pub fn search(
     query: &str,
     page_type: Option<&str>,
     limit: usize,
+) -> Result<Vec<SearchHit>, String> {
+    search_with_options(conn, query, page_type, limit, true)
+}
+pub fn search_with_options(
+    conn: &Connection,
+    query: &str,
+    page_type: Option<&str>,
+    limit: usize,
+    expand: bool,
 ) -> Result<Vec<SearchHit>, String> {
     let terms = query_terms(query);
     if terms.is_empty() || limit == 0 {
@@ -191,8 +225,15 @@ pub fn search(
     }
 
     // 一跳扩展：直接命中页里的 wikilink 目标也带上，让公司页顺带把岗位页/SOP 带出来。
+    let catalog = conn
+        .prepare("SELECT path,title FROM knowledge_pages")
+        .map_err(|e| e.to_string())?
+        .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
     let mut related: Vec<String> = Vec::new();
-    for hit in &hits {
+    for hit in &mut hits {
         let body: String = conn
             .query_row(
                 "SELECT body FROM knowledge_pages WHERE path = ?1",
@@ -200,7 +241,14 @@ pub fn search(
                 |row| row.get(0),
             )
             .map_err(|error| error.to_string())?;
-        for link in super::vault::wikilinks(&body) {
+        hit.excerpt = excerpt_near(&body, &terms);
+        if !expand {
+            continue;
+        }
+        for raw_link in super::vault::wikilinks(&body) {
+            let Some(link) = super::vault::resolve_link(&hit.path, &raw_link, &catalog) else {
+                continue;
+            };
             if link.starts_with("wiki/") && !related.contains(&link) {
                 related.push(link);
             }
@@ -314,5 +362,35 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
+    }
+}
+
+#[cfg(test)]
+mod excerpt_tests {
+    use super::*;
+    #[test]
+    fn late_hits_have_matching_context_and_ui_search_does_not_expand() {
+        let conn = Connection::open_in_memory().unwrap();
+        crate::db::migrate::run(&conn).unwrap();
+        let content = format!(
+            "{}\n尾部独特证据\n[[wiki/concepts/related.md]]",
+            "长文".repeat(4000)
+        );
+        let a = super::super::vault::parse_page(
+            "wiki/concepts/a.md",
+            &format!("---\ntitle: A\ntype: concept\n---\n{content}"),
+        )
+        .unwrap();
+        let b = super::super::vault::parse_page(
+            "wiki/concepts/related.md",
+            "---\ntitle: B\ntype: concept\n---\n关联资料",
+        )
+        .unwrap();
+        upsert(&conn, &a).unwrap();
+        upsert(&conn, &b).unwrap();
+        let direct = search_with_options(&conn, "独特证据", None, 10, false).unwrap();
+        assert_eq!(direct.len(), 1);
+        assert!(direct[0].excerpt.contains("尾部独特证据"));
+        assert!(search(&conn, "独特证据", None, 10).unwrap().len() > 1);
     }
 }

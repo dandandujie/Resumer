@@ -4,9 +4,10 @@ import i18n from '@/i18n';
 import { locales } from '@/i18n/config';
 import { useDesignAttribute } from '@/hooks/use-design-attribute';
 import { startWindowDrag } from '@/lib/window-drag';
+import { useUIStore } from '@/stores/ui-store';
 
 // Layouts
-import { WhaleDashboardShell } from '@/components/layout/whale-dashboard-shell';
+import { AppShell } from '@/components/layout/app-shell';
 import { BoundedOutlet, PageErrorBoundary } from '@/components/layout/page-error-boundary';
 
 // Pages (lazy imports not needed for desktop app)
@@ -27,6 +28,7 @@ function LocaleProvider() {
   const { locale } = useParams<{ locale: string }>();
 
   useEffect(() => {
+    if (locale) document.documentElement.lang = locale;
     if (locale && locale !== i18n.language) {
       i18n.changeLanguage(locale);
     }
@@ -36,9 +38,10 @@ function LocaleProvider() {
 }
 
 function EditorLayout() {
-  useDesignAttribute('whale');
+  useDesignAttribute('stats');
+  const settingsOpen = useUIStore(state => state.activeModal === 'settings');
   return (
-    <div data-design="whale" className="relative h-screen overflow-hidden bg-[var(--whale-cream)] text-[var(--whale-ink)]">
+    <div data-design="stats" style={{ display: settingsOpen ? 'none' : undefined }} className="relative h-screen overflow-hidden bg-[var(--app-bg)] text-[var(--app-text)]">
       <div
         data-tauri-drag-region
         className="fixed inset-x-0 top-0 z-[100] h-5 cursor-default"
@@ -63,7 +66,7 @@ export function AppRouter() {
         <Route index element={<Navigate to="dashboard" replace />} />
 
         {/* 工作台 + 求职动态共用同一个壳 */}
-        <Route element={<WhaleDashboardShell />}>
+        <Route element={<AppShell />}>
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="insights" element={<InsightsOverviewPage />} />
           <Route path="knowledge" element={<KnowledgePage />} />

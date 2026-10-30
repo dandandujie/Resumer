@@ -3,6 +3,9 @@ import { useTranslations } from 'next-intl';
 import { ArrowLeft, Download, History, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from '@/i18n/routing';
+import { AutoSaveToggle } from './auto-save-toggle';
+import { originalDocuments, useUnsavedStore } from '@/stores/unsaved-store';
+import { useSettingsStore } from '@/stores/settings-store';
 import { Button } from '@/components/ui/button';
 import { OriginalDocumentCanvas, type OriginalDocumentHandle } from './original-document-canvas';
 import { VersionHistoryDialog } from './version-history-dialog';
@@ -43,17 +46,26 @@ export default function OriginalDocumentEditor({ resume, readOnly = false, onRes
     window.addEventListener('keydown', keydown);
     return () => window.removeEventListener('keydown', keydown);
   }, [act]);
+  useEffect(() => {
+    originalDocuments.set(resume.id, { dirty: () => !!editor.current?.isDirty() || ['dirty','error','saving'].includes(state), save: async () => { await editor.current?.save(); }, discard: () => editor.current?.discard() });
+    return () => { originalDocuments.delete(resume.id); };
+  }, [resume.id, state]);
+  const prepared = (action: () => void | Promise<void>) => {
+    if (!useSettingsStore.getState().autoSave && ['dirty','error'].includes(state)) useUnsavedStore.getState().ask(action, 'required', 'resume');
+    else void act(action);
+  };
   const disabled = busy || state === 'loading' || state === 'load-error';
-  return <div className="flex h-screen min-w-0 flex-col bg-[var(--whale-cream)]">
-    <header className="flex min-h-16 shrink-0 items-center gap-3 border-b border-[var(--whale-divider)] px-4 pl-20">
-      <Button variant="ghost" size="icon" aria-label={t('back')} disabled={busy} onClick={() => state === 'load-error' || state === 'loading' ? router.push('/dashboard') : void act(() => router.push('/dashboard'))}><ArrowLeft className="h-4 w-4" /></Button>
+  return <div className="flex h-screen min-w-0 flex-col bg-[var(--app-bg)]">
+    <header className="flex min-h-16 shrink-0 items-center gap-3 border-b border-[var(--app-border)] px-4 pl-20">
+      <Button variant="ghost" size="icon" aria-label={t('back')} disabled={busy} onClick={() => router.push('/dashboard')}><ArrowLeft className="h-4 w-4" /></Button>
       <div className="min-w-0 flex-1">
         <h1 className="truncate text-sm font-semibold">{resume.title}</h1>
-        <p className="mt-0.5 text-xs text-[var(--whale-ink-muted)]">{t('mode')} · <span role="status">{t(state)}</span></p>
+        <p className="mt-0.5 text-xs text-[var(--app-text-muted)]">{t('mode')} · <span role="status">{t(state)}</span></p>
       </div>
       {!readOnly && <>
-        <Button variant="ghost" size="sm" disabled={disabled} onClick={() => void act(() => openModal('journal'))}>{t('journal')}</Button>
-        <Button variant="ghost" size="sm" disabled={disabled} onClick={() => void act(() => setHistory(true))}><History className="h-4 w-4" /><span className="hidden sm:inline">{t('history')}</span></Button>
+        <Button variant="ghost" size="sm" disabled={disabled} onClick={() => prepared(() => openModal('journal'))}>{t('journal')}</Button>
+        <Button variant="ghost" size="sm" disabled={disabled} onClick={() => prepared(() => setHistory(true))}><History className="h-4 w-4" /><span className="hidden sm:inline">{t('history')}</span></Button>
+        <AutoSaveToggle />
         <Button variant="outline" size="sm" disabled={disabled} onClick={() => void act()}><Save className="h-4 w-4" />{t('save')}</Button>
       </>}
       {state === 'error' && <Button variant="outline" size="sm" disabled={busy} onClick={async () => {
@@ -63,7 +75,7 @@ export default function OriginalDocumentEditor({ resume, readOnly = false, onRes
         finally { setBusy(false); }
       }}>{t('rescueCopy')}</Button>}
       {state === 'load-error' && <Button size="sm" onClick={() => setGeneration((value) => value + 1)}>{t('retry')}</Button>}
-      <Button size="sm" disabled={disabled} onClick={() => void act(async () => {
+      <Button size="sm" disabled={disabled} onClick={() => prepared(async () => {
         const path = await api.exportOriginalDocx(resume.id);
         if (path) await api.createResumeVersion(resume.id, 'export', 'DOCX');
       })}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} DOCX</Button>

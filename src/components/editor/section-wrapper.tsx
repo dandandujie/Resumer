@@ -42,9 +42,8 @@ const sectionComponents: Record<string, React.ComponentType<{ section: ResumeSec
 
 export function SectionWrapper({ section, onUpdate, onRemove }: SectionWrapperProps) {
   const t = useTranslations('editor');
-  const { selectedSectionId, selectSection, setRightPaneTab, setPendingAiMessage } = useEditorStore();
+  const { selectSection, setRightPaneTab, setPendingAiMessage } = useEditorStore();
   const { toggleSectionVisibility, updateSectionTitle } = useResumeStore();
-  const isSelected = selectedSectionId === section.id;
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(section.title);
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -71,12 +70,10 @@ export function SectionWrapper({ section, onUpdate, onRemove }: SectionWrapperPr
 
   return (
     <div
-      className={`rounded-xl border bg-card shadow-sm transition-all duration-200 ${
-        isSelected ? 'border-brand shadow-brand-muted/50' : 'border-border hover:border-[var(--whale-ink)]/30'
-      } ${!section.visible ? 'opacity-50' : ''}`}
+      className={section.visible ? 'min-w-0' : 'min-w-0 opacity-50'}
       onClick={() => selectSection(section.id)}
     >
-      <div className="flex flex-row flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2.5 md:px-4">
+      <div className="flex flex-row flex-wrap items-center justify-between gap-2 border-b border-border px-0 pb-3 pt-0">
         <div className="flex items-center gap-2">
           {isRenaming ? (
             <input
@@ -88,12 +85,12 @@ export function SectionWrapper({ section, onUpdate, onRemove }: SectionWrapperPr
                 if (e.key === 'Enter') commitRename();
                 if (e.key === 'Escape') { setRenameValue(section.title); setIsRenaming(false); }
               }}
-              className="h-6 w-32 rounded border border-brand bg-transparent px-1 text-sm font-semibold text-[var(--whale-ink-soft)] outline-none"
+              className="h-6 w-32 rounded border border-brand bg-transparent px-1 text-sm font-semibold text-[var(--app-text-secondary)] outline-none"
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
             <h3
-              className={`text-sm font-semibold text-[var(--whale-ink-soft)] ${isRenamable ? 'cursor-text rounded px-1 -mx-1 hover:bg-muted' : ''}`}
+              className={`text-sm font-semibold text-[var(--app-text-secondary)] ${isRenamable ? 'cursor-text rounded px-1 -mx-1 hover:bg-muted' : ''}`}
               onDoubleClick={isRenamable ? (e) => { e.stopPropagation(); setRenameValue(section.title); setIsRenaming(true); } : undefined}
             >
               {section.title}
@@ -147,7 +144,7 @@ export function SectionWrapper({ section, onUpdate, onRemove }: SectionWrapperPr
           </Button>}
         </div>
       </div>
-      <div className="px-4 pb-4 pt-3">
+      <div className="pb-4 pt-4">
         {!section.content || typeof section.content !== 'object' ? (
           <p className="text-sm text-red-400">{t('invalidSectionContent')}</p>
         ) : SectionComponent ? (

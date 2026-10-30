@@ -107,6 +107,7 @@ pub async fn ai_chat(
     messages: Vec<ChatInputMessage>,
     resume_id: String,
     session_id: Option<String>,
+    draft: Option<Value>,
 ) -> Result<Value, CommandError> {
     let cfg = cfg_from(config)?;
 
@@ -131,7 +132,7 @@ pub async fn ai_chat(
         }
     }
 
-    let (resume_context, applications_context) = {
+    let (draft_conn, applications_context) = {
         let conn = db.conn.lock().map_err(|e| CommandError {
             message: e.to_string(),
         })?;
@@ -144,11 +145,17 @@ pub async fn ai_chat(
             })?;
         let applications = journal_repo::context_for_resume(&conn, &resume_id).unwrap_or_default();
         (
-            serde_json::to_string(&resume.sections).unwrap_or_default(),
+            tools::draft_connection(&resume, draft.as_ref())
+                .map_err(|message| CommandError { message })?,
             applications,
         )
     };
 
+    let resume_context = serde_json::to_string(&resume_repo::find_sections_by_resume_id(
+        &draft_conn,
+        &resume_id,
+    )?)
+    .unwrap_or_default();
     let mut system_prompt = prompts::with_response_format(prompts::get_system_prompt(
         &resume_context,
         &applications_context,
@@ -156,6 +163,7 @@ pub async fn ai_chat(
     if let Ok(context) = knowledge::prompt_context(&app) {
         system_prompt.push_str(&context);
     }
+    system_prompt.push_str("\n改稿工具仅生成工作稿提案，不会直接修改已保存简历。说明变更内容，等待用户采纳；不可声称已经保存。\n");
     let tool_specs = tools::tool_specs(search::tool_enabled(&cfg));
 
     let mut chat_msgs: Vec<ChatMessage> = messages
@@ -239,7 +247,15 @@ pub async fn ai_chat(
 
         let mut tool_results: Vec<(ToolCall, Value)> = Vec::new();
         for tc in &res.tool_calls {
-            let result = if tc.name == "searchKnowledge" {
+            let result = if tc.name == "listKnowledgeCollections" {
+                let conn = db.conn.lock().map_err(|e| CommandError {
+                    message: e.to_string(),
+                })?;
+                match knowledge::library::collections(&conn, true) {
+                    Ok(value) => json!(value),
+                    Err(error) => json!({"error":error}),
+                }
+            } else if tc.name == "searchKnowledge" {
                 let query = tc
                     .arguments
                     .get("query")
@@ -255,9 +271,38 @@ pub async fn ai_chat(
                 let conn = db.conn.lock().map_err(|e| CommandError {
                     message: e.to_string(),
                 })?;
-                match knowledge::fts::search(&conn, query, kind, limit) {
-                    Ok(hits) => serde_json::to_value(hits).unwrap_or_else(|_| json!([])),
-                    Err(error) => json!({ "success": false, "error": error }),
+                let legacy = knowledge::fts::search(&conn, query, kind, limit).unwrap_or_default();
+                match knowledge::library::search_tagged(
+                    &conn,
+                    query,
+                    tc.arguments.get("collectionId").and_then(Value::as_str),
+                    &tc.arguments
+                        .get("tags")
+                        .and_then(Value::as_array)
+                        .map(|a| {
+                            a.iter()
+                                .filter_map(Value::as_str)
+                                .map(String::from)
+                                .collect::<Vec<_>>()
+                        })
+                        .unwrap_or_else(|| {
+                            tc.arguments
+                                .get("category")
+                                .and_then(Value::as_str)
+                                .map(String::from)
+                                .into_iter()
+                                .collect()
+                        }),
+                    tc.arguments
+                        .get("tagMatch")
+                        .and_then(Value::as_str)
+                        .unwrap_or("all"),
+                    false,
+                    tc.arguments.get("kind").and_then(Value::as_str),
+                    limit,
+                ) {
+                    Ok(hits) => json!({"materials":hits,"wiki":legacy}),
+                    Err(error) => json!({"error":error,"wiki":legacy}),
                 }
             } else if tc.name == "readKnowledge" {
                 let path = tc
@@ -266,12 +311,34 @@ pub async fn ai_chat(
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
                 let root = knowledge::ensure(&app).map_err(|message| CommandError { message })?;
-                match knowledge::vault::read(&root, path) {
-                    Ok(page) => json!({
-                        "path": path,
-                        "content": knowledge::vault::serialize_page(&page.frontmatter, &page.body)
-                    }),
-                    Err(error) => json!({ "success": false, "error": error }),
+                if let Some(id) = tc.arguments.get("assetId").and_then(Value::as_str) {
+                    let conn = db.conn.lock().map_err(|e| CommandError {
+                        message: e.to_string(),
+                    })?;
+                    match knowledge::library::read(
+                        &conn,
+                        id,
+                        tc.arguments
+                            .get("offset")
+                            .and_then(Value::as_u64)
+                            .unwrap_or(0) as usize,
+                        tc.arguments
+                            .get("limit")
+                            .and_then(Value::as_u64)
+                            .unwrap_or(6000) as usize,
+                        true,
+                    ) {
+                        Ok(value) => value,
+                        Err(error) => json!({"success":false,"error":error}),
+                    }
+                } else {
+                    match knowledge::vault::read(&root, path) {
+                        Ok(page) => json!({
+                            "path": path,
+                            "content": knowledge::vault::serialize_page(&page.frontmatter, &page.body)
+                        }),
+                        Err(error) => json!({ "success": false, "error": error }),
+                    }
                 }
             } else if tc.name == "proposeKnowledgeUpdate" {
                 let proposal_id = uuid::Uuid::new_v4().to_string();
@@ -300,10 +367,18 @@ pub async fn ai_chat(
                     Err(error) => json!({ "success": false, "error": error }),
                 }
             } else {
-                let conn = db.conn.lock().map_err(|e| CommandError {
-                    message: e.to_string(),
-                })?;
-                tools::execute_tool(&conn, &resume_id, &tc.name, &tc.arguments)
+                let before = resume_repo::find_sections_by_resume_id(&draft_conn, &resume_id)?;
+                let mut value =
+                    tools::execute_tool(&draft_conn, &resume_id, &tc.name, &tc.arguments);
+                if value.get("success").and_then(Value::as_bool) == Some(true) {
+                    value["proposalOnly"] = json!(true);
+                    value["beforeSections"] = serde_json::to_value(before).unwrap_or(json!([]));
+                    value["afterSections"] = serde_json::to_value(
+                        resume_repo::find_sections_by_resume_id(&draft_conn, &resume_id)?,
+                    )
+                    .unwrap_or(json!([]));
+                }
+                value
             };
             let _ = app.emit(
                 "ai-chat-event",
@@ -323,7 +398,13 @@ pub async fn ai_chat(
                 "args": tc.arguments,
                 "result": result,
             }));
-            tool_results.push((tc.clone(), result));
+            // 前端需要完整前后稿做提案对比；回传模型只保留工具结果，避免每轮重复整份简历。
+            let mut model_result = result;
+            if let Some(object) = model_result.as_object_mut() {
+                object.remove("beforeSections");
+                object.remove("afterSections");
+            }
+            tool_results.push((tc.clone(), model_result));
         }
 
         // Append assistant tool-use message and tool results to chat history

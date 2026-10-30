@@ -9,11 +9,11 @@ import './original-document.css';
 import * as api from '@/lib/tauri-api';
 import { DocumentSaveSession, type DocumentSaveState } from '@/lib/document-save-session';
 import { OriginalDocumentSpacing } from './original-document-spacing';
-import { isTauri } from '@tauri-apps/api/core';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { useUnsavedStore } from '@/stores/unsaved-store';
+import { useSettingsStore } from '@/stores/settings-store';
 import { toast } from 'sonner';
 
-export interface OriginalDocumentHandle { save: () => Promise<void>; bytes: () => Promise<number[]>; }
+export interface OriginalDocumentHandle { save: () => Promise<void>; bytes: () => Promise<number[]>; discard: () => Promise<void>; isDirty: () => boolean; }
 interface Props {
   resumeId: string;
   versionId?: string;
@@ -45,9 +45,16 @@ export const OriginalDocumentCanvas = forwardRef<OriginalDocumentHandle, Props>(
     return Array.from(new Uint8Array(await engine.current.save()));
   }, [t]);
   useImperativeHandle(ref, () => ({
-    save: async () => { if (!engine.current) throw new Error(t('loading')); await session.current?.flush(); },
+    isDirty: () => session.current?.dirty ?? false,
+    discard: async () => { await session.current?.discard(); },
+    save: async () => {
+      if (!engine.current) throw new Error(t('loading'));
+      // DOCX 引擎延迟提交输入；显式保存先完成这一步，避免把最后一次输入误判为未修改。
+      await serialize();
+      await session.current?.flush();
+    },
     // 未修改时返回原字节，避免仅打开文件就触发重新序列化。
-    bytes: () => session.current?.dirty ? serialize() : Promise.resolve(committed.current),
+    bytes: async () => { const bytes = await serialize(); return session.current?.dirty ? bytes : committed.current; },
   }), [serialize, t]);
 
   useEffect(() => {
@@ -68,16 +75,22 @@ export const OriginalDocumentCanvas = forwardRef<OriginalDocumentHandle, Props>(
         return next;
       }, (state, cause) => {
         if (!disposed) { setError(cause ? message(cause) : ''); onState?.(state, cause ? message(cause) : undefined); }
-      });
+      }, () => useSettingsStore.getState().autoSave && !useUnsavedStore.getState().request);
       setDocument(new Uint8Array(recovery?.bytes ?? data.bytes));
     }).catch((cause) => { if (!disposed) { setError(message(cause)); onState?.('load-error', message(cause)); } });
     return () => { disposed = true; };
   }, [resumeId, versionId, readOnly, onState, serialize]);
 
+  useEffect(() => {
+    const settings = useSettingsStore.subscribe((state, previous) => { if (state.autoSave !== previous.autoSave) session.current?.scheduleAutoSave(); });
+    const guard = useUnsavedStore.subscribe((state, previous) => { if (state.request !== previous.request) session.current?.scheduleAutoSave(); });
+    return () => { settings(); guard(); };
+  }, []);
+
   // 父层 layout cleanup 先于子编辑器销毁，必须在这里取到最后一次文档状态。
   useLayoutEffect(() => () => {
     const current = session.current;
-    if (!current?.dirty || !engine.current) return;
+    if (!current?.dirty || !engine.current || !useSettingsStore.getState().autoSave) return;
     const bytes = engine.current.save().then((buffer) => Array.from(new Uint8Array(buffer)));
     const result = current.finish(bytes).then(() => null, async (cause) => {
       toast.error(message(cause));
@@ -86,24 +99,6 @@ export const OriginalDocumentCanvas = forwardRef<OriginalDocumentHandle, Props>(
     pendingDocuments.set(resumeId, result);
     void result.catch((cause) => toast.error(message(cause)));
   }, [resumeId]);
-  useEffect(() => {
-    const beforeUnload = (event: BeforeUnloadEvent) => {
-      if (session.current?.dirty) { event.preventDefault(); event.returnValue = ''; }
-    };
-    window.addEventListener('beforeunload', beforeUnload);
-    let unlisten: (() => void) | undefined;
-    let disposed = false;
-    let closing = false;
-    if (isTauri() && !readOnly) {
-      void getCurrentWindow().onCloseRequested(async (event) => {
-        if (closing || !session.current?.dirty) return;
-        event.preventDefault();
-        try { await session.current.flush(); closing = true; await getCurrentWindow().close(); }
-        catch (cause) { setError(message(cause)); }
-      }).then((stop) => { if (disposed) stop(); else unlisten = stop; }).catch((cause) => setError(message(cause)));
-    }
-    return () => { disposed = true; window.removeEventListener('beforeunload', beforeUnload); unlisten?.(); };
-  }, [readOnly]);
   const ready = useCallback((value: Editor) => {
     engine.current = value;
     setActiveEngine(value);
@@ -112,7 +107,9 @@ export const OriginalDocumentCanvas = forwardRef<OriginalDocumentHandle, Props>(
   }, [onState]);
   useEffect(() => activeEngine?.on('error', (cause) => { setError(message(cause)); onState?.('error', message(cause)); }), [activeEngine, onState]);
 
-  return <div className="original-document docx-editor flex h-full min-h-0 flex-col" data-original-document>
+  return <div className="original-document docx-editor flex h-full min-h-0 flex-col" data-original-document onBeforeInputCapture={(event) => {
+    if (!readOnly && (event.target as HTMLElement).closest('[contenteditable="true"]')) session.current?.changed();
+  }}>
     {error && <p role="alert" className="shrink-0 bg-red-50 px-4 py-2 text-sm text-red-800">{error}</p>}
     {document && <LocaleProvider i18n={locale === 'zh' ? zhCN : en}>
       <DocxEditor.Root document={document} fonts={fonts} locale={locale === 'zh' ? 'zh-CN' : 'en-US'} mode={readOnly ? 'view' : 'edit'} zoomMode={zoomMode}
@@ -131,7 +128,7 @@ export const OriginalDocumentCanvas = forwardRef<OriginalDocumentHandle, Props>(
           <OriginalDocumentSpacing engine={activeEngine} />
         </>}
         <DocxEditor.FontNotice />
-        <DocxEditor.Viewport className="min-h-0 flex-1 overflow-auto bg-[var(--whale-cream-deep)]">
+        <DocxEditor.Viewport className="min-h-0 flex-1 overflow-auto bg-[var(--app-hover)]">
           <DocxEditor.Content />
           <DocxEditor.HeaderFooterChrome />
         </DocxEditor.Viewport>

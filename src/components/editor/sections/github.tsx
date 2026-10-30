@@ -142,12 +142,12 @@ export function GitHubSection({ section, onUpdate }: Props) {
                 onChange={(v) => handleUrlChange(index, v)}
               />
               {loadingIds.has(item.id) && (
-                <Loader2 className="absolute right-2 top-7 h-4 w-4 animate-spin text-[var(--whale-ink-muted)]" />
+                <Loader2 className="absolute right-2 top-7 h-4 w-4 animate-spin text-[var(--app-text-muted)]" />
               )}
             </div>
             {item.name && (
-              <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--whale-ink-soft)]">
-                <span className="font-medium text-[var(--whale-ink)]">{plainText(item.name)}</span>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--app-text-secondary)]">
+                <span className="font-medium text-[var(--app-text)]">{plainText(item.name)}</span>
                 {item.stars > 0 && (
                   <span className="inline-flex items-center gap-0.5">
                     <Star className="h-3 w-3 text-amber-500" />
@@ -162,7 +162,7 @@ export function GitHubSection({ section, onUpdate }: Props) {
                 )}
                 <button
                   type="button"
-                  className="inline-flex cursor-pointer items-center gap-0.5 text-[var(--whale-ink-muted)] hover:text-[var(--whale-ink)]"
+                  className="inline-flex cursor-pointer items-center gap-0.5 text-[var(--app-text-muted)] hover:text-[var(--app-text)]"
                   onClick={() => fetchRepo(item.id, item.repoUrl)}
                   disabled={loadingIds.has(item.id)}
                 >
