@@ -4,6 +4,8 @@
   if(new URLSearchParams(location.search).has('ai_review')){localStorage.setItem('jade_channels',JSON.stringify([{id:'review-ai',name:'隔离演示 AI',provider:'openai',baseURL:'https://example.invalid/v1',apiKey:'isolated-test-key',model:'mock',models:['mock']}]));localStorage.setItem('jade_active_channel','review-ai');}
   const now = Math.floor(Date.now() / 1000);
   const day = 86400;
+  const journalPlans = new Map();
+  const chatSessions = new Map();
   const id = (prefix) => `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
 
   const resume = {
@@ -94,10 +96,12 @@
   const resume2 = { ...resume, id: 'r-demo-2', title: '前端工程师 · 投递字节版', template: 'modern', isDefault: false, updatedAt: now - 5 * day };
   const resumes = { [resume.id]: resume, [resume2.id]: { ...resume2, sections: resume.sections.map((s) => ({ ...s, resumeId: 'r-demo-2' })) } };
 
-  const cardSummary = (r) => ({
-    fullName: '林晚晴', jobTitle: '高级前端工程师', latestCompany: '鲸跃科技', latestPosition: '高级前端工程师',
-    skills: ['React', 'TypeScript', 'Vite'], sectionCount: r.sections.length, filledSections: r.sections.length,
-  });
+  const cardSummary = r => {
+    const personal=r.sections.find(s=>s.type==='personal_info')?.content||{};
+    const work=r.sections.find(s=>s.type==='work_experience')?.content.items?.[0]||{};
+    const skills=r.sections.find(s=>s.type==='skills')?.content.categories?.flatMap(c=>c.skills||[])||[];
+    return {fullName:personal.fullName||'',jobTitle:personal.jobTitle||'',latestCompany:work.company||'',latestPosition:work.position||'',skills:skills.slice(0,6),sectionCount:r.sections.length,filledSections:r.sections.filter(s=>s.type==='personal_info'?!!s.content.fullName:s.type==='summary'?!!s.content.text:s.type==='skills'?!!s.content.categories?.length:!!s.content.items?.length).length};
+  };
 
   const applications = [
     {
@@ -231,6 +235,17 @@
     restore_resume_version: ({versionId,label}) => { const v=versions.find(v=>v.id===versionId); if(!v)throw new Error('版本不存在');snapshotResume(v.resumeId,'restore',label);resumes[v.resumeId]=structuredClone(versionSnapshots[versionId]); },
     list_applications: () => applications,
     save_application: ({ application: record }) => { const i = applications.findIndex((a) => a.id === record.id); if (i >= 0) applications[i] = record; else applications.unshift(record); return record; },
+    commit_journal_plan: ({plan}) => {
+      const request=JSON.stringify(plan), receipt=journalPlans.get(plan.id);
+      if(receipt){if(receipt.request!==request)throw Error('提案标识已用于其他变更');return structuredClone(receipt.result);}
+      const content=a=>{if(!a)return null;const {createdAt:_createdAt,updatedAt:_updatedAt,...rest}=a;return JSON.stringify(Object.fromEntries(Object.entries(rest).sort(([a],[b])=>a.localeCompare(b))));};
+      const ids=new Set();
+      for(const entry of plan.entries){const current=applications.find(a=>a.id===entry.after.id);if(ids.has(entry.after.id)||content(entry.before)!==content(current))throw Error('生成提案后内容已有变化，请重新整理；未写入任何投递记录');ids.add(entry.after.id);}
+      const saved=plan.entries.map(e=>({...structuredClone(e.after),createdAt:e.before?.createdAt||now,updatedAt:now}));
+      for(const record of saved){const i=applications.findIndex(a=>a.id===record.id);if(i<0)applications.unshift(record);else applications[i]=record;}
+      journalPlans.set(plan.id,{request,result:structuredClone(saved)});
+      return saved;
+    },
     delete_application: ({ id }) => { const i = applications.findIndex((a) => a.id === id); if (i >= 0) applications.splice(i, 1); return null; },
     list_mock_interviews: () => mocks,
     delete_mock_interview: () => null,
@@ -245,8 +260,11 @@
     knowledge_purpose: () => contents['purpose.md'],
     knowledge_create_page: ({path,title,kind,body,sources=[]}) => {if(contents[path]!=null)throw Error('页面已存在');contents[path]=body;pages.push({path,title,type:kind,tags:[],summary:body.slice(0,120),sources,updated:new Date().toISOString()});return null;},
     knowledge_search: ({query}) => pages.filter(p=>(contents[p.path]||'').includes(query)).map(p=>({...p,excerpt:(contents[p.path]||'').slice(0,700)})),
-    list_chat_sessions: () => [],
-    list_chat_messages: () => [],
+    list_chat_sessions: ({resumeId}) => [...chatSessions.values()].filter(s => s.resumeId === resumeId),
+    create_chat_session: ({resumeId, title}) => { const sessionId = id('chat'); chatSessions.set(sessionId, {id:sessionId,resumeId,title:title || '新对话',createdAt:now,updatedAt:now}); return sessionId; },
+    get_chat_session: ({sessionId}) => chatSessions.get(sessionId) || null,
+    delete_chat_session: ({sessionId}) => { chatSessions.delete(sessionId); },
+    list_chat_messages: () => ({total:0,messages:[]}),
     list_jd_analyses: () => [],
     list_grammar_checks: () => [],
     ai_list_models: () => [],
@@ -332,10 +350,116 @@
   handlers.knowledge_maintain_prepare=()=>draft('maintenance',{title:'Wiki维护检查',pages:[],insights:['没有发现需要立即修改的事实'],questions:['补充更多面试证据'],coverage:{pages:pages.length},structural:{issues:[]}});
   handlers.knowledge_propose_edit=({actions})=>draft('wiki',{title:'自然语言整理Wiki',pages:actions.map(a=>({path:a.targetId,title:a.fields.title||pages.find(p=>p.path===a.targetId)?.title,kind:'concept',body:a.fields.body??contents[a.targetId],before:a.before,sources:[]}))});
   handlers.knowledge_open_vault=()=>null;
-  handlers.workspace_assist=args=>{window.__TAURI_MOCK__.workspaceRequest=args;if(window.__TAURI_MOCK__.workspaceError)throw Error(window.__TAURI_MOCK__.workspaceError);if(window.__TAURI_MOCK__.workspaceAnswer)return structuredClone(window.__TAURI_MOCK__.workspaceAnswer);const {scope,text,context}=args;if(text==='我刚投递了一个岗位')return {question:text,reply:'是哪家公司、什么岗位？也可以直接粘贴招聘信息。',actions:[],citations:[]};let actions=[];if(scope==='activity')actions=[{kind:'application',targetId:'new:1',roundId:'',fields:{company:'星河科技',role:'前端工程师',channel:'Boss直聘',appliedDate:context.today},reason:'记录今天的投递'}];else if(scope==='application')actions=[{kind:'interview',targetId:context.applications[0].id,roundId:'',fields:{round:'二面',scheduledAt:context.today+'T14:00',format:'video'},reason:'添加面试安排'}];else if(scope==='mock')actions=[{kind:'mock',targetId:'',roundId:'',fields:{company:'星河科技',role:'前端工程师',round:'二面',focus:'重点追问项目架构，每次只问一道题'},reason:'准备练习方向'}];else if(scope==='upload')actions=[{kind:'collection',targetId:'',roundId:'',fields:{title:'星河科技面试',tags:['前端','面试'],purpose:'支持二面准备'},reason:'按共同主题整理'}];return {question:text,reply:actions.length?'已根据描述整理，请确认后应用。':'基于已有来源，建议先区分问题场景，再准备具体措施和边界。',actions,citations:[]};};
+  handlers.workspace_assist=args=>{window.__TAURI_MOCK__.workspaceRequest=args;if(window.__TAURI_MOCK__.workspaceError)throw Error(window.__TAURI_MOCK__.workspaceError);if(window.__TAURI_MOCK__.workspaceAnswer)return structuredClone(window.__TAURI_MOCK__.workspaceAnswer);const {scope,text,context}=args;if(scope==='library' && !context.collections?.length)return {question:text,reply:'还没有可引用的资料，先添加一些资料，再一起梳理。',actions:[],citations:[]};if(text==='我刚投递了一个岗位')return {question:text,reply:'是哪家公司、什么岗位？也可以直接粘贴招聘信息。',actions:[],citations:[]};let actions=[];if(scope==='activity')actions=[{kind:'application',targetId:'new:1',roundId:'',fields:{company:'星河科技',role:'前端工程师',channel:'Boss直聘',appliedDate:context.today},reason:'记录今天的投递'}];else if(scope==='application')actions=[{kind:'interview',targetId:context.applications[0].id,roundId:'',fields:{round:'二面',scheduledAt:context.today+'T14:00',format:'video'},reason:'添加面试安排'}];else if(scope==='mock')actions=[{kind:'mock',targetId:'',roundId:'',fields:{company:'星河科技',role:'前端工程师',round:'二面',focus:'重点追问项目架构，每次只问一道题'},reason:'准备练习方向'}];else if(scope==='upload')actions=[{kind:'collection',targetId:'',roundId:'',fields:{title:'星河科技面试',tags:['前端','面试'],purpose:'支持二面准备'},reason:'按共同主题整理'}];return {question:text,reply:actions.length?'已根据描述整理，请确认后应用。':'基于已有来源，建议先区分问题场景，再准备具体措施和边界。',actions,citations:[]};};
   if(new URLSearchParams(location.search).has('category_review')){
     for(let i=0;i<50;i++){const name=i===0?'面试准备 111111111111111111111111111111111111':i===1?'Architecture and Distributed Systems Interview Notes':'分类 '+String(i+1).padStart(2,'0');const collectionId='category-demo-'+i;libraryCollections.push({id:collectionId,title:i===0?'面试准备':'资料集 '+(i+1),purpose:'隔离演示资料，非真实用户内容',category:name,kind:'document',enabled:true,assetCount:0,readyCount:0,updatedAt:now});handlers.library_import_file({collectionId,filename:'面经.txt',bytes:[...new TextEncoder().encode('缓存穿透、击穿与雪崩需要不同的应对策略。')]});}
   }
+
+  // 结构化练习使用隔离 sessionStorage；与真实用户数据库完全无关。
+  const practiceSessions=JSON.parse(sessionStorage.getItem('mock-practice-sessions')||'{}');
+  const practiceReviews=JSON.parse(sessionStorage.getItem('mock-practice-reviews')||'{}');
+  Object.assign(resumes,JSON.parse(sessionStorage.getItem('mock-practice-resumes')||'{}'));
+  const persistPractice=()=>{sessionStorage.setItem('mock-practice-sessions',JSON.stringify(practiceSessions));sessionStorage.setItem('mock-practice-reviews',JSON.stringify(practiceReviews));sessionStorage.setItem('mock-practice-resumes',JSON.stringify(resumes));};
+  const createResume=handlers.create_resume;
+  handlers.create_resume=args=>{const key=createResume(args);const row=resumes[key];row.themeConfig=structuredClone(args.themeConfig||{});row.sections=(args.sections||[]).map((s,index)=>({...structuredClone(s),id:id('section'),resumeId:key,sortOrder:index,createdAt:now,updatedAt:now}));persistPractice();return key;};
+  const updateResume=handlers.update_resume;
+  handlers.update_resume=args=>{const out=updateResume(args);persistPractice();return out;};
+  const getPractice=(id,revision)=>{const s=practiceSessions[id];if(!s)throw Error('练习不存在');if(revision!==undefined&&s.revision!==revision)throw Error('练习已更新，请重新打开后继续');return s;};
+  const savePractice=s=>{s.revision++;s.updatedAt=Math.floor(Date.now()/1000);persistPractice();return structuredClone(s);};
+  handlers.practice_list=({resumeId,applicationId})=>structuredClone(Object.values(practiceSessions).filter(s=>(!resumeId||s.resumeId===resumeId)&&(!applicationId||s.applicationId===applicationId)).sort((a,b)=>b.updatedAt-a.updatedAt));
+  handlers.practice_start=({id:sessionId,resumeId,applicationId,context,target})=>{
+    if(practiceSessions[sessionId])return structuredClone(practiceSessions[sessionId]);
+    const r=resumes[resumeId];if(!r)throw Error('简历不存在');
+    if(target){const section=r.sections.find(s=>s.id===target.sectionId),item=target.itemId?section?.content.items.find(i=>i.id===target.itemId):section?.content;const text=target.field.startsWith('highlights.')?item?.highlights[Number(target.field.split('.')[1])]:item?.[target.field];if(!text)throw Error('经历不存在');target={...target,text};}
+    const version=snapshotResume(resumeId,'interview','模拟面试依据');
+    const s={id:sessionId,resumeId,applicationId,resumeVersionId:version,resumeSnapshot:structuredClone(r),target,context,points:['背景与目标','个人行动','选择与取舍','验收与结果'],rounds:[],pendingQuestion:'围绕这条经历，当时要解决什么问题？你亲自负责了哪一部分？',coveredPoints:[],status:'in_progress',summary:null,revision:0,createdAt:Math.floor(Date.now()/1000),updatedAt:Math.floor(Date.now()/1000)};
+    practiceSessions[sessionId]=s;persistPractice();return structuredClone(s);
+  };
+  handlers.practice_step=({id:sessionId,expectedRevision,requestId,action,answer})=>{
+    const old=getPractice(sessionId);if(old.lastRequestId===requestId)return structuredClone(old);
+    const s=getPractice(sessionId,expectedRevision);
+    if(window.__TAURI_MOCK__.practiceError){const message=window.__TAURI_MOCK__.practiceError;window.__TAURI_MOCK__.practiceError=null;throw Error(message);}
+    if(s.status!=='in_progress')throw Error('练习已结束');
+    const actual=action==='answer';const covered=actual?[s.points[Math.min(s.rounds.filter(r=>r.action==='answer').length,3)]]:[];
+    const evaluation={score:actual?65:null,coveredPoints:covered,evidenceQuotes:actual?[answer.slice(0,100)]:[],suggestion:action==='clarify'?'这里是在问你做了什么具体动作。例如可以回忆一次实际调整，不需要先背完整项目。':action==='skip'?'已跳过，暂不判断是否掌握。':'你已经说明了个人动作，接下来可以补充如何检查效果。',nextQuestion:action==='clarify'?s.pendingQuestion:action==='skip'?'换一个角度，你是怎样检查这次改动是否达到目标的？':s.rounds.filter(r=>r.action==='answer').length%2?'遇到异常时你如何定位原因？':'你为什么选择这个做法？当时还考虑过什么方案？'};
+    s.rounds.push({id:requestId,action,question:s.pendingQuestion,answer,evaluation});s.pendingQuestion=evaluation.nextQuestion;s.coveredPoints=[...new Set([...s.coveredPoints,...covered])];s.lastRequestId=requestId;return savePractice(s);
+  };
+  handlers.practice_finish=({id:sessionId,expectedRevision})=>{const s=getPractice(sessionId);if(s.status==='done')return structuredClone(s);getPractice(sessionId,expectedRevision);s.status='done';return savePractice(s);};
+  handlers.practice_summarize=({id:sessionId,expectedRevision})=>{const s=getPractice(sessionId);if(s.summary)return structuredClone(s);getPractice(sessionId,expectedRevision);if(window.__TAURI_MOCK__.practiceSummaryError){window.__TAURI_MOCK__.practiceSummaryError=false;throw Error('模拟总结请求失败');}const answer=s.rounds.find(r=>r.action==='answer');s.summary={summary:answer?'这次练习已讲清部分个人行动，仍可补充验收方法。':'尚无足够作答证据，建议先回顾原经历。',findings:answer?[{kind:'fact',detail:'补充效果验收的事实',roundId:answer.id,quote:answer.answer.slice(0,100),nextAction:'回看当时的验收记录，再用一个具体例子讲清如何判断结果。'}]:[],nextAction:'回看一次实际改动的验收记录。',rewriteSuggestion:answer&&s.target?s.target.text+' 具体做法：'+answer.answer:''};return savePractice(s);};
+  handlers.practice_review_list=({resumeId})=>Object.values(practiceSessions).filter(s=>!resumeId||s.resumeId===resumeId).flatMap(s=>(s.summary?.findings||[]).map((finding,index)=>({sessionId:s.id,index,finding,target:s.target,resumeVersionId:s.resumeVersionId,status:'open',note:'',...practiceReviews[s.id+':'+index]})));
+  handlers.practice_review_update=({sessionId,index,status,note})=>{practiceReviews[sessionId+':'+index]={status,note};persistPractice();return null;};
+  handlers.practice_wiki_prepare=({id:sessionId})=>{const s=getPractice(sessionId);const path='wiki/experience/practice-'+sessionId+'.md';return draft('compile',{title:'面试练习复盘',pages:[{path,title:'面试练习复盘',kind:'experience',body:'# 面试练习复盘\n\n'+s.summary.summary+'\n\n## 原始经历\n'+(s.target?.text||'综合面试')+'\n\n## 下一步\n'+s.summary.nextAction,before:contents[path]??null,sources:['practice:'+sessionId]}]});};
+  const removeVersion=handlers.delete_resume_version;
+  handlers.delete_resume_version=args=>{if(Object.values(practiceSessions).some(s=>s.resumeVersionId===args.id))throw Error('此版本已关联面试练习');return removeVersion(args);};
+  handlers.ai_jd_analysis=({resumeId,jobDescription})=>({overallScore:65,atsScore:60,summary:'请核对岗位原文与对应经历。',keywordMatches:['React'],missingKeywords:[],suggestions:[],verdict:'review',checks:[{requirement:'岗位相关项目经验',status:'supported',jobQuote:jobDescription.slice(0,60),resumeQuote:resumes[resumeId].sections.find(s=>s.type==='work_experience')?.content.items[0]?.description||'',note:'存在相关经历，具体职责仍需核对。',nextAction:'准备个人贡献和验收依据。',verified:true}]});
+  let noteReminder = JSON.parse(sessionStorage.getItem('mock_note_reminder') || 'null') || { config: {enabled:false,time:'18:00',weekdays:[1,2,3,4,5]},lastError:null };
+  handlers.note_reminder_get = () => structuredClone(noteReminder);
+  handlers.note_reminder_set = ({config}) => {if(window.__TAURI_MOCK__.reminderSaveError){window.__TAURI_MOCK__.reminderSaveError=false;throw Error('模拟提醒设置写盘失败');}if(!config.weekdays.length || !/^\d{2}:\d{2}$/.test(config.time))throw Error('请选择有效时间和提醒日');noteReminder={config:structuredClone(config),lastError:null};sessionStorage.setItem('mock_note_reminder',JSON.stringify(noteReminder));};
+  handlers.note_reminder_resize = ({height}) => {window.__mockReminderHeight=height;};
+  handlers.note_reminder_preview = () => {window.__mockReminderPreview=true;};
+  handlers.note_reminder_dismiss = ({action}) => {window.__mockReminderDismiss=action;};
+  handlers.show_main_window = () => {window.__mockMainShown=true;};
+  const experiences = new URLSearchParams(location.search).has('no_experiences') ? [] : JSON.parse(sessionStorage.getItem('mock_experiences') || 'null') || [{id:'11111111-1111-4111-8111-111111111111',company:'鲸跃科技',position:'产品实习',kind:'internship',current:true,noteCount:0,startedOn:'2026-09-01',createdAt:Date.now()/1000}];
+  handlers.experiences_list = () => structuredClone(experiences.map(e=>({...e,noteCount:workNotes.filter(n=>n.experienceId===e.id).length})));
+  handlers.experiences_save = ({experience}) => {const old=experiences.find(e=>e.id===experience.id);if(old)Object.assign(old,experience);else experiences.push({...experience,createdAt:Date.now()/1000});sessionStorage.setItem('mock_experiences',JSON.stringify(experiences));return structuredClone(experiences.find(e=>e.id===experience.id));};
+  handlers.experiences_assign = ({ids,experienceId}) => {if(!experiences.some(e=>e.id===experienceId))throw Error('经历不存在');for(const n of workNotes)if(ids.includes(n.id)){n.experienceId=experienceId;n.revision++;n.analysis=null;}saveWorkNotes();};
+  const workNotes = JSON.parse(sessionStorage.getItem('mock_work_notes') || '[]');
+  const workNoteDrafts = JSON.parse(sessionStorage.getItem('mock_work_note_drafts') || '{}');
+  const saveWorkNotes = () => { sessionStorage.setItem('mock_work_notes', JSON.stringify(workNotes)); sessionStorage.setItem('mock_work_note_drafts', JSON.stringify(workNoteDrafts)); };
+  handlers.work_notes_list = ({query,context,offset,experienceId}) => structuredClone(workNotes.filter(n=>(!experienceId || (experienceId==='__unassigned__' ? !n.experienceId : n.experienceId===experienceId)) && (!query || (n.body+' '+n.context).toLowerCase().includes(query.toLowerCase())) && (context===null || n.context===context)).sort((a,b)=>b.occurredOn.localeCompare(a.occurredOn)||b.createdAt-a.createdAt).slice(offset,offset+100));
+  handlers.work_notes_contexts = () => [...new Set(workNotes.map(n=>n.context).filter(Boolean))];
+  handlers.work_notes_save = ({note,expectedRevision}) => {
+    if(window.__TAURI_MOCK__.noteSaveError){window.__TAURI_MOCK__.noteSaveError=false;throw Error('模拟写盘失败，输入仍保留');}
+    const old=workNotes.find(n=>n.id===note.id);
+    if(expectedRevision!==null){if(!old || old.revision!==expectedRevision)throw Error('原话已变化');Object.assign(old,note,{revision:old.revision+1,analysis:null});saveWorkNotes();return structuredClone(old);}
+    if(old){if(old.body!==note.body)throw Error('记录已存在');return structuredClone(old);}
+    const n={...note,revision:0,analysis:null,createdAt:Date.now()/1000};workNotes.push(n);saveWorkNotes();return structuredClone(n);
+  };
+  handlers.work_notes_delete = ({id,expectedRevision}) => {const index=workNotes.findIndex(n=>n.id===id&&n.revision===expectedRevision);if(index<0)throw Error('原话已变化');workNotes.splice(index,1);for(const [key,draft] of Object.entries(workNoteDrafts))if(draft.sources.some(n=>n.id===id))delete workNoteDrafts[key];saveWorkNotes();};
+  handlers.work_notes_analyze = ({id}) => {if(window.__TAURI_MOCK__.noteAnalyzeError){window.__TAURI_MOCK__.noteAnalyzeError=false;throw Error('模拟 AI 离线');}const n=workNotes.find(n=>n.id===id);if(!n)throw Error('原话已删除');n.analysis={reply:'这段排查过程已经记住了，先不用急着把它写成成果。',kind:'event',facts:[{text:n.body,quote:n.body}],question:''};saveWorkNotes();return structuredClone(n);};
+  handlers.work_notes_compose = ({ids,question,slot,searchContext,searchQuery,experienceId}) => {if(window.__TAURI_MOCK__.noteComposeError){window.__TAURI_MOCK__.noteComposeError=false;throw Error('模拟整理失败，原话保留');}const sources=workNotes.filter(n=>(!experienceId || n.experienceId===experienceId) && (ids.length?ids.includes(n.id):(!searchContext||n.context===searchContext)&&(!searchQuery||(n.body+' '+n.context).includes(searchQuery)))).slice(0,40);const draft={question,reply:'这些片段里，有日常工作，也有值得展开讲的具体行动。下面只是备选素材，可以对着原话修改。',bullets:sources.map((n,i)=>({kind:i%2?'routine':'event',text:n.body,sources:[{id:n.id,quote:n.body}]})),sources:structuredClone(sources),stale:false};workNoteDrafts[slot]=draft;saveWorkNotes();return structuredClone(draft);};
+  const noteSourcesCurrent = sources => sources.every(n=>workNotes.some(current=>current.id===n.id&&current.revision===n.revision&&current.body===n.body));
+  handlers.work_notes_draft = ({slot}) => {const draft=workNoteDrafts[slot];return draft?{...structuredClone(draft),stale:!noteSourcesCurrent(draft.sources)}:null;};
+  handlers.work_notes_validate = ({sources}) => {if(!noteSourcesCurrent(sources))throw Error('原话已变化，请重新整理后再采纳');};
+
+  const resumeWorkspaces = JSON.parse(sessionStorage.getItem('mock-resume-workspaces') || '{}');
+  const deletedWorkspaceResumes=new Set(JSON.parse(sessionStorage.getItem('mock-deleted-workspace-resumes')||'[]'));for(const key of deletedWorkspaceResumes)delete resumes[key];
+  const persistWorkspaces = () => { sessionStorage.setItem('mock-deleted-workspace-resumes',JSON.stringify([...deletedWorkspaceResumes])); sessionStorage.setItem('mock-resume-workspaces',JSON.stringify(resumeWorkspaces)); persistPractice(); persistDocuments(); };
+  const stableContent = value => JSON.stringify(value, (key,item) => ['createdAt','updatedAt','summary'].includes(key) ? undefined : item);
+  const workspaceDetail = resumeId => {
+    const current=resumes[resumeId];if(!current)throw Error('简历不存在');
+    const record=resumeWorkspaces[resumeId];
+    if(!record)return {resumeId,baseResumeId:resumeId,baseTitle:current.title,sourceResumeId:null,sourceTitle:null,context:null,createdAt:null,sourceChanged:false,sourceMissing:false,baseMissing:false,sourceSnapshot:null};
+    return {...structuredClone(record),baseTitle:resumes[record.baseResumeId]?.title||record.baseTitle,sourceMissing:!resumes[record.sourceResumeId],baseMissing:!resumes[record.baseResumeId],sourceChanged:!!resumes[record.sourceResumeId] && stableContent(resumes[record.sourceResumeId])!==stableContent(record.sourceSnapshot)};
+  };
+  handlers.resume_workspace_list = () => Object.keys(resumes).map(key=>{const {sourceSnapshot,requestPayload,requestId,...meta}=workspaceDetail(key);return meta;});
+  handlers.resume_workspace_get = ({resumeId}) => workspaceDetail(resumeId);
+  handlers.resume_workspace_derive = ({request}) => {
+    if(window.__TAURI_MOCK__.workspaceDeriveError){window.__TAURI_MOCK__.workspaceDeriveError=false;throw Error('模拟准备版本失败，请重试');}
+    const payload=JSON.stringify(request),previous=Object.values(resumeWorkspaces).find(w=>w.requestId===request.requestId);
+    if(previous){if(previous.requestPayload!==payload)throw Error('同一请求不能用于不同需求');return previous.resumeId;}
+    const source=resumes[request.sourceResumeId];if(!source)throw Error('来源简历不存在');
+    if(!request.goal.trim()||!request.title.trim())throw Error('请填写目标需求');
+    const lineage=workspaceDetail(source.id), targetId=id('target');
+    const target={...structuredClone(source),id:targetId,title:request.title,isDefault:false,createdAt:Math.floor(Date.now()/1000),updatedAt:Math.floor(Date.now()/1000)};
+    target.sections=target.sections.map(s=>({...s,id:id('section'),resumeId:targetId}));
+    resumes[targetId]=target;
+    if(documents[source.id])documents[targetId]=structuredClone(documents[source.id]);
+    resumeWorkspaces[targetId]={resumeId:targetId,baseResumeId:lineage.baseResumeId,baseTitle:lineage.baseTitle,sourceResumeId:source.id,sourceTitle:source.title,context:{goal:request.goal,company:request.company,role:request.role,jobDescription:request.jobDescription},createdAt:Math.floor(Date.now()/1000),sourceSnapshot:structuredClone(source),requestId:request.requestId,requestPayload:payload};
+    persistWorkspaces();if(window.__TAURI_MOCK__.workspaceDeriveResponseError){window.__TAURI_MOCK__.workspaceDeriveResponseError=false;throw Error('模拟版本已保存但响应丢失');}return targetId;
+  };
+  handlers.resume_workspace_update=({resumeId,context})=>{if(window.__TAURI_MOCK__.workspaceContextError){window.__TAURI_MOCK__.workspaceContextError=false;throw Error('模拟需求保存失败');}if(!context.goal.trim())throw Error('请填写目标需求');const record=resumeWorkspaces[resumeId];if(!record)throw Error('基础简历没有定向需求');record.context=structuredClone(context);persistWorkspaces();};
+  handlers.ai_chat = args => {
+    window.__TAURI_MOCK__.targetChatRequest=structuredClone(args);
+    setTimeout(()=>{for(const [handler,event] of eventListeners)if(event==='ai-chat-event'){
+      window['_'+handler]?.({event,id:handler,payload:{streamId:args.streamId,event:{type:'textDelta',text:'先围绕这份定向稿的目标核对已有事实，再审阅建议。'}}});
+      window['_'+handler]?.({event,id:handler,payload:{streamId:args.streamId,event:{type:'finish',finalText:'先围绕这份定向稿的目标核对已有事实，再审阅建议。'}}});
+    }},60);return {};
+  };
+  handlers.cancel_ai_stream = () => null;
+  const workspaceDeleteResume=handlers.delete_resume;
+  handlers.delete_resume=args=>{const result=workspaceDeleteResume(args);deletedWorkspaceResumes.add(args.id);delete resumeWorkspaces[args.id];persistWorkspaces();return result;};
+  handlers.duplicate_resume=({id:sourceId})=>{const source=resumes[sourceId];if(!source)throw Error('来源不存在');const meta=workspaceDetail(sourceId);if(meta.context)return handlers.resume_workspace_derive({request:{...meta.context,sourceResumeId:sourceId,title:source.title+'（副本）',requestId:crypto.randomUUID()}});const targetId=id('copy');resumes[targetId]={...structuredClone(source),id:targetId,title:source.title+'（副本）',sections:source.sections.map(s=>({...structuredClone(s),id:id('section'),resumeId:targetId}))};if(documents[sourceId])documents[targetId]=structuredClone(documents[sourceId]);persistWorkspaces();return targetId;};
   window.__TAURI_EVENT_PLUGIN_INTERNALS__ = {unregisterListener: (_event,id) => eventListeners.delete(id)};
   window.isTauri = true;
   window.__TAURI_INTERNALS__ = {
@@ -359,5 +483,5 @@
       return handler(args);
     },
   };
-  window.__TAURI_MOCK__ = { eventListeners, recordings, libraryCollections, libraryFiles, libraryTexts, knowledgeDrafts, audioNotes, resumes, applications, pages, contents, documents };
+  window.__TAURI_MOCK__ = { noteSaveError:new URLSearchParams(location.search).has('note_fail_save'), noteAnalyzeError:new URLSearchParams(location.search).has('note_fail_analysis'), noteComposeError:new URLSearchParams(location.search).has('note_fail_compose'), practiceError:new URLSearchParams(location.search).has('practice_fail_step')?'模拟本轮请求失败，请重试':null, practiceSummaryError:new URLSearchParams(location.search).has('practice_fail_summary'), resumeWorkspaces, experiences, workNotes, workNoteDrafts, eventListeners, recordings, libraryCollections, libraryFiles, libraryTexts, knowledgeDrafts, audioNotes, practiceSessions, practiceReviews, resumes, applications, pages, contents, documents };
 })();

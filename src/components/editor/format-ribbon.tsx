@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { TemplateLayoutControls, TemplateMiniature } from './template-layout-controls';
+import { captureTemplate, arrangeTemplateSections, templateMatches } from '@/lib/resume-template';
 import { Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useThemePresetsStore, type CustomThemePreset } from '@/stores/theme-presets-store';
@@ -74,7 +76,7 @@ export function FormatRibbon() {
   const savePreset = async () => {
     if (!presetName.trim() || duplicateName || saving) return;
     try {
-      await add(presetName, theme);
+      await add(presetName, theme, currentResume ? captureTemplate({...currentResume, sections: useResumeStore.getState().sections}) : undefined);
       setAddingPreset(false);
       setPresetName('');
       toast.success(t('custom.saved'));
@@ -96,13 +98,20 @@ export function FormatRibbon() {
     <div className="h-full overflow-y-auto p-5" role="region" aria-label={t('title')}>
       <p className="mb-5 text-xs leading-5 text-muted-foreground">{t('panelHint')}</p>
       <div className="space-y-5">
+      {currentResume && <TemplateLayoutControls resume={currentResume} updateTheme={updateTheme} endDrag={endDrag} />}
       {control(
-        t('presets'),
+        '我的模板与排版预设',
         <div className="space-y-3">
           <Button variant="outline" data-theme-preset className="w-full justify-start" onClick={() => updateTheme(THEME_PRESETS.standard)} aria-pressed={activePreset === 'standard'}>{t('preset.standard')}</Button>
           {presets.map((preset) => (
             <div key={preset.id} className="flex items-center gap-2">
-              <Button variant="outline" data-theme-preset className="min-w-0 flex-1 justify-start" title={preset.name} onClick={() => updateTheme(preset.theme)} aria-pressed={activePreset === preset.id}><span className="truncate">{preset.name}</span></Button>
+              <Button variant="outline" data-theme-preset className="h-auto min-w-0 flex-1 justify-start py-2" title={preset.name} onClick={() => {
+                if (!currentResume) return;
+                pushSnapshot(useResumeStore.getState().sections);
+                updateThemeConfig(preset.theme);
+                if (preset.template) useResumeStore.getState().setTemplate(preset.template);
+                useResumeStore.getState().reorderSections(arrangeTemplateSections(useResumeStore.getState().sections, preset.sections));
+              }} aria-pressed={!!currentResume && templateMatches(currentResume, preset)}><span className="flex min-w-0 flex-1 items-center gap-2"><span className="w-12 shrink-0 [&>div]:h-14"><TemplateMiniature template={preset.template || currentResume?.template} theme={preset.theme} /></span><span className="truncate">{preset.name}</span></span></Button>
               <Button variant="ghost" size="icon" disabled={saving} aria-label={t('custom.delete', { name: preset.name })} title={t('custom.delete', { name: preset.name })} onClick={() => setPendingDelete(preset)}><Trash2 className="h-4 w-4" /></Button>
             </div>
           ))}
@@ -111,9 +120,9 @@ export function FormatRibbon() {
           {addingPreset ? <form className="space-y-2 rounded-lg border bg-muted/30 p-3" onSubmit={(event) => { event.preventDefault(); void savePreset(); }}>
             <label className="block space-y-2 text-sm"><span>{t('custom.name')}</span><Input autoFocus maxLength={40} value={presetName} onChange={(event) => setPresetName(event.target.value)} placeholder={t('custom.placeholder')} aria-invalid={duplicateName} disabled={saving} /></label>
             {duplicateName && <p role="alert" className="text-xs text-destructive">{t('custom.duplicate')}</p>}
-            <p className="text-xs leading-5 text-muted-foreground">{t('custom.hint')}</p>
+            <p className="text-xs leading-5 text-muted-foreground">保存版式、字体、颜色、间距和模块顺序，不保存姓名、照片及经历内容。</p>
             <div className="flex justify-end gap-2"><Button type="button" variant="ghost" disabled={saving} onClick={() => { setAddingPreset(false); setPresetName(''); }}>{tc('cancel')}</Button><Button type="submit" disabled={saving || !loaded || !presetName.trim() || duplicateName}>{saving ? t('custom.saving') : tc('save')}</Button></div>
-          </form> : <Button variant="outline" className="w-full border-dashed" disabled={!loaded || saving} onClick={() => setAddingPreset(true)}><Plus className="h-4 w-4" />{t('custom.add')}</Button>}
+          </form> : <Button variant="outline" className="w-full border-dashed" disabled={!loaded || saving} onClick={() => setAddingPreset(true)}><Plus className="h-4 w-4" />保存为我的模板</Button>}
         </div>,
       )}
       <AlertDialog open={!!pendingDelete} onOpenChange={(open) => { if (!open) setPendingDelete(null); }}>
@@ -122,6 +131,7 @@ export function FormatRibbon() {
           <AlertDialogFooter><AlertDialogCancel>{tc('cancel')}</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => { if (pendingDelete) void remove(pendingDelete.id).catch(() => toast.error(t('custom.deleteFailed'))); }}>{tc('delete')}</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <details><summary className="cursor-pointer text-sm font-semibold">精细调整（字体、页边距与更多）</summary><div className="mt-4 space-y-5">
       {control(
         `${t('fontFamily')} · ${t(`cjkFont.${theme.fontScheme}`)} + ${t(`latinFont.${theme.latinFont}`)}`,
         <div className="space-y-2">
@@ -308,6 +318,7 @@ export function FormatRibbon() {
       >
         <RotateCcw className="h-3.5 w-3.5" />{t('reset')}
       </Button>
+      </div></details>
       </div>
     </div>
   );

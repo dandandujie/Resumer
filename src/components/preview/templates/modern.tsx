@@ -113,7 +113,7 @@ export function ModernTemplate({ resume, interactive, onReorderSections }: { res
   };
 
   // Modern template: left sidebar for personal + skills/languages, main content for work/edu/projects
-  const leftSidebarTypes = new Set(['skills', 'languages', 'certifications', 'qr_codes']);
+  const leftSidebarTypes = new Set(theme.sidebarTypes);
   const leftSections = resume.sections.filter((s) => s.visible && leftSidebarTypes.has(s.type) && (interactive || !isSectionEmpty(s)));
   const mainSections = resume.sections.filter((s) => s.visible && s.type !== 'personal_info' && !leftSidebarTypes.has(s.type) && (interactive || !isSectionEmpty(s)));
 
@@ -175,16 +175,16 @@ export function ModernTemplate({ resume, interactive, onReorderSections }: { res
 
   return (
     <div className="mx-auto max-w-[210mm] bg-white">
-      <div className="grid grid-cols-[35%_65%] gap-0">
+      <div className="grid gap-0" style={{gridTemplateColumns: `${theme.sidebarWidth}% ${100 - theme.sidebarWidth}%`}}>
         {/* Left Sidebar - Personal Info + Skills/Languages.
             data-zone="dark" makes all text/headings inside render white (see
             the dark-zone CSS in resume-preview) so nothing merges into the bg. */}
-        <div data-zone="dark" className="bg-gradient-to-br from-slate-800 to-slate-900 p-6 text-white">
+        <div data-zone="dark" className="p-6 text-white" style={{background: theme.sidebarColor}}>
           {/* Avatar + Name — avatar respects the configured style (circle / 1-inch)
               so its shape & size match the photo instead of forcing a circle. */}
           <div data-section-id={personalInfo?.id}>
-          <div {...(personalInfo ? getSectionProps(personalInfo.id) : {})} className="text-center">
-            {pi.avatar && (
+          <div data-modern-heading {...(personalInfo ? getSectionProps(personalInfo.id) : {})} className="text-center" style={{textAlign:theme.headerAlign}}>
+            {pi.avatar && theme.photoPosition !== 'hidden' && (
               <AvatarImage
                 src={pi.avatar}
                 size={100}
@@ -197,7 +197,7 @@ export function ModernTemplate({ resume, interactive, onReorderSections }: { res
           </div>
 
           {/* Personal info — plain text labels, no icons */}
-          <div className="mt-6 space-y-1.5 text-xs leading-relaxed text-slate-200">
+          <div data-modern-contacts className="mt-6 space-y-1.5 text-xs leading-relaxed text-slate-200">
             {personalFields.map(([key, label]) => {
               const val = pi[key] as string | undefined;
               if (!val) return null;
@@ -289,7 +289,7 @@ function PreviewSection({
         </button>
       )}
 
-      <h3 className={cn("font-bold", compact ? "text-xs mb-2 text-white/90" : "text-sm mb-3 text-[var(--resume-body-color)] border-b-2 border-zinc-300 pb-1")}>
+      <h3 data-section-heading className={cn("font-bold", compact ? "text-xs mb-2 text-white/90" : "text-sm mb-3 text-[var(--resume-body-color)] border-b-2 border-zinc-300 pb-1")}>
         {section.title}
       </h3>
 

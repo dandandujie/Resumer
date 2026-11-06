@@ -42,7 +42,8 @@ export function checkDesignContract({
 } = {}) {
   const read = (path) =>
     overrides[path] ?? readFileSync(resolve(root, path), "utf8");
-  const contract = JSON.parse(read("design/baseline/v1/contract.json"));
+  const current = JSON.parse(read("design/baseline/current.json"));
+  const contract = JSON.parse(read(current.contract));
   const issues = [];
   const require = (condition, message) => {
     if (!condition) issues.push(message);
@@ -93,6 +94,7 @@ export function checkDesignContract({
     )
       continue;
     const text = read(file);
+    if (file.endsWith(".tsx")) require(!/<select\b/.test(text), `${file} 使用系统原生选择器，请复用共享 Select/ChoiceSelect`);
     require(!/(?:bg|text|border|ring|outline|from|via|to)-(?:green|emerald|lime|teal)-\d{2,3}\b/.test(
       text,
     ), `${file} 引入应用绿色系工具类，请使用共享语义色`);
@@ -117,7 +119,7 @@ export function checkDesignContract({
     }
   }
   require(contract.status === "approved" &&
-    contract.version === "1.0", "设计基线必须保留明确的已确认版本");
+    contract.version === "2.0" && current.version === contract.version, "设计基线必须保留明确的已确认版本");
   require(read("AGENTS.md").includes("DESIGN.md") &&
     read("AGENTS.md").includes(
       "check:design",
@@ -138,6 +140,6 @@ if (
     process.exitCode = 1;
   } else
     console.log(
-      "PASS Resumer 设计基线 v1.0：颜色、尺度、字体、控件状态与页面语义色",
+      "PASS Resumer 设计基线 v2.0：颜色、尺度、字体、控件状态与页面语义色",
     );
 }

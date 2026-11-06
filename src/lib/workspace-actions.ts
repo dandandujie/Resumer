@@ -1,7 +1,7 @@
 import type { Application } from "@/stores/journal-store";
 import { useJournalStore } from "@/stores/journal-store";
-import type { WorkspaceAction } from "./tauri-api";
-import { assertUnchanged, buildJournalDraft } from "./workspace-plan";
+import type { WorkspaceAction, JournalPlan } from "./tauri-api";
+import { buildJournalDraft } from "./workspace-plan";
 export {
   FIELD_LABELS,
   VALUE_LABELS,
@@ -10,24 +10,32 @@ export {
   buildJournalDraft,
 } from "./workspace-plan";
 
-export async function applyJournalActions(
-  actions: WorkspaceAction[],
-  base: Application[],
-) {
-  const drafts = buildJournalDraft(actions, base);
-  const store = useJournalStore.getState();
-  // 先校验全部目标，再写入，避免第一项已执行才发现后续目标不明确。
-  for (const d of drafts)
-    if (d.before)
-      assertUnchanged(
-        d.before,
-        store.applications.find((a) => a.id === d.id),
-      );
-  for (const d of drafts) {
-    if (d.before) {
-      useJournalStore.getState().updateApplication(d.id, d.after);
-      await useJournalStore.getState().flushApplication(d.id);
-    } else await useJournalStore.getState().createApplication(d.after);
+// 同一张审阅卡的失败重试使用相同 ID 和请求；不会再次分配新投递 ID。
+const preparedPlans = new WeakMap<WorkspaceAction[], JournalPlan>();
+const executions = new WeakMap<WorkspaceAction[], Promise<string[]>>();
+export async function applyJournalActions(actions: WorkspaceAction[], base: Application[]) {
+  const existing = executions.get(actions);
+  if (existing) return existing;
+  let plan = preparedPlans.get(actions);
+  if (!plan) {
+    const drafts = buildJournalDraft(actions, base);
+    const today = new Date().toLocaleDateString("sv-SE");
+    plan = {
+      id: crypto.randomUUID(),
+      entries: drafts.map(d => ({
+        before: d.before,
+        after: {
+          resumeId: null, resumeVersionId: null, company: "", role: "", channel: "",
+          appliedDate: today, status: "submitted", hrName: "", hrContact: "", jd: "", notes: "",
+          nextFollowUp: "", interviews: [], outcome: null, createdAt: 0, updatedAt: 0,
+          ...d.after, id: d.id,
+        },
+      })),
+    };
+    preparedPlans.set(actions, plan);
   }
-  return drafts.map((d) => d.id);
+  const task = useJournalStore.getState().applyPlan(plan);
+  executions.set(actions, task);
+  try { return await task; }
+  catch (error) { if (executions.get(actions) === task) executions.delete(actions); throw error; }
 }

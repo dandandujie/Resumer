@@ -38,6 +38,8 @@ export function useAIChat({ resumeId, sessionId, initialMessages, selectedModel 
 
   const isLoading = status === 'streaming' || status === 'submitted';
   const streamIdRef = useRef<string | null>(null);
+  const inFlight = useRef(false);
+  const sentText = useRef('');
 
   const stop = useCallback(() => {
     if (streamIdRef.current) {
@@ -247,6 +249,7 @@ export function useAIChat({ resumeId, sessionId, initialMessages, selectedModel 
           }
           case 'error': {
             setError(new Error(payload.event.message));
+            setInput(current => current || sentText.current);
             setStatus('idle');
             break;
           }
@@ -274,6 +277,8 @@ export function useAIChat({ resumeId, sessionId, initialMessages, selectedModel 
 
   const sendMessage = useCallback(
     async (data: { text: string }) => {
+      if (inFlight.current || !data.text.trim()) return;
+      inFlight.current = true; sentText.current = data.text;
       setError(null);
       setStatus('submitted');
 
@@ -315,8 +320,9 @@ export function useAIChat({ resumeId, sessionId, initialMessages, selectedModel 
         });
       } catch (err: any) {
         setError(err instanceof Error ? err : new Error(String(err)));
+        setInput(current => current || data.text);
         setStatus('idle');
-      }
+      } finally { inFlight.current = false; }
     },
     [messages, resumeId, sessionId, selectedModel]
   );
@@ -328,7 +334,7 @@ export function useAIChat({ resumeId, sessionId, initialMessages, selectedModel 
   const handleSubmit = useCallback(
     (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
-      if (!input.trim()) return;
+      if (!input.trim() || inFlight.current) return;
 
       if (!api.isAIConfigured()) {
         const userMsg: UIMessage = { id: generateId(), role: 'user', parts: [{ type: 'text', text: input }] };
@@ -338,7 +344,6 @@ export function useAIChat({ resumeId, sessionId, initialMessages, selectedModel 
           parts: [{ type: 'text', text: '__API_KEY_MISSING__' }],
         };
         setLocalMessages((prev) => [...prev, userMsg, errorMsg]);
-        setInput('');
         return;
       }
 

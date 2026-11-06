@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-type ModalType = 'create-resume' | 'settings' | 'jd-analysis' | 'translate' | 'export' | 'import' | 'generate-resume' | 'grammar-check' | 'journal' | 'cover-letter' | 'interview' | 'version-history' | null;
+type ModalType = 'work-note' | 'create-resume' | 'settings' | 'jd-analysis' | 'translate' | 'export' | 'import' | 'generate-resume' | 'grammar-check' | 'journal' | 'cover-letter' | 'interview' | 'interview-free' | 'version-history' | null;
 
 interface UIStore {
   sidebarOpen: boolean;
@@ -34,3 +34,10 @@ export const useUIStore = create<UIStore>((set) => ({
   setTheme: (theme) => { localStorage.setItem('resumer_appearance', theme); set({ theme }); },
   setSettingsTab: (tab) => set({ settingsTab: tab }),
 }));
+
+const refreshAppearance = () => {
+  const theme = localStorage.getItem('resumer_appearance');
+  if (theme === 'light' || theme === 'dark' || theme === 'system') useUIStore.setState({ theme });
+};
+window.addEventListener('focus', refreshAppearance);
+window.addEventListener('storage', event => { if (event.key === 'resumer_appearance') refreshAppearance(); });

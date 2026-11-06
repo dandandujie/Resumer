@@ -18,7 +18,7 @@ export function useResume() {
     }
   }, []);
 
-  const createResume = useCallback(async (data: { title?: string; language?: string; template?: string }) => {
+  const createResume = useCallback(async (data: Parameters<typeof api.createResume>[0]) => {
     const resumeId = await api.createResume(data);
     // Reload to get full resume with sections
     const resume = await api.getResume(resumeId);

@@ -167,7 +167,7 @@ export async function launchBrowser({ width = 1440, height = 900, hideScrollbars
     ` });
     await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor:1, mobile:false });
     return { send, evaluate, waitFor, click, select, key, errors, close,
-      async navigate(url) { errors.length=0; await send('Page.navigate',{url}); await waitFor("document.getElementById('root')?.textContent.length > 30"); await delay(400); },
+      async navigate(url) { errors.length=0; await send('Page.navigate',{url}); await waitFor("document.getElementById('root')?.children.length > 0"); await delay(400); },
       async screenshot(file) { const shot = await send('Page.captureScreenshot',{format:'png'}); writeFileSync(file,Buffer.from(shot.data,'base64')); },
     };
   } catch (error) { await close(); throw error; }

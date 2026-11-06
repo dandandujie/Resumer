@@ -94,7 +94,7 @@ export function EducationSection({ section, onUpdate }: Props) {
               label={t('highlights')}
               items={item.highlights}
               onChange={(v) => updateItem(index, { highlights: v })}
-              aiContext={{ sectionId: section.id, sectionTitle: section.title, item: item.institution }}
+              aiContext={{ sectionId: section.id, sectionTitle: section.title, itemId: item.id, item: item.institution }}
             />
             </ItemCard>
           );

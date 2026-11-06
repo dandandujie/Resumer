@@ -89,6 +89,7 @@ export function EditorToolbar() {
     if (snapshot) {
       reorderSections(snapshot.sections);
       if (snapshot.themeConfig) updateThemeConfig(snapshot.themeConfig);
+      if (snapshot.template) useResumeStore.getState().setTemplate(snapshot.template);
     }
   };
 
@@ -97,6 +98,7 @@ export function EditorToolbar() {
     if (snapshot) {
       reorderSections(snapshot.sections);
       if (snapshot.themeConfig) updateThemeConfig(snapshot.themeConfig);
+      if (snapshot.template) useResumeStore.getState().setTemplate(snapshot.template);
     }
   };
 
@@ -208,13 +210,13 @@ export function EditorToolbar() {
         <span className="mx-1 hidden h-5 w-px bg-[var(--app-border)] md:inline-block" />
 
         <div className="hidden md:block"><ToolbarSecondary onClick={() => void withSavedDraft(() => openModal('jd-analysis'))} title={t('jdAnalysis')} icon={FileSearch} label={t('jdAnalysis')} /></div>
-        <div className="hidden lg:block"><ToolbarSecondary onClick={() => void withSavedDraft(() => openModal('journal'))} title={t('journal')} icon={BookOpenCheck} label={t('journal')} /></div>
-        <div className="hidden xl:block"><ToolbarSecondary onClick={() => void withSavedDraft(() => openModal('interview'))} title={t('interview')} icon={MessagesSquare} label={t('interview')} /></div>
+        <div className="hidden"><ToolbarSecondary onClick={() => void withSavedDraft(() => openModal('journal'))} title={t('journal')} icon={BookOpenCheck} label={t('journal')} /></div>
+        <div className="hidden"><ToolbarSecondary onClick={() => void withSavedDraft(() => openModal('interview'))} title={t('interview')} icon={MessagesSquare} label={t('interview')} /></div>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 cursor-pointer gap-1 px-2 text-[var(--app-text-secondary)] hover:bg-[var(--app-hover)]" title={t('aiTools')}>
-              <Sparkles className="h-4 w-4" /><span className="text-xs">{t('aiTools')}</span><ChevronDown className="h-3 w-3 opacity-60" />
+            <Button variant="ghost" size="sm" className="h-8 cursor-pointer gap-1 px-2 text-[var(--app-text-secondary)] hover:bg-[var(--app-hover)]" title="检查与完善">
+              <Sparkles className="h-4 w-4" /><span className="text-xs">检查与完善</span><ChevronDown className="h-3 w-3 opacity-60" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -228,8 +230,8 @@ export function EditorToolbar() {
           <DropdownMenuTrigger asChild><Button data-toolbar-more variant="ghost" size="sm" className="h-8 gap-1 px-2"><MoreHorizontal className="h-4 w-4" /><span className="text-xs">{t('more')}</span></Button></DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem className="cursor-pointer md:hidden" onClick={() => void withSavedDraft(() => openModal('jd-analysis'))}><FileSearch className="mr-2 h-4 w-4" />{t('jdAnalysis')}</DropdownMenuItem>
-            <DropdownMenuItem className="cursor-pointer lg:hidden" onClick={() => void withSavedDraft(() => openModal('journal'))}><BookOpenCheck className="mr-2 h-4 w-4" />{t('journal')}</DropdownMenuItem>
-            <DropdownMenuItem className="cursor-pointer xl:hidden" onClick={() => void withSavedDraft(() => openModal('interview'))}><MessagesSquare className="mr-2 h-4 w-4" />{t('interview')}</DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer" onClick={() => void withSavedDraft(() => openModal('journal'))}><BookOpenCheck className="mr-2 h-4 w-4" />{t('journal')}</DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer" onClick={() => void withSavedDraft(() => openModal('interview'))}><MessagesSquare className="mr-2 h-4 w-4" />{t('interview')}</DropdownMenuItem>
             <DropdownMenuSeparator className="xl:hidden" />
 <DropdownMenuItem onClick={() => void handleDuplicate()}><Copy className="mr-2 h-4 w-4" />{t('duplicate')}</DropdownMenuItem></DropdownMenuContent>
         </DropdownMenu>

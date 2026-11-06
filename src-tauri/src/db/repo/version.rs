@@ -187,13 +187,13 @@ pub fn delete(conn: &Connection, id: &str, user_id: &str) -> Result<(), String> 
     }
     let linked: bool = conn
         .query_row(
-            "SELECT EXISTS(SELECT 1 FROM applications WHERE resume_version_id=?1)",
+            "SELECT EXISTS(SELECT 1 FROM applications WHERE resume_version_id=?1) OR EXISTS(SELECT 1 FROM interview_practice WHERE version_id=?1)",
             [id],
             |r| r.get(0),
         )
         .map_err(|e| e.to_string())?;
     if linked {
-        return Err("此版本已关联投递记录，请保留投递时的简历凭据".into());
+        return Err("此版本已关联投递或面试练习，请保留当时的简历凭据".into());
     }
     let changed = conn
         .execute(

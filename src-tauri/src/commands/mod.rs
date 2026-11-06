@@ -51,3 +51,11 @@ pub mod knowledge_ai;
 pub mod knowledge_wiki;
 
 pub mod knowledge_files;
+
+pub mod practice;
+
+pub mod experiences;
+pub mod note_reminder;
+pub mod work_notes;
+
+pub mod resume_workspace;

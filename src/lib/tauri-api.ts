@@ -656,6 +656,14 @@ export async function saveApplication(application: ApplicationRecord) {
   return invoke<ApplicationRecord>('save_application', { application });
 }
 
+export interface JournalPlan {
+  id: string;
+  entries: { before: ApplicationRecord | null; after: ApplicationRecord }[];
+}
+export async function commitJournalPlan(plan: JournalPlan) {
+  return invoke<ApplicationRecord[]>('commit_journal_plan', { plan });
+}
+
 export async function deleteApplication(id: string) {
   return invoke<void>('delete_application', { id });
 }
@@ -831,3 +839,13 @@ export const knowledgeFolders=()=>invoke<string[]>('knowledge_folders');
 export const knowledgeCreateFolder=(path:string)=>invoke<void>('knowledge_create_folder',{path});
 export const knowledgeUpdateProperties=(path:string,title:string,tags:string[],expected:string)=>invoke<void>('knowledge_update_properties',{path,title,tags,expected});
 export const knowledgeOpenFile=(path:string)=>invoke<void>('knowledge_open_file',{path});
+
+// ── 带来源与版本的结构化面试练习 ──
+export const practiceList = (resumeId?: string, applicationId?: string) => invoke<import('@/types/practice').PracticeSession[]>('practice_list', {resumeId,applicationId});
+export const practiceStart = (data: {id: string; resumeId: string; applicationId: string | null; context: import('@/types/practice').PracticeSession['context']; target: import('@/types/practice').PracticeTarget | null}) => invoke<import('@/types/practice').PracticeSession>('practice_start', data);
+export const practiceStep = (data: {id: string; expectedRevision: number; requestId: string; action: import('@/types/practice').PracticeAction; answer: string}) => invoke<import('@/types/practice').PracticeSession>('practice_step', {...data, config:getAIConfig()});
+export const practiceFinish = (id: string, expectedRevision: number) => invoke<import('@/types/practice').PracticeSession>('practice_finish', {id,expectedRevision});
+export const practiceSummarize = (id: string, expectedRevision: number) => invoke<import('@/types/practice').PracticeSession>('practice_summarize', {id,expectedRevision,config:getAIConfig()});
+export const practiceReviewList = (resumeId?: string) => invoke<import('@/types/practice').PracticeReview[]>('practice_review_list', {resumeId});
+export const practiceReviewUpdate = (sessionId: string, index: number, status: 'open' | 'mastered', note: string) => invoke<void>('practice_review_update', {sessionId,index,status,note});
+export const practiceWikiPrepare = (id: string) => invoke<{id:string}>('practice_wiki_prepare', {id});

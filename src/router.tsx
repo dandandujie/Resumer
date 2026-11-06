@@ -12,10 +12,13 @@ import { BoundedOutlet, PageErrorBoundary } from '@/components/layout/page-error
 
 // Pages (lazy imports not needed for desktop app)
 import DashboardPage from '@/pages/dashboard';
+import ResumeWorkspacePage from '@/pages/resume-workspace';
 import InsightsOverviewPage from '@/pages/insights-overview';
 import EditorPage from '@/pages/editor';
 import PreviewPage from '@/pages/preview';
 import KnowledgePage from '@/pages/knowledge';
+import WorkNotesPage from '@/pages/work-notes';
+import { QuickNoteDialog } from '@/components/work-notes/quick-note-dialog';
 
 // Resolve the user's preferred locale (persisted by i18next) instead of
 // hardcoding zh, so English users land on English routes after a restart.
@@ -57,6 +60,8 @@ function EditorLayout() {
 
 export function AppRouter() {
   return (
+    <>
+    <QuickNoteDialog />
     <Routes>
       {/* Default redirect to dashboard in the preferred locale */}
       <Route path="/" element={<Navigate to={`/${preferredLocale()}/dashboard`} replace />} />
@@ -68,8 +73,10 @@ export function AppRouter() {
         {/* 工作台 + 求职动态共用同一个壳 */}
         <Route element={<AppShell />}>
           <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="resume-workspace/:id" element={<ResumeWorkspacePage />} />
           <Route path="insights" element={<InsightsOverviewPage />} />
           <Route path="knowledge" element={<KnowledgePage />} />
+          <Route path="work-notes" element={<WorkNotesPage />} />
         </Route>
 
         {/* Editor */}
@@ -84,5 +91,6 @@ export function AppRouter() {
       {/* Catch-all */}
       <Route path="*" element={<Navigate to={`/${preferredLocale()}/dashboard`} replace />} />
     </Routes>
+    </>
   );
 }

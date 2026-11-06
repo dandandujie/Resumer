@@ -1,5 +1,6 @@
 'use client';
 
+import { appScrollBehavior } from '@/lib/motion';
 import { useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { ChevronDown } from 'lucide-react';
@@ -51,7 +52,7 @@ export function ItemCard({
 
   // 从预览点过来时把这条卡片滚到可见处
   useEffect(() => {
-    if (isActive) rootRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (isActive) rootRef.current?.scrollIntoView({ block: 'nearest', behavior: appScrollBehavior() });
   }, [isActive]);
 
   const activate = () => setActiveItem({ sectionId, itemId });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Loader2,
@@ -53,8 +53,12 @@ import { ApplicationContextPicker } from '@/components/journal/application-conte
 import { useJournalStore } from '@/stores/journal-store';
 import { analyzeJD } from '@/lib/ai/client-ai-service';
 import * as api from '@/lib/tauri-api';
+import { deriveResumeWorkspace } from '@/lib/resume-workspace-api';
+import { hasUnsaved, useUnsavedStore } from '@/stores/unsaved-store';
 
 interface JdAnalysisResult {
+  checks?: { requirement: string; status: string; jobQuote: string; resumeQuote: string; note: string; nextAction: string; verified: boolean }[];
+  verdict?: string;
   overallScore: number;
   keywordMatches: string[];
   missingKeywords: string[];
@@ -238,6 +242,18 @@ function JdAnalysisResultView({
         </p>
       </div>
 
+      <section className="space-y-3" aria-label="岗位匹配依据">
+        <h4 className="text-sm font-semibold">逐项核对原文</h4>
+        <p className="text-xs text-muted-foreground">分数仅供参考；请结合岗位要求、简历证据与待补信息判断。</p>
+        {!result.checks?.length && <p className="rounded-lg border p-3 text-xs text-muted-foreground">这份历史分析没有逐项原文依据，可重新分析后核对。</p>}
+        {result.checks?.map((check, index) => <article key={index} className="space-y-2 rounded-lg border border-[var(--app-border)] p-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{check.verified ? ({ supported: '有依据', missing: '简历未体现', conflict: '存在冲突' }[check.status] || '待核对') : '待核对'}</Badge><strong>{check.requirement}</strong></div>
+          <p><span className="text-muted-foreground">岗位原文：</span>{check.jobQuote || '缺少可核对引用'}</p>
+          <p><span className="text-muted-foreground">简历原文：</span>{check.resumeQuote || '未找到对应表述'}</p>
+          {check.note && <p>{check.note}</p>}{check.nextAction && <p>下一步：{check.nextAction}</p>}
+        </article>)}
+      </section>
+
       {/* Keyword Matches */}
       {result.keywordMatches.length > 0 && (
         <div className="space-y-2">
@@ -349,6 +365,7 @@ export function JdAnalysisDialog({
   const hydrateJournal = useJournalStore((s) => s.hydrate);
   const currentResumeTitle = useResumeStore((s) => s.currentResume?.title);
   const [jobDescription, setJobDescription] = useState('');
+  const deriveRequest = useRef<{key:string;id:string}|null>(null);
   const [company, setCompany] = useState('');
   const [role, setRole] = useState('');
   // 从投递记录发起时记住来源，分析完可回写 JD、不再重复录入。
@@ -497,7 +514,7 @@ export function JdAnalysisDialog({
 
   const handleOptimize = () => {
     if (!result) return;
-    const message = `请根据以下 JD 匹配分析结果优化简历，使其更匹配目标职位：\n\n${buildAnalysisParts().join('\n\n')}\n\n请使用工具直接修改对应的简历模块内容，尽量自然地融入缺失关键词。`;
+    const message = `请根据以下 JD 匹配分析结果优化简历，使其更匹配目标职位：\n\n${buildAnalysisParts().join('\n\n')}\n\n请使用工具准备可审阅的改写提案，仅在事实支持时使用准确的岗位术语，不编造，不自动写入。`;
     onOpenChange(false);
     setTimeout(() => {
       setPendingAiMessage({ text: message, resumeId });
@@ -508,31 +525,13 @@ export function JdAnalysisDialog({
   // 派生一份面向该 JD 的定制简历副本：主简历保持通用，投递用副本可以大胆裁剪。
   const handleDeriveTailored = async () => {
     if (!result || isDeriving) return;
+    if (hasUnsaved('resume')) { useUnsavedStore.getState().ask(handleDeriveTailored, 'required', 'resume'); return; }
     setIsDeriving(true);
     try {
-      const newId = await api.duplicateResume(resumeId);
-      const now = new Date();
-      const stamp = `${now.getMonth() + 1}.${now.getDate()}`;
-      const baseTitle = currentResumeTitle || '简历';
-      await api.updateResume(newId, { title: `${baseTitle}·定制 ${stamp}` });
-
-      const jdExcerpt = jobDescription.trim().slice(0, 3000);
-      const message = [
-        '这是一份为特定 JD 派生的定制简历副本（主简历不受影响），请对它做定向深度优化：',
-        '',
-        `## 目标 JD\n${jdExcerpt}`,
-        '',
-        `## 已有的匹配分析\n${buildAnalysisParts().join('\n\n') || '（无）'}`,
-        '',
-        '要求：',
-        '1. 用工具直接修改各模块，自然融入 JD 原词（机筛按原词命中）',
-        '2. 与该岗位无关的经历大胆压缩，相关经历扩充细节',
-        '3. 遵循"强动词+方法+量化结果"，缺数字用【建议补充：具体数据】占位，绝不编造',
-        '4. 完成后总结：改了哪些模块、还需要我人工补充什么',
-      ].join('\n');
-
-      setPendingAiMessage({ text: message, resumeId: newId });
-      setRightPaneTab('ai');
+      const values = { sourceResumeId: resumeId, title: `${(company || currentResumeTitle || '简历').slice(0,120)} · ${(role || '岗位定向').slice(0,60)}`, goal: '根据这份岗位要求调整相关经历与表达', company: company.trim(), role: role.trim(), jobDescription: jobDescription.trim() };
+      const key=JSON.stringify(values);
+      if (!deriveRequest.current || deriveRequest.current.key!==key) deriveRequest.current={key,id:crypto.randomUUID()};
+      const newId = await deriveResumeWorkspace({...values,requestId:deriveRequest.current.id});
       onOpenChange(false);
       router.push(`/editor/${newId}`);
     } catch (err: any) {

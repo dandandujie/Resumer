@@ -16,6 +16,7 @@ interface ResumeStore {
   setResume: (resume: Resume) => void;
   updateSection: (sectionId: string, content: Partial<SectionContent>) => void;
   updateSectionTitle: (sectionId: string, title: string) => void;
+  setTemplate: (template: string) => void;
   updateThemeConfig: (config: Partial<ThemeConfig>) => void;
   addSection: (section: ResumeSection) => void;
   removeSection: (sectionId: string) => void;
@@ -100,6 +101,11 @@ export const useResumeStore = create<ResumeStore>((set, get) => ({
         isDirty: true,
       };
     });
+    get()._scheduleSave();
+  },
+
+  setTemplate: (template) => {
+    set(state => ({ currentResume: state.currentResume ? {...state.currentResume, template} : null, isDirty: true }));
     get()._scheduleSave();
   },
 

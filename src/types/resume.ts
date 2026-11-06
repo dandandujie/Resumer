@@ -182,6 +182,11 @@ export interface ThemeConfig {
   headingStyle?: 'underline' | 'plain' | 'filled';
   avatarStyle?: 'circle' | 'oneInch';
   infoLayout?: 'inline' | 'grid';
+  headerAlign?: 'center' | 'left';
+  photoPosition?: 'left' | 'right' | 'hidden';
+  sidebarWidth?: number;
+  sidebarColor?: string;
+  sidebarTypes?: string[];
 }
 
 export interface ResolvedTheme {
@@ -199,6 +204,13 @@ export interface ResolvedTheme {
   headingStyle: 'underline' | 'plain' | 'filled';
   avatarStyle: 'circle' | 'oneInch';
   infoLayout: 'inline' | 'grid';
+  headerAlign: 'center' | 'left';
+  photoPosition: 'left' | 'right' | 'hidden';
+  sidebarWidth: number;
+  sidebarColor: string;
+  sidebarTextColor: string;
+  headingTextColor: string;
+  sidebarTypes: string[];
 }
 
 export type LegacyFontSize = 'small' | 'medium' | 'large';

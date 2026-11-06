@@ -40,17 +40,34 @@ pub fn run() {
             let db = AppDb::new(&db_path).expect("failed to initialize database");
             let root =
                 knowledge::ensure(app.handle()).expect("failed to initialize knowledge vault");
+            {
+                let conn = db.conn.lock().expect("failed to lock knowledge imports");
+                knowledge::import_registry::recover(&conn, &root)
+                    .expect("failed to recover knowledge imports");
+            }
             knowledge::reindex(&db, &root).expect("failed to index knowledge vault");
             knowledge::index::rebuild_from_disk(&root).expect("failed to write knowledge index");
             app.manage(db);
             app.manage(commands::lifecycle::ExitGuard::default());
             #[cfg(target_os = "macos")]
             commands::lifecycle::install_macos_guard(app.handle())?;
+            commands::note_reminder::install(app.handle())?;
 
             Ok(())
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == commands::note_reminder::WINDOW {
+                    api.prevent_close();
+                    let _ = commands::note_reminder::hide(window.app_handle());
+                    return;
+                }
+                if window.label() == "main" && commands::note_reminder::enabled(window.app_handle())
+                {
+                    api.prevent_close();
+                    let _ = window.hide();
+                    return;
+                }
                 let state = window.state::<commands::lifecycle::ExitGuard>();
                 if state.ready.load(Ordering::SeqCst) && !state.allowed.load(Ordering::SeqCst) {
                     api.prevent_close();
@@ -59,6 +76,23 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            commands::experiences::experiences_list,
+            commands::experiences::experiences_save,
+            commands::experiences::experiences_assign,
+            commands::note_reminder::note_reminder_resize,
+            commands::note_reminder::note_reminder_get,
+            commands::note_reminder::note_reminder_set,
+            commands::note_reminder::note_reminder_preview,
+            commands::note_reminder::note_reminder_dismiss,
+            commands::note_reminder::show_main_window,
+            commands::work_notes::work_notes_list,
+            commands::work_notes::work_notes_contexts,
+            commands::work_notes::work_notes_save,
+            commands::work_notes::work_notes_delete,
+            commands::work_notes::work_notes_analyze,
+            commands::work_notes::work_notes_compose,
+            commands::work_notes::work_notes_draft,
+            commands::work_notes::work_notes_validate,
             commands::lifecycle::set_exit_guard_ready,
             commands::lifecycle::finish_app_exit,
             commands::document::import_original_docx,
@@ -66,6 +100,10 @@ pub fn run() {
             commands::document::save_original_docx,
             commands::document::export_original_docx,
             commands::document::save_docx_copy,
+            commands::resume_workspace::resume_workspace_list,
+            commands::resume_workspace::resume_workspace_get,
+            commands::resume_workspace::resume_workspace_derive,
+            commands::resume_workspace::resume_workspace_update,
             commands::resume::list_resumes,
             commands::resume::get_resume,
             commands::resume::create_resume,
@@ -106,6 +144,14 @@ pub fn run() {
             commands::chat::cancel_ai_stream,
             commands::chat::truncate_chat_messages,
             commands::interview::interview_chat,
+            commands::practice::practice_list,
+            commands::practice::practice_start,
+            commands::practice::practice_step,
+            commands::practice::practice_finish,
+            commands::practice::practice_summarize,
+            commands::practice::practice_review_list,
+            commands::practice::practice_review_update,
+            commands::practice::practice_wiki_prepare,
             commands::recordings::recording_list,
             commands::recordings::recording_import,
             commands::recordings::recording_save,
@@ -130,6 +176,7 @@ pub fn run() {
             commands::knowledge_wiki::knowledge_propose_edit,
             commands::journal::list_applications,
             commands::journal::save_application,
+            commands::journal::commit_journal_plan,
             commands::journal::delete_application,
             commands::journal::import_legacy_journal,
             commands::journal::list_mock_interviews,
@@ -175,6 +222,10 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                let _ = commands::note_reminder::show_main_window(app.clone());
+            }
             if let tauri::RunEvent::ExitRequested { api, .. } = event {
                 let state = app.state::<commands::lifecycle::ExitGuard>();
                 if state.ready.load(Ordering::SeqCst) && !state.allowed.load(Ordering::SeqCst) {

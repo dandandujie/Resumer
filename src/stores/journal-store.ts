@@ -2,6 +2,7 @@ import { useRecordingStore } from './recording-store';
 import { create } from 'zustand';
 import { listen } from '@tauri-apps/api/event';
 import { generateId } from '@/lib/utils';
+import { assertUnchanged } from '@/lib/workspace-plan';
 import * as api from '@/lib/tauri-api';
 
 export interface ReflectionState {
@@ -255,6 +256,7 @@ interface JournalStore {
   createApplication: (data: Partial<Application>) => Promise<Application>;
   updateApplication: (id: string, patch: Partial<Application>) => void;
   flushApplication: (id: string) => Promise<void>;
+  applyPlan: (plan: api.JournalPlan) => Promise<string[]>;
   deleteApplication: (id: string) => Promise<void>;
   addInterview: (appId: string, round?: Partial<InterviewRound>) => InterviewRound | undefined;
   updateInterview: (appId: string, roundId: string, patch: Partial<InterviewRound>) => void;
@@ -428,6 +430,46 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
       if (!application) throw new Error('投递记录不存在');
       await api.saveApplication(toRecord(application));
     });
+  },
+
+  applyPlan: async (plan) => {
+    const ids = plan.entries.map(e => e.after.id);
+    // 把已排定的普通保存放到批次之前；之后的新输入仍走同一组队列。
+    for (const id of ids) {
+      if (persistTimers.has(id)) void get().flushApplication(id).catch(() => {});
+    }
+    const previous = ids.map(id => persistQueues.get(id) ?? Promise.resolve());
+    const task = Promise.all(previous.map(p => p.catch(() => {}))).then(async () => {
+      const beforeCommit = new Map(ids.map(id => [id, get().applications.find(a => a.id === id)]));
+      // 首次提交前检查本地草稿；已提交但响应丢失时允许后端直接返回回执。
+      for (const entry of plan.entries) {
+        const current = beforeCommit.get(entry.after.id);
+        if (entry.before) assertUnchanged(entry.before, current);
+        else if (current) throw Error('目标投递已经存在，请重新整理');
+      }
+      const saved = (await api.commitJournalPlan(plan)).map(fromRecord);
+      set(state => {
+        const applications = [...state.applications];
+        for (const record of saved) {
+          const index = applications.findIndex(a => a.id === record.id);
+          const start = beforeCommit.get(record.id);
+          if (index < 0) { if (!start) applications.unshift(record); continue; }
+          const current = applications[index];
+          if (current === start) applications[index] = record;
+          else if (start) {
+            // 提交期间的输入只覆盖用户实际改过的字段，其他字段采用批次结果。
+            const edits = Object.fromEntries(Object.entries(current).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(start[key as keyof Application])));
+            applications[index] = { ...record, ...edits };
+          }
+        }
+        return { applications };
+      });
+      return saved.map(a => a.id);
+    });
+    for (const id of ids) persistQueues.set(id, task);
+    const cleanup = () => { for (const id of ids) if (persistQueues.get(id) === task) persistQueues.delete(id); };
+    void task.then(cleanup, cleanup);
+    return task;
   },
 
   deleteApplication: async (id) => {

@@ -40,7 +40,7 @@ try {
   await b.navigate(base + '/zh/insights');
   await waitFor("document.querySelectorAll('.journal-application-row').length>0");
   await configure();
-  await click('.journal-application-row');
+  await click('.journal-application-row .application-company-cell');
   await waitFor("!!document.querySelector('[data-application-detail] textarea')");
   await check("!document.querySelector('[data-application-detail] input[placeholder=\"公司\"]').closest('details')", '公司和岗位仍为常显入口');
   await check("!document.querySelector('[data-application-detail] input[list=\"journal-channels\"]').closest('details').open", '渠道联系人等非必要字段默认收起');

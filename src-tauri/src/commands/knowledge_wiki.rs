@@ -108,6 +108,8 @@ pub async fn knowledge_compile_prepare(
             "knowledge-progress",
             json!({"stage":"compile","source":src["title"],"done":index,"total":assets.len()}),
         );
+        let path = format!("wiki/sources/{}.md", src["id"].as_str().unwrap_or(""));
+        let snapshot = compiler::PageSnapshot::capture(&root, &path).map_err(err)?;
         let mapped = ai::map_source(
             Some(&app),
             &db,
@@ -117,7 +119,6 @@ pub async fn knowledge_compile_prepare(
         )
         .await?;
         chunks_read += mapped.len();
-        let path = format!("wiki/sources/{}.md", src["id"].as_str().unwrap_or(""));
         let mut body = format!(
             "# {}\n\n资料集：{title}\n\n[查看保留的原件](../../{})\n",
             src["title"].as_str().unwrap_or("来源"),
@@ -141,8 +142,7 @@ pub async fn knowledge_compile_prepare(
             }
         }
         let page = compiler::plan(
-            &root,
-            &path,
+            &snapshot,
             src["title"].as_str().unwrap_or("来源"),
             "source",
             &body,
@@ -170,6 +170,7 @@ pub async fn knowledge_compile_prepare(
     let mut questions = vec![];
     for group in source_notes.chunks(3) {
         let mut related = BTreeMap::<String, String>::new();
+        let mut snapshots = BTreeMap::new();
         {
             let conn = db.conn.lock().map_err(err)?;
             for keyword in std::iter::once(title.as_str())
@@ -178,9 +179,11 @@ pub async fn knowledge_compile_prepare(
                 for hit in knowledge::fts::search(&conn, keyword, None, 5).unwrap_or_default() {
                     if allowed_synthesis(&hit.path)
                         && related.len() < 12
-                        && let Ok(page) = vault::read_raw(&root, &hit.path)
+                        && let Ok(snapshot) = compiler::PageSnapshot::capture(&root, &hit.path)
+                        && let Some(raw) = snapshot.raw()
                     {
-                        related.insert(hit.path, page);
+                        related.insert(hit.path.clone(), raw.to_owned());
+                        snapshots.insert(hit.path, snapshot);
                     }
                 }
             }
@@ -188,6 +191,7 @@ pub async fn knowledge_compile_prepare(
         for (path, page) in &planned {
             if allowed_synthesis(path) {
                 related.insert(path.clone(), page.body.clone());
+                snapshots.insert(path.clone(), compiler::PageSnapshot::from_plan(page));
             }
         }
         let result=generate(config.clone(),&format!("{SYNTHESIS}\n本知识库的维护约定：{}",knowledge::wiki_guidance(&root)),format!("目标：{instructions}\n本批来源（已读全文并逐段归纳）：{}\n已有目录：{}\n相关现有页面（必须合并保留原事实）：{}",serde_json::to_string(group).map_err(err)?,serde_json::to_string(&catalog).map_err(err)?,serde_json::to_string(&related).map_err(err)?)).await?;
@@ -228,19 +232,20 @@ pub async fn knowledge_compile_prepare(
                 return Err(err("Wiki提案包含未知来源，请重新生成"));
             }
             let kind = vault::infer_type_from_path(path);
-            let mut update = compiler::plan(
-                &root,
-                path,
+            let snapshot = snapshots
+                .get(path)
+                .cloned()
+                .map(Ok)
+                .unwrap_or_else(|| compiler::PageSnapshot::new(path, None))
+                .map_err(err)?;
+            let update = compiler::plan(
+                &snapshot,
                 page["title"].as_str().unwrap_or("知识页"),
                 kind,
                 &source_links(page["body"].as_str().unwrap_or(""), &sources),
                 sources,
             )
             .map_err(err)?;
-            if let Some(old) = planned.get(path) {
-                update.before = old.before.clone();
-                update.stamp = old.stamp.clone();
-            }
             planned.insert(path.into(), update);
         }
         insights.extend(ai::strings(&result, "insights")?);
@@ -397,6 +402,12 @@ pub fn knowledge_apply_draft(
     if status != "pending" {
         return Err(err("提案已放弃"));
     }
+    if let Some(session_id) = key.strip_prefix("practice:") {
+        let session = crate::db::repo::practice::get(&conn, session_id).map_err(err)?;
+        if super::knowledge_ai::hash(&session["summary"].to_string()) != expected {
+            return Err(err("练习复盘已更新，请重新生成复习提案"));
+        }
+    }
     let result = if kind == "distill" {
         apply_distillation(&mut conn, &root, &payload, &expected, markdown.as_deref())?
     } else {
@@ -445,14 +456,16 @@ fn attach_question_links(
                 page.body.push_str(&format!("\n\n## 相关问答\n- {link}\n"));
             }
         } else {
-            let page = vault::read(root, source).map_err(err)?;
+            let snapshot = compiler::PageSnapshot::capture(root, source).map_err(err)?;
+            let page =
+                vault::parse_page(source, snapshot.raw().ok_or_else(|| err("来源页面不存在"))?)
+                    .map_err(err)?;
             if vault::wikilinks(&page.body).iter().any(|p| p == path) {
                 continue;
             }
             pages.push(
                 compiler::plan(
-                    root,
-                    source,
+                    &snapshot,
                     &page.frontmatter.title,
                     &page.frontmatter.page_type,
                     &format!("{}\n\n## 相关问答\n- {link}\n", page.body.trim()),
@@ -504,8 +517,7 @@ pub fn knowledge_save_answer(
             if !root.join(&path).exists() && !pages.iter().any(|p: &PlannedPage| p.path == path) {
                 pages.push(
                     compiler::plan(
-                        &root,
-                        &path,
+                        &compiler::PageSnapshot::new(&path, None).map_err(err)?,
                         &filename,
                         "source",
                         &format!(
@@ -546,8 +558,7 @@ pub fn knowledge_save_answer(
     attach_question_links(&root, &mut pages, &sources, &path, &title)?;
     pages.push(
         compiler::plan(
-            &root,
-            &path,
+            &compiler::PageSnapshot::new(&path, None).map_err(err)?,
             &title,
             "question",
             &format!("# {title}\n\n{reply}\n\n## 引用依据\n{evidence}"),
@@ -604,8 +615,11 @@ pub async fn knowledge_maintain_prepare(
             planned.insert(
                 path.to_owned(),
                 compiler::plan(
-                    &root,
-                    path,
+                    &compiler::PageSnapshot::new(
+                        path,
+                        Some(group.iter().find(|(g, _)| g == path).unwrap().1.clone()),
+                    )
+                    .map_err(err)?,
                     p["title"].as_str().unwrap_or("知识页"),
                     vault::infer_type_from_path(path),
                     p["body"].as_str().unwrap_or(""),
@@ -665,8 +679,7 @@ pub fn knowledge_propose_edit(
         let title = fields["title"].as_str().unwrap_or(&page.frontmatter.title);
         pages.push(
             compiler::plan(
-                &root,
-                path,
+                &compiler::PageSnapshot::new(path, Some(before.to_owned())).map_err(err)?,
                 title,
                 &page.frontmatter.page_type,
                 body,
@@ -786,13 +799,18 @@ mod tests {
         crate::db::migrate::run(&conn).unwrap();
         let source = "wiki/concepts/cache.md";
         let question = "wiki/questions/answer.md";
-        let page =
-            compiler::plan(&root, source, "缓存", "concept", "# 缓存\n原有事实", vec![]).unwrap();
+        let page = compiler::plan(
+            &compiler::PageSnapshot::capture(&root, source).unwrap(),
+            "缓存",
+            "concept",
+            "# 缓存\n原有事实",
+            vec![],
+        )
+        .unwrap();
         compiler::apply(&mut conn, &root, &[page]).unwrap();
         let mut pages = vec![
             compiler::plan(
-                &root,
-                question,
+                &compiler::PageSnapshot::capture(&root, question).unwrap(),
                 "如何准备缓存",
                 "question",
                 &format!("# 如何准备缓存\n[[{source}]]"),

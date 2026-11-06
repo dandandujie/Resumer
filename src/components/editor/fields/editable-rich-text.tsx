@@ -19,7 +19,7 @@ export function EditableRichText({ label, value, onChange, placeholder, field, a
     <div className="space-y-1.5">
       <div className="flex min-h-6 items-center justify-between gap-2">
         <span className="text-xs font-medium text-[var(--app-text-muted)]">{label}</span>
-        {aiContext && <AiRewriteMenu text={value || ''} context={{ ...aiContext, field: label }} />}
+        {aiContext && <AiRewriteMenu text={value || ''} context={{ ...aiContext, field: label, fieldPath: field }} />}
       </div>
       <RichTextInput
         multiline

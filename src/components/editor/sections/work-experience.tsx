@@ -2,6 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { Plus } from 'lucide-react';
+import { ExperienceNotes } from '@/components/work-notes/experience-notes';
 import { Button } from '@/components/ui/button';
 import { EditableText } from '../fields/editable-text';
 import { EditableDate } from '../fields/editable-date';
@@ -31,6 +32,7 @@ export function WorkExperienceSection({ section, onUpdate }: Props) {
   const items = content.items || [];
   const aiContext = (item: WorkExperienceItem) => ({
     sectionId: section.id,
+    itemId: item.id,
     sectionTitle: section.title,
     item: [item.company, item.position].filter(Boolean).join(' · '),
   });
@@ -136,6 +138,7 @@ export function WorkExperienceSection({ section, onUpdate }: Props) {
                     }
                   />
                 </FieldWrapper>
+                <ExperienceNotes sectionId={section.id} item={item} />
                 <EditableRichText field="description"
                   label={t('description')}
                   value={item.description}

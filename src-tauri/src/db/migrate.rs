@@ -16,6 +16,13 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/013_interview_recordings.sql"),
     include_str!("../../migrations/014_knowledge_compiler.sql"),
     include_str!("../../migrations/015_knowledge_tags.sql"),
+    include_str!("../../migrations/016_journal_plans.sql"),
+    include_str!("../../migrations/017_knowledge_import_registry.sql"),
+    include_str!("../../migrations/018_interview_practice.sql"),
+    include_str!("../../migrations/019_work_notes.sql"),
+    include_str!("../../migrations/020_work_note_reminder.sql"),
+    include_str!("../../migrations/021_work_experiences.sql"),
+    include_str!("../../migrations/022_resume_workspace.sql"),
 ];
 
 pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {

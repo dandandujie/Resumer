@@ -1,5 +1,6 @@
 'use client';
 
+import { appScrollBehavior } from '@/lib/motion';
 import { useEffect, useRef } from 'react';
 import { useEditorStore } from '@/stores/editor-store';
 import { cn } from '@/lib/utils';
@@ -22,7 +23,7 @@ export function ItemBox({ sectionId, itemId, interactive, className, children }:
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (isActive) ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (isActive) ref.current?.scrollIntoView({ block: 'nearest', behavior: appScrollBehavior() });
   }, [isActive]);
 
   if (!interactive) {

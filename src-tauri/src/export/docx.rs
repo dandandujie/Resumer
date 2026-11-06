@@ -51,6 +51,20 @@ pub struct ResolvedTheme {
     pub heading_style: String,
     pub avatar_style: String,
     pub info_layout: String,
+    #[serde(default = "default_header_align")]
+    pub header_align: String,
+    #[serde(default = "default_photo_position")]
+    pub photo_position: String,
+    #[serde(default = "default_sidebar_width")]
+    pub sidebar_width: f64,
+    #[serde(default = "default_sidebar_color")]
+    pub sidebar_color: String,
+    #[serde(default = "default_light_text")]
+    pub sidebar_text_color: String,
+    #[serde(default = "default_light_text")]
+    pub heading_text_color: String,
+    #[serde(default = "default_sidebar_types")]
+    pub sidebar_types: Vec<String>,
     pub office_fonts: OfficeFonts,
     /// 内联标记 `{{font=<id>}}` 用的中文字体 Office 名表（由前端字体表给出）。
     pub cjk_font_names: HashMap<String, String>,
@@ -58,6 +72,34 @@ pub struct ResolvedTheme {
     pub latin_font_names: HashMap<String, String>,
     #[serde(default)]
     pub qr_images: HashMap<String, String>,
+}
+
+fn default_light_text() -> String {
+    "#FFFFFF".into()
+}
+fn default_header_align() -> String {
+    "center".into()
+}
+fn default_photo_position() -> String {
+    "left".into()
+}
+fn default_sidebar_width() -> f64 {
+    35.0
+}
+fn default_sidebar_color() -> String {
+    "#1e293b".into()
+}
+fn default_sidebar_types() -> Vec<String> {
+    ["skills", "languages", "certifications", "qr_codes"]
+        .map(String::from)
+        .to_vec()
+}
+fn header_alignment(theme: &ResolvedTheme) -> AlignmentType {
+    if theme.header_align == "left" {
+        AlignmentType::Left
+    } else {
+        AlignmentType::Center
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -90,7 +132,7 @@ fn office_fonts(theme: &ResolvedTheme) -> Result<RunFonts, String> {
 fn color(value: &str) -> String {
     let hex = value.trim_start_matches('#');
     if hex.len() == 3 {
-        hex.chars().flat_map(|ch| [ch, ch]).collect()
+        hex.chars().flat_map(|ch| [ch, ch]).collect::<String>()
     } else {
         hex.to_string()
     }
@@ -208,7 +250,7 @@ fn styles(theme: &ResolvedTheme, fonts: &RunFonts) -> Vec<Style> {
         style.style_id = format!("Sidebar{}", style.style_id);
         // Office 会按显示名称合并样式，侧栏必须同时使用独立的 ID 和名称。
         let name = format!("侧栏{}", style.style_id);
-        style = style.name(name).color("FFFFFF");
+        style = style.name(name).color(color(&theme.sidebar_text_color));
         style.paragraph_property = style
             .paragraph_property
             .set_borders(ParagraphBorders::with_empty());
@@ -233,7 +275,7 @@ fn run(span: &Span, theme: &ResolvedTheme) -> Run {
     if let Some(color_value) = &span.color {
         value = value.color(color(color_value));
     } else if theme.dark {
-        value = value.color("FFFFFF");
+        value = value.color(color(&theme.sidebar_text_color));
     }
     if let Some(pt) = span.size_pt {
         value = value.size((pt * 2.0).round().max(1.0) as usize);
@@ -287,7 +329,7 @@ fn add_spans(
             if filled_heading {
                 value = value
                     .shading(Shading::new().fill(color(&theme.accent_color)))
-                    .color("FFFFFF");
+                    .color(color(&theme.heading_text_color));
             }
             paragraph = paragraph.add_run(value);
         }
@@ -476,8 +518,8 @@ fn personal_info_table(content: &Value, theme: &ResolvedTheme) -> Result<Table, 
     let job = text(content, "jobTitle");
     for (value, style) in [(&name, "Title"), (&job, "ResumeBody")] {
         if !value.is_empty() {
-            identity =
-                identity.add_paragraph(paragraph(value, style, theme).align(AlignmentType::Center));
+            identity = identity
+                .add_paragraph(paragraph(value, style, theme).align(header_alignment(theme)));
         }
     }
     let mut contacts: Vec<String> = PERSONAL_INFO_KEYS
@@ -494,21 +536,25 @@ fn personal_info_table(content: &Value, theme: &ResolvedTheme) -> Result<Table, 
     if theme.info_layout == "grid" {
         for pair in contacts.chunks(2) {
             contact_cell = contact_cell.add_paragraph(
-                paragraph(&pair.join("    "), "ResumeBody", theme).align(AlignmentType::Center),
+                paragraph(&pair.join("    "), "ResumeBody", theme).align(header_alignment(theme)),
             );
         }
     } else {
         contact_cell = contact_cell.add_paragraph(
-            paragraph(&contacts.join(" | "), "ResumeBody", theme).align(AlignmentType::Center),
+            paragraph(&contacts.join(" | "), "ResumeBody", theme).align(header_alignment(theme)),
         );
     }
     let content_width = content_width_twips(theme);
-    let bytes = content
-        .get("avatar")
-        .and_then(Value::as_str)
-        .map(avatar_bytes)
-        .transpose()?
-        .flatten();
+    let bytes = if theme.photo_position == "hidden" {
+        None
+    } else {
+        content
+            .get("avatar")
+            .and_then(Value::as_str)
+            .map(avatar_bytes)
+            .transpose()?
+            .flatten()
+    };
     let Some(bytes) = bytes else {
         return Ok(Table::without_borders(vec![
             TableRow::new(vec![identity]),
@@ -544,16 +590,31 @@ fn personal_info_table(content: &Value, theme: &ResolvedTheme) -> Result<Table, 
         .max(estimate(&job, theme.font_size))
         .max(1800)
         .min(content_width.saturating_sub(AVATAR_COLUMN_TWIPS + 2));
-    let space = (content_width - AVATAR_COLUMN_TWIPS - identity_width) / 2;
+    let space = if theme.header_align == "left" {
+        0
+    } else {
+        (content_width - AVATAR_COLUMN_TWIPS - identity_width) / 2
+    };
     let empty = || TableCell::new().add_paragraph(Paragraph::new());
+    let (cells, middle_widths) = if theme.photo_position == "right" {
+        (
+            vec![empty(), identity, portrait, empty()],
+            vec![identity_width, AVATAR_COLUMN_TWIPS],
+        )
+    } else {
+        (
+            vec![empty(), portrait, identity, empty()],
+            vec![AVATAR_COLUMN_TWIPS, identity_width],
+        )
+    };
     Ok(Table::without_borders(vec![
-        TableRow::new(vec![empty(), portrait, identity, empty()]),
+        TableRow::new(cells),
         TableRow::new(vec![contact_cell.grid_span(4)]),
     ])
     .set_grid(vec![
         space,
-        AVATAR_COLUMN_TWIPS,
-        identity_width,
+        middle_widths[0],
+        middle_widths[1],
         content_width - space - AVATAR_COLUMN_TWIPS - identity_width,
     ])
     .layout(TableLayoutType::Fixed)
@@ -779,17 +840,18 @@ fn modern_table(
     theme: &ResolvedTheme,
 ) -> Result<Table, String> {
     let width = content_width_twips(theme);
-    let left_width = width * 35 / 100;
+    let left_width =
+        (width as f64 * theme.sidebar_width.clamp(25.0, 45.0) / 100.0).round() as usize;
     let right_width = width - left_width;
     let mut left_theme = theme.clone();
     left_theme.column_width = Some(left_width.saturating_sub(720));
     left_theme.dark = true;
-    left_theme.heading_style = "plain".into();
+
     let mut right_theme = theme.clone();
     right_theme.column_width = Some(right_width.saturating_sub(960));
     let mut left = TableCell::new()
         .width(left_width, WidthType::Dxa)
-        .shading(Shading::new().fill("1E293B"));
+        .shading(Shading::new().fill(color(&theme.sidebar_color).to_ascii_uppercase()));
     let mut right = TableCell::new().width(right_width, WidthType::Dxa);
     left.property = left
         .property
@@ -811,7 +873,11 @@ fn modern_table(
         let kind = text(section, "type");
         let content = section.get("content").unwrap_or(&Value::Null);
         if kind == "personal_info" {
-            if let Some(bytes) = avatar_bytes(&text(content, "avatar"))? {
+            if let Some(bytes) = if theme.photo_position == "hidden" {
+                None
+            } else {
+                avatar_bytes(&text(content, "avatar"))?
+            } {
                 let ((w, h), bytes) = if theme.avatar_style == "circle" {
                     (AVATAR_CIRCLE, circle_avatar_png(&bytes)?)
                 } else {
@@ -825,11 +891,11 @@ fn modern_table(
             }
             left = left.add_paragraph(
                 paragraph(&text(content, "fullName"), "Title", &left_theme)
-                    .align(AlignmentType::Center),
+                    .align(header_alignment(theme)),
             );
             left = left.add_paragraph(
                 paragraph(&text(content, "jobTitle"), "ResumeBody", &left_theme)
-                    .align(AlignmentType::Center),
+                    .align(header_alignment(theme)),
             );
             for key in PERSONAL_INFO_KEYS {
                 let value = text(content, key);
@@ -846,10 +912,7 @@ fn modern_table(
             }
             continue;
         }
-        let sidebar = matches!(
-            kind.as_str(),
-            "skills" | "languages" | "certifications" | "qr_codes"
-        );
+        let sidebar = theme.sidebar_types.contains(&kind);
         let column_theme = if sidebar { &left_theme } else { &right_theme };
         let paragraphs = item_paragraphs(&kind, content, style, language, column_theme);
         if paragraphs.is_empty() {
@@ -1269,5 +1332,34 @@ mod tests {
             assert!(xml.contains(value), "遗漏 {value}");
         }
         assert!(!xml.contains("{{"));
+    }
+    #[test]
+    fn custom_layout_preserves_width_column_placement_and_readable_colors() {
+        let theme = theme(
+            json!({"template":"modern","sidebarWidth":42,"sidebarColor":"#ffffff","sidebarTextColor":"#1a1a1a","headingStyle":"filled","accentColor":"#f4e8da","headingTextColor":"#1a1a1a","sidebarTypes":["work_experience"],"photoPosition":"hidden","headerAlign":"left"}),
+        );
+        let sections = vec![
+            json!({"type":"personal_info","content":{"fullName":"测试姓名","avatar":AVATAR}}),
+            json!({"type":"work_experience","title":"侧栏经历","content":{"items":[{"company":"测试公司","description":"用户确认的实际经历"}]}}),
+            json!({"type":"skills","title":"主栏技能","content":{"categories":[{"name":"前端","skills":["React"]}]}}),
+        ];
+        let (bytes, _) = build(sections, &theme, "custom-layout");
+        let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
+        let mut xml = String::new();
+        archive
+            .by_name("word/document.xml")
+            .unwrap()
+            .read_to_string(&mut xml)
+            .unwrap();
+        let width = (content_width_twips(&theme) as f64 * 0.42).round() as usize;
+        assert!(
+            xml.contains(&format!("<w:gridCol w:w=\"{width}\"")),
+            "侧栏比例必须应用到可编辑Word表格"
+        );
+        assert!(xml.contains("SidebarHeading1"));
+        assert!(xml.contains("1a1a1a"));
+        assert!(xml.contains("f4e8da"));
+        assert!(xml.contains("侧栏经历") && xml.contains("主栏技能"));
+        assert!(!xml.contains("<w:drawing>"), "隐藏照片应同时应用到Word");
     }
 }

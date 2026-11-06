@@ -70,7 +70,7 @@ export function CustomSection({ section, onUpdate }: Props) {
                 label={t('description')}
                 value={item.description}
                 onChange={(v) => updateItem(index, { description: v })}
-                aiContext={{ sectionId: section.id, sectionTitle: section.title, item: item.title }}
+                aiContext={{ sectionId: section.id, sectionTitle: section.title, itemId: item.id, item: item.title }}
               />
             </ItemCard>
           );

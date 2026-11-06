@@ -297,6 +297,12 @@ pub async fn ai_jd_analysis(
     let parsed =
         ai::extract_json::extract_json(&res.text).map_err(|e| CommandError { message: e })?;
 
+    let parsed = ai::evidence::ground_jd(
+        parsed,
+        &serde_json::from_str(&resume_ctx).unwrap_or_default(),
+        &job_description,
+    );
+
     let overall = parsed
         .get("overallScore")
         .and_then(|v| v.as_i64())

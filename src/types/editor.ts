@@ -13,6 +13,7 @@ export interface ResumeSnapshot {
   // Captured alongside sections so visual-only operations (e.g. smart layout,
   // which only mutates the theme) can be undone/redone too.
   themeConfig?: ThemeConfig;
+  template?: string;
   timestamp: number;
 }
 

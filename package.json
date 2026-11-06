@@ -23,7 +23,8 @@
     "test:date": "pnpm test",
     "test:ui": "node scripts/tauri-mock/test-ui.mjs",
     "build:export-css": "tsx scripts/build-export-css.ts",
-    "check:design": "node scripts/check-design-contract.mjs"
+    "check:design": "node scripts/check-design-contract.mjs",
+    "check:architecture": "node scripts/check-module-boundaries.mjs"
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.5",

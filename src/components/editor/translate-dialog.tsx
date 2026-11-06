@@ -41,21 +41,23 @@ export function TranslateDialog({ open, onOpenChange, resumeId }: TranslateDialo
   const defaultTarget: 'zh' | 'en' = currentLanguage === 'zh' ? 'en' : 'zh';
 
   const [targetLanguage, setTargetLanguage] = useState<'zh' | 'en'>(defaultTarget);
-  const [mode, setMode] = useState<TranslateMode>('overwrite');
+  const [mode, setMode] = useState<TranslateMode>('copy');
   const [state, setState] = useState<TranslateState>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [progress, setProgress] = useState<Progress>({ completed: 0, total: 0 });
   const [failedCount, setFailedCount] = useState(0);
+  const copyRequest = useRef<{key:string;id:string}|null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   // Reset state when dialog opens
   useEffect(() => {
     if (open) {
+      copyRequest.current=null;
       setState('idle');
       setErrorMessage('');
       setProgress({ completed: 0, total: 0 });
       setFailedCount(0);
-      setMode('overwrite');
+      setMode('copy');
       const lang = useResumeStore.getState().currentResume?.language || 'en';
       setTargetLanguage(lang === 'zh' ? 'en' : 'zh');
     } else {
@@ -71,7 +73,10 @@ export function TranslateDialog({ open, onOpenChange, resumeId }: TranslateDialo
     setFailedCount(0);
 
     try {
+      const key = `${resumeId}:${targetLanguage}:${mode}`;
+      if (!copyRequest.current || copyRequest.current.key!==key) copyRequest.current={key,id:crypto.randomUUID()};
       const result = await translateResume({
+        requestId: copyRequest.current.id,
         resumeId,
         targetLanguage,
         mode,

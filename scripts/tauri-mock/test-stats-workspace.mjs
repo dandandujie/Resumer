@@ -18,9 +18,9 @@ try{
  await click('[data-appearance-choice=dark]');await waitFor("document.documentElement.dataset.appearance==='dark'");
  await click('text:返回应用');await waitFor("!document.querySelector('[data-settings-workspace]')");
  assert.equal(await appearance(),'dark');checks++;
- await check("getComputedStyle(document.querySelector('.app-detail')).backgroundColor==='rgb(13, 13, 15)'",'主画布继承深色而非页面内重置');
+ await check("getComputedStyle(document.querySelector('.app-detail')).backgroundColor==='rgb(21, 23, 28)'",'主画布继承深色而非页面内重置');
  await b.navigate(base+'/zh/knowledge');
- await check("document.documentElement.dataset.appearance==='dark' && getComputedStyle(document.querySelector('[data-library-workspace]')).backgroundColor==='rgb(13, 13, 15)'",'知识库跨路由维持深色');
+ await check("document.documentElement.dataset.appearance==='dark' && getComputedStyle(document.querySelector('[data-library-workspace]')).backgroundColor==='rgb(21, 23, 28)'",'知识库跨路由维持深色');
  await b.navigate(base+'/zh/editor/r-demo');
  await check("document.documentElement.dataset.appearance==='dark'",'编辑器继承深色偏好');
  await check("getComputedStyle(document.querySelector('[data-preview-viewport] > div > div')).backgroundColor==='rgb(255, 255, 255)'",'深色界面不改变白色文档纸张');
@@ -31,7 +31,7 @@ try{
  await check("document.querySelector('[data-module-actions]').dataset.moduleActions==='s-we' && document.querySelectorAll('[data-module-actions] button').length===4",'当前板块操作集中常显，与选中目标一致');
  await openSettings();await bounds();await click('text:通用设置');await click('[data-appearance-choice=light]');await click('text:返回应用');
  await check("document.documentElement.dataset.appearance==='light'",'设置返回编辑器保留浅色');
- await b.navigate(base+'/zh/insights');await waitFor("!!document.querySelector('.journal-application-row')");await click('.journal-application-row');
+ await b.navigate(base+'/zh/insights');await waitFor("!!document.querySelector('.journal-application-row')");await click('.journal-application-row .application-company-cell');
  await check("!!document.querySelector('[data-application-detail]') && !document.querySelector('[role=dialog]')",'投递详情采用主从工作区，保留列表上下文');
  await check("document.querySelectorAll('.application-record-item').length===6",'详情工作区能直接切换其他投递');
  await check("[...document.querySelectorAll('[data-application-detail] [role=tablist] button')].every(button=>button.getBoundingClientRect().height<34)",'详情分段标签单行显示，不挤成两行');

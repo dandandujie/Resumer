@@ -3,6 +3,7 @@
  * Provides a unified interface for frontend components.
  */
 import * as api from "@/lib/tauri-api";
+import { deriveResumeWorkspace } from "@/lib/resume-workspace-api";
 import { useResumeStore } from "@/stores/resume-store";
 import { useEditorStore } from "@/stores/editor-store";
 import { listen } from "@tauri-apps/api/event";
@@ -34,6 +35,7 @@ interface TranslateParams {
   resumeId: string;
   targetLanguage: "zh" | "en";
   mode?: "overwrite" | "copy";
+  requestId?: string;
   onProgress?: (
     completed: number,
     total: number,
@@ -47,7 +49,9 @@ export async function translateResume(params: TranslateParams) {
     // If copy mode, duplicate resume first then translate the copy
     let targetResumeId = params.resumeId;
     if (params.mode === "copy") {
-      targetResumeId = await api.duplicateResume(params.resumeId);
+      const source = await api.getResume(params.resumeId);
+      if (!source) throw Error('来源简历不存在');
+      targetResumeId = await deriveResumeWorkspace({requestId: params.requestId || crypto.randomUUID(), sourceResumeId: params.resumeId, title: `${source.title.slice(0,180)} · ${params.targetLanguage==='en'?'英文版':'中文版'}`, goal: params.targetLanguage==='en'?'准备一份英文简历':'准备一份中文简历', company:'',role:'',jobDescription:''});
     }
 
     // Subscribe to progress events

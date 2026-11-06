@@ -1,5 +1,6 @@
 'use client';
 
+import { PracticeDialog } from './practice-dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { WorkspaceAssistant } from '@/components/ai/workspace-assistant';
 import { assertUnchanged, validateWorkspaceFields } from '@/lib/workspace-actions';
@@ -23,6 +24,7 @@ import { useJournalStore } from '@/stores/journal-store';
 import * as api from '@/lib/tauri-api';
 import { logError } from '@/stores/error-log-store';
 import { generateId } from '@/lib/utils';
+import { appScrollBehavior } from '@/lib/motion';
 import type { UIMessage } from '@/types/chat';
 
 interface StreamEvent {
@@ -36,12 +38,14 @@ interface StreamEvent {
 
 const NO_APPLICATION = '__none__';
 
-export function InterviewDialog() {
+export function InterviewDialog() { return <><PracticeDialog /><FreeInterviewDialog /></>; }
+
+function FreeInterviewDialog() {
   const t = useTranslations('interview');
   const activeModal = useUIStore((s) => s.activeModal);
   const closeModal = useUIStore((s) => s.closeModal);
   const openSettings = useUIStore((s) => s.openModal);
-  const isOpen = activeModal === 'interview';
+  const isOpen = activeModal === 'interview-free';
 
   const resumeId = useResumeStore((s) => s.currentResume?.id);
   const applications = useJournalStore((s) => s.applications);
@@ -99,7 +103,7 @@ export function InterviewDialog() {
   };
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: appScrollBehavior() });
   }, [messages]);
 
   useEffect(() => {
@@ -191,7 +195,8 @@ export function InterviewDialog() {
       m.content || m.parts.filter((p) => p.type === 'text').map((p: any) => p.text).join('');
     const assistantMsgs = messages.filter((m) => m.role === 'assistant' && textOf(m).trim());
     // 面试官最后一条通常是收尾评价，作为反馈存档。
-    const feedback = assistantMsgs.length ? textOf(assistantMsgs[assistantMsgs.length - 1]) : '';
+    const lastUser = messages.filter(m => m.role === 'user').at(-1);
+    const feedback = lastUser && /结束|复盘|评价/.test(textOf(lastUser)) && assistantMsgs.length ? textOf(assistantMsgs[assistantMsgs.length - 1]) : '';
     const transcript = messages
       .map((m) => `【${m.role === 'user' ? '我' : '面试官'}】${textOf(m)}`)
       .join('\n\n');
@@ -201,8 +206,8 @@ export function InterviewDialog() {
         applicationId: applicationId === NO_APPLICATION ? null : applicationId,
         company: company.trim(),
         role: [role.trim(), round.trim()].filter(Boolean).join(' · '),
-        feedback: feedback.slice(0, 4000),
-        transcript: transcript.slice(0, 8000),
+        feedback: feedback,
+        transcript: transcript,
       });
       toast.success(t('archived'));
     } catch (err: any) {
@@ -223,9 +228,9 @@ export function InterviewDialog() {
           context={()=>({company,role,round,jd,focus,applications:resumeApplications.map(a=>({id:a.id,company:a.company,role:a.role,jd:a.jd.slice(0,12000),interviews:a.interviews}))})}
           onApply={async(actions,base)=>{if(started)throw Error('面试已经开始，请先结束本次练习');const b=base as {company:string;role:string;round:string;jd:string;focus:string};assertUnchanged({company:b.company,role:b.role,round:b.round,jd:b.jd,focus:b.focus},{company,role,round,jd,focus});for(const action of actions){validateWorkspaceFields(action);if(action.kind!=='mock')throw Error('不是模拟面试设置');for(const [key,value]of Object.entries(action.fields)){const set={company:setCompany,role:setRole,round:setRound,jd:setJd,focus:setFocus}[key];set?.(String(value));}}}}
         /></div>}
-        <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1 flex-col md:flex-row">
           {/* 左：面试设置 */}
-          <div className="flex w-[300px] shrink-0 flex-col gap-3 overflow-y-auto border-r border-border p-4">
+          <div className="flex max-h-[40%] w-full shrink-0 flex-col gap-3 overflow-y-auto border-b border-border p-4 md:max-h-none md:w-[260px] md:border-r md:border-b-0">
             {resumeApplications.length > 0 && (
               <div className="space-y-1.5">
                 <Label className="text-xs">{t('application')}</Label>

@@ -26,12 +26,18 @@ export const OUTCOME_KEY: Record<OutcomeResult, string> = {
   ghosted: 'outcomeGhosted',
 };
 
-/** 状态胶囊配色：进行中中性、Offer 强调色、关闭类偏红。 */
+const STATUS_TONE: Record<ApplicationStatus, string> = {
+  submitted: 'text-[var(--app-text-secondary)]',
+  screening: 'text-[var(--app-status-warning)]',
+  interview: 'text-[var(--app-status-warning)]',
+  offer: 'text-[var(--app-status-success)]',
+  rejected: 'text-[var(--app-text-muted)]',
+  declined: 'text-[var(--app-text-muted)]',
+  ghosted: 'text-[var(--app-text-muted)]',
+};
+
 export function statusTone(status: ApplicationStatus): string {
-  if (status === 'offer') return 'bg-[var(--app-accent-soft)]/40 text-[var(--app-text)]';
-  if (status === 'rejected' || status === 'declined' || status === 'ghosted') return 'bg-red-50 text-red-700';
-  if (status === 'interview') return 'bg-amber-50 text-amber-700';
-  return 'bg-[var(--app-hover)] text-[var(--app-text-secondary)]';
+  return STATUS_TONE[status];
 }
 
 export function formatDateTime(value: string | undefined, locale: string): string {

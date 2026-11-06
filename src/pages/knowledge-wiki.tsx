@@ -1,3 +1,4 @@
+import { appScrollBehavior } from '@/lib/motion';
 import {
   useCallback,
   useEffect,
@@ -589,7 +590,7 @@ export default function KnowledgeWiki({
     requestAnimationFrame(() =>
       document
         .getElementById(`wiki-heading-${index}`)
-        ?.scrollIntoView({ block: "start", behavior: "smooth" }),
+        ?.scrollIntoView({ block: "start", behavior: appScrollBehavior() }),
     );
   };
   const renderLinks = (paths: string[], empty: string) =>

@@ -880,7 +880,7 @@ mod tag_tests {
     fn legacy_categories_migrate_as_one_tag_and_repeated_migration_is_safe() {
         let conn = Connection::open_in_memory().unwrap();
         crate::db::migrate::run(&conn).unwrap();
-        conn.execute_batch("DROP TABLE knowledge_collection_tags;DELETE FROM _migrations WHERE version=15;INSERT INTO knowledge_collections(id,title,category,kind) VALUES('old','旧资料集','公司,面试准备','document'),('empty','未分类','','document'),('hash','带标签符号',' #React ','document');").unwrap();
+        conn.execute_batch("DROP TABLE resume_workspace;DROP INDEX work_notes_experience_date;ALTER TABLE work_notes DROP COLUMN experience_id;DROP TABLE work_experiences;DROP TABLE knowledge_collection_tags;DROP TABLE journal_plan_receipts;DROP TABLE knowledge_imports;DELETE FROM _migrations WHERE version>=15;INSERT INTO knowledge_collections(id,title,category,kind) VALUES('old','旧资料集','公司,面试准备','document'),('empty','未分类','','document'),('hash','带标签符号',' #React ','document');").unwrap();
         crate::db::migrate::run(&conn).unwrap();
         assert_eq!(
             collection_tags(&conn, "old").unwrap(),

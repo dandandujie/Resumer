@@ -3,12 +3,9 @@ import * as api from '@/lib/tauri-api';
 import { resolveTheme } from '@/lib/theme-config';
 import { generateId } from '@/lib/utils';
 import type { ResolvedTheme } from '@/types/resume';
+import type { ResumeTemplate } from '@/lib/resume-template';
 
-export interface CustomThemePreset {
-  id: string;
-  name: string;
-  theme: ResolvedTheme;
-}
+export type CustomThemePreset = ResumeTemplate;
 
 interface ThemePresetsStore {
   presets: CustomThemePreset[];
@@ -17,7 +14,7 @@ interface ThemePresetsStore {
   loadError: boolean;
   saving: boolean;
   load: () => Promise<void>;
-  add: (name: string, theme: ResolvedTheme) => Promise<void>;
+  add: (name: string, theme: ResolvedTheme, layout?: Pick<ResumeTemplate, 'template' | 'sections'>) => Promise<void>;
   remove: (id: string) => Promise<void>;
 }
 
@@ -46,7 +43,7 @@ export const useThemePresetsStore = create<ThemePresetsStore>((set, get) => {
           if (!value || typeof value !== 'object') return [];
           const item = value as Partial<CustomThemePreset>;
           if (typeof item.id !== 'string' || typeof item.name !== 'string' || !item.name.trim() || !item.theme || typeof item.theme !== 'object') return [];
-          return [{ id: item.id, name: item.name.trim(), theme: resolveTheme(item.theme) }];
+          return [{ id: item.id, name: item.name.trim(), theme: resolveTheme(item.theme), template: item.template === 'modern' || item.template === 'classic' ? item.template : undefined, sections: Array.isArray(item.sections) ? item.sections.filter(s => s && typeof s.type === 'string' && typeof s.title === 'string').map(s => ({type:s.type, title:s.title, visible:s.visible !== false})) : undefined }];
         });
         set({ presets, loaded: true });
       } catch {
@@ -55,12 +52,12 @@ export const useThemePresetsStore = create<ThemePresetsStore>((set, get) => {
         set({ loading: false });
       }
     },
-    add: async (name, theme) => {
+    add: async (name, theme, layout) => {
       const trimmed = name.trim();
       if (!trimmed || trimmed.length > 40 || ['标准', 'standard'].includes(trimmed.toLowerCase()) || get().presets.some((preset) => preset.name.toLowerCase() === trimmed.toLowerCase())) {
         throw new Error('Invalid preset name');
       }
-      await persist([...get().presets, { id: generateId(), name: trimmed, theme: structuredClone(resolveTheme(theme)) }]);
+      await persist([...get().presets, { id: generateId(), name: trimmed, theme: structuredClone(resolveTheme(theme)), ...structuredClone(layout || {}) }]);
     },
     remove: async (id) => persist(get().presets.filter((preset) => preset.id !== id)),
   };

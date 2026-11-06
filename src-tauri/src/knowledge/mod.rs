@@ -1,6 +1,7 @@
 pub mod compiler;
 pub mod fts;
 pub mod graph;
+pub mod import_registry;
 pub mod index;
 pub mod library;
 pub mod vault;
@@ -15,7 +16,6 @@ use tauri::{AppHandle, Manager};
 
 use crate::db::AppDb;
 use crate::import;
-use rusqlite::OptionalExtension;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SourceEntity {
@@ -327,16 +327,7 @@ where
     let digest = raw_sha256(bytes);
     {
         let conn = db.conn.lock().map_err(|error| error.to_string())?;
-        if conn
-            .query_row(
-                "SELECT path FROM knowledge_pages WHERE raw_sha256 = ?1 LIMIT 1",
-                [digest.as_str()],
-                |row| row.get::<_, String>(0),
-            )
-            .optional()
-            .map_err(|error| error.to_string())?
-            .is_some()
-        {
+        if import_registry::contains(&conn, root, &digest)? {
             return Err("该资料已经导入过了".into());
         }
     }
@@ -358,6 +349,11 @@ pub fn ingest_with_summary(
         .to_string();
     let extension = filename.rsplit('.').next().unwrap_or("bin");
     let raw_path = format!("raw/{safe_name}.{extension}");
+    let raw_path = if root.join(&raw_path).exists() {
+        format!("raw/{safe_name}-{}.{extension}", raw_sha256(bytes))
+    } else {
+        raw_path
+    };
     std::fs::write(root.join(&raw_path), bytes).map_err(|error| error.to_string())?;
     let slug = safe_name
         .chars()
@@ -370,6 +366,11 @@ pub fn ingest_with_summary(
         })
         .collect::<String>();
     let wiki_path = format!("wiki/sources/{slug}.md");
+    let wiki_path = if root.join(&wiki_path).exists() {
+        format!("wiki/sources/{slug}-{}.md", raw_sha256(bytes))
+    } else {
+        wiki_path
+    };
     let now = vault::now_stamp();
     let meta = vault::Frontmatter {
         title: if source_summary.title.trim().is_empty() {
@@ -389,11 +390,7 @@ pub fn ingest_with_summary(
     let page = vault::write(root, &wiki_path, &source_page)?;
     let conn = db.conn.lock().map_err(|error| error.to_string())?;
     fts::upsert(&conn, &page)?;
-    conn.execute(
-        "UPDATE knowledge_pages SET raw_sha256 = ?1 WHERE path = ?2",
-        rusqlite::params![raw_sha256(bytes), wiki_path],
-    )
-    .map_err(|error| error.to_string())?;
+    import_registry::register(&conn, &raw_sha256(bytes), &wiki_path)?;
     append_log(root, &format!("ingest {raw_path} → {wiki_path}"))?;
     index::rebuild_from_disk(root)?;
     Ok(IngestResult {
@@ -426,6 +423,60 @@ pub fn wiki_guidance(root: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn import_identity_survives_reindex_recovery_and_filename_collisions() {
+        let root = std::env::temp_dir().join(format!("import-identity-{}", uuid::Uuid::new_v4()));
+        vault::initialize(&root).unwrap();
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        crate::db::migrate::run(&conn).unwrap();
+        let db = AppDb {
+            conn: std::sync::Mutex::new(conn),
+        };
+        let summary = || SourceSummary {
+            title: "资料".into(),
+            tags: vec![],
+            summary: "来源事实".into(),
+            entities: vec![],
+        };
+        let first =
+            ingest_with_summary(&db, &root, b"original bytes", "same.md", summary()).unwrap();
+        let second =
+            ingest_with_summary(&db, &root, b"different bytes", "same.md", summary()).unwrap();
+        assert_ne!(first.source.path, second.source.path);
+        assert_eq!(
+            std::fs::read(root.join(&first.source.sources[0])).unwrap(),
+            b"original bytes"
+        );
+        reindex(&db, &root).unwrap();
+        let called = std::cell::Cell::new(false);
+        let result = ingest_with_generator(&db, &root, b"original bytes", "renamed.md", |_| {
+            called.set(true);
+            async { Ok(summary()) }
+        })
+        .await;
+        assert!(result.err().unwrap().contains("已经导入"));
+        assert!(!called.get(), "重复资料不能再次发送给模型");
+        {
+            let conn = db.conn.lock().unwrap();
+            // 模拟升级前指纹已在 reindex 中丢失，启动恢复从原件补建。
+            conn.execute("DELETE FROM knowledge_imports", []).unwrap();
+            import_registry::recover(&conn, &root).unwrap();
+            assert!(
+                import_registry::contains(&conn, &root, &raw_sha256(b"original bytes")).unwrap()
+            );
+            vault::write(&root, &first.source.path, "用户修改了来源正文").unwrap();
+            assert!(
+                import_registry::contains(&conn, &root, &raw_sha256(b"original bytes")).unwrap()
+            );
+            std::fs::remove_file(root.join(&first.source.path)).unwrap();
+            assert!(
+                !import_registry::contains(&conn, &root, &raw_sha256(b"original bytes")).unwrap(),
+                "来源页删除后允许重新导入"
+            );
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn ingest_markdown_writes_raw_and_source_page() {

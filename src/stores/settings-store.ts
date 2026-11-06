@@ -530,4 +530,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 if (typeof window !== 'undefined') {
   (window as any).__jadeSettingsStore = useSettingsStore;
   void useSettingsStore.getState().hydrate();
+  // The capture window stays mounted while hidden; use the current channel on its next send.
+  const refreshChannels = () => useSettingsStore.setState(initialAIState());
+  window.addEventListener('focus', refreshChannels);
+  window.addEventListener('storage', event => {
+    if (event.key === CHANNELS_KEY || event.key === ACTIVE_CHANNEL_KEY) refreshChannels();
+  });
 }

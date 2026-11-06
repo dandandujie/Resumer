@@ -29,6 +29,17 @@ pub fn save_application(
 }
 
 #[tauri::command]
+pub fn commit_journal_plan(
+    db: State<AppDb>,
+    plan: crate::db::repo::journal_plan::Plan,
+) -> Result<Vec<repo::Application>, CommandError> {
+    let mut conn = db.conn.lock().map_err(|e| CommandError {
+        message: e.to_string(),
+    })?;
+    crate::db::repo::journal_plan::commit(&mut conn, &plan).map_err(Into::into)
+}
+
+#[tauri::command]
 pub fn delete_application(
     app: tauri::AppHandle,
     db: State<AppDb>,

@@ -1,0 +1,109 @@
+{
+  "version": "2.0",
+  "status": "approved",
+  "approvedOn": "2026-11-02",
+  "palette": {
+    "light": {
+      "--app-bg": "#F5F6F8",
+      "--app-sidebar": "#FCFCFD",
+      "--app-surface": "#FFFFFF",
+      "--app-summary": "#F0F3F8",
+      "--app-control": "#FFFFFF",
+      "--app-surface-muted": "#F0F1F4",
+      "--app-hover": "#ECEEF3",
+      "--app-text": "#272A30",
+      "--app-text-secondary": "#555B65",
+      "--app-text-muted": "#737A86",
+      "--app-accent": "#4169C1",
+      "--app-accent-soft": "#EAF0FC",
+      "--app-border": "#E3E6EC",
+      "--app-inverse": "#FFFFFF",
+      "--app-field": "#FAFBFD",
+      "--app-selection": "#EDF0F5"
+    },
+    "dark": {
+      "--app-bg": "#15171C",
+      "--app-sidebar": "#1A1D24",
+      "--app-surface": "#20242D",
+      "--app-summary": "#252B36",
+      "--app-control": "#303642",
+      "--app-surface-muted": "#262B35",
+      "--app-hover": "#323A47",
+      "--app-text": "#EDF0F6",
+      "--app-text-secondary": "#BBC3D1",
+      "--app-text-muted": "#939EAF",
+      "--app-accent": "#8FAEF0",
+      "--app-accent-soft": "#293B60",
+      "--app-border": "#353D4B",
+      "--app-inverse": "#FFFFFF",
+      "--app-field": "#252B35",
+      "--app-selection": "#303B50"
+    }
+  },
+  "scaleRules": [
+    {
+      "selector": "html[data-design=\"stats\"]",
+      "properties": {
+        "font-size": "16px"
+      }
+    },
+    {
+      "selector": "[data-design=\"stats\"] body, div[data-design=\"stats\"]",
+      "properties": {
+        "font-size": "13px"
+      }
+    },
+    {
+      "selector": ".app-sidebar",
+      "properties": {
+        "width": "208px"
+      }
+    },
+    {
+      "selector": ".app-page-title",
+      "properties": {
+        "font-size": "26px",
+        "font-weight": "650"
+      }
+    },
+    {
+      "selector": ".app-panel",
+      "properties": {
+        "border-radius": "14px"
+      }
+    },
+    {
+      "selector": "html[data-design=\"stats\"] [data-ui-button]",
+      "properties": {
+        "font-size": "12px",
+        "border-radius": "8px"
+      }
+    }
+  ],
+  "buttonVariants": [
+    "default",
+    "outline",
+    "primary",
+    "selected",
+    "ghost",
+    "destructive"
+  ],
+  "scanDirectories": [
+    "src/pages",
+    "src/components",
+    "src/styles"
+  ],
+  "contentAppearanceExceptions": [
+    {
+      "path": "src/components/preview/",
+      "reason": "简历纸张由用户简历主题控制，可使用独立颜色与字体。"
+    },
+    {
+      "path": "src/components/dashboard/template-thumbnail.tsx",
+      "reason": "缩略图展示简历模板，不是应用按钮或品牌色。"
+    }
+  ],
+  "authorization": "User explicitly requested comprehensive redesign based on FlowAI reference in this chat",
+  "approvalScope": "User-authorized reference and design direction; implementation visually rechecked",
+  "referenceSha256": "f22bf52cc69b775e07ab9b79ed744054adf7124ef91574236d0d33cd112b99a8"
+}

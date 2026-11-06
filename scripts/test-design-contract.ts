@@ -8,7 +8,7 @@ assert(
   checkDesignContract({
     overrides: {
       "src/globals.css": css.replace(
-        "--app-accent: #C2521D",
+        "--app-accent: #4169C1",
         "--app-accent: #00FF00",
       ),
     },
@@ -24,6 +24,10 @@ assert(
   "字体替换必须失败",
 );
 const page = "src/pages/design-guard-fixture.tsx";
+assert(
+  checkDesignContract({ extraFiles: [page], overrides: { [page]: '<select><option>工作</option></select>' } }).some(s => s.includes("共享 Select/ChoiceSelect")),
+  "业务页不得重新引入样式不可控的系统选择器",
+);
 assert(
   checkDesignContract({
     extraFiles: [page],

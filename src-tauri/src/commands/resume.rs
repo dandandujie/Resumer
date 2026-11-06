@@ -555,6 +555,23 @@ pub fn duplicate_resume(
     let mut conn = db.conn.lock().map_err(|e| CommandError {
         message: e.to_string(),
     })?;
+    let workspace = crate::db::repo::resume_workspace::get(&conn, &user_id, &id)
+        .map_err(|message| CommandError { message })?;
+    if let Some(context) = workspace.metadata.context {
+        let source =
+            repo::find_by_id(&conn, &id, &user_id)?.ok_or_else(|| "来源简历不存在".to_string())?;
+        let request = crate::db::repo::resume_workspace::DeriveRequest {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            source_resume_id: id,
+            title: format!(
+                "{}（副本）",
+                source.resume.title.chars().take(190).collect::<String>()
+            ),
+            context,
+        };
+        return crate::db::repo::resume_workspace::derive(&mut conn, &user_id, &request)
+            .map_err(|message| CommandError { message });
+    }
     let tx = conn.transaction()?;
     let new_id = repo::duplicate(&tx, &id, &user_id)?;
     tx.commit()?;

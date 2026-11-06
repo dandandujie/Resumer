@@ -408,7 +408,7 @@ export function AIChatContent({ resumeId, hideTitle }: AIChatContentProps) {
           selectChannel(id);
           setSelectedModel(undefined);
         }}
-        onOpenSettings={() => openSettings('settings')}
+        onOpenSettings={() => { useUIStore.getState().setSettingsTab('ai'); openSettings('settings'); }}
         selectedModel={selectedModel}
         effectiveModel={effectiveModel}
         onModelChange={setSelectedModel}

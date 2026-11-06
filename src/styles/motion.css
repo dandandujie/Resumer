@@ -1,0 +1,65 @@
+/* Application motion: short feedback, quiet entrances, no delayed interaction.
+   Deliberately scoped to workspace chrome; résumé paper/export stays independent. */
+
+
+@keyframes app-surface-enter {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes app-content-enter {
+  from { opacity: .55; }
+  to { opacity: 1; }
+}
+@keyframes app-overlay-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Opacity only on page containers: transforms would relocate fixed children. */
+  html[data-design="stats"] :is(.app-page, .wiki-frame, [data-slot="tabs-content"][data-state="active"], section[data-workspace-assistant], [data-app-reveal]) {
+    animation: app-content-enter var(--app-motion-enter) var(--app-motion-ease);
+  }
+
+  html[data-design="stats"] :is([data-ui-button], .app-nav-item, .app-segments button, [data-slot="tabs-trigger"], [data-slot="select-trigger"], [data-slot="input"], [data-slot="textarea"], [data-slot="switch"], .application-record-item, .applications-table-row) {
+    transition-property: background-color, border-color, color, box-shadow, opacity;
+    transition-duration: var(--app-motion-feedback);
+    transition-timing-function: var(--app-motion-ease);
+  }
+  html[data-design="stats"] [data-ui-button] {
+    transition-property: background-color, border-color, color, box-shadow, opacity, translate;
+  }
+  html[data-design="stats"] [data-ui-button]:active:not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]) {
+    translate: 0 1px;
+    transition-duration: var(--app-motion-press);
+  }
+  html[data-design="stats"] [data-slot="switch-thumb"] {
+    transition: transform var(--app-motion-enter) var(--app-motion-ease), translate var(--app-motion-enter) var(--app-motion-ease);
+  }
+
+  html[data-design="stats"] :is([data-slot="dialog-content"]:not(.settings-workspace), [data-slot="alert-dialog-content"], [data-slot="sheet-content"], [data-slot="popover-content"], [data-slot="select-content"], [data-slot="dropdown-menu-content"], [data-slot="dropdown-menu-sub-content"])[data-state="open"] {
+    animation: app-surface-enter var(--app-motion-enter) var(--app-motion-ease);
+  }
+  html[data-design="stats"] [data-slot="tooltip-content"]:not([data-state="closed"]) {
+    animation: app-content-enter var(--app-motion-feedback) var(--app-motion-ease);
+  }
+  html[data-design="stats"] :is([data-slot="dialog-overlay"], [data-slot="alert-dialog-overlay"], [data-slot="sheet-overlay"])[data-state="open"] {
+    animation: app-overlay-enter var(--app-motion-feedback) ease-out;
+  }
+}
+
+/* Never hold focus or a transparent pointer shield for a closing animation.
+   Native WebKit can miss animationend during rapid dismiss/reopen. */
+html[data-design="stats"] :is([data-slot="dialog-content"], [data-slot="alert-dialog-content"], [data-slot="sheet-content"], [data-slot="dialog-overlay"], [data-slot="alert-dialog-overlay"], [data-slot="sheet-overlay"], [data-slot="popover-content"], [data-slot="select-content"], [data-slot="dropdown-menu-content"], [data-slot="dropdown-menu-sub-content"], [data-slot="tooltip-content"])[data-state="closed"] {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Includes body portals and infinite spinners: shortening infinite animations
+     to .01ms makes them spin faster, rather than removing motion. */
+  html[data-design="stats"] *, html[data-design="stats"] *::before, html[data-design="stats"] *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

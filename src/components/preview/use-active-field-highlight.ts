@@ -1,5 +1,6 @@
 'use client';
 
+import { appScrollBehavior } from '@/lib/motion';
 import { useEffect, useRef } from 'react';
 import { useEditorStore, type ActiveField } from '@/stores/editor-store';
 import { useResumeStore } from '@/stores/resume-store';
@@ -71,7 +72,7 @@ export function useActiveFieldHighlight(containerRef: React.RefObject<HTMLElemen
     const fieldKey = `${activeField.sectionId}/${activeField.itemId}/${activeField.field}`;
     if (fieldKey !== lastFieldKey.current) {
       lastFieldKey.current = fieldKey;
-      element.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      element.scrollIntoView({ block: 'nearest', behavior: appScrollBehavior() });
     }
     // 一个元素只承载这一个字段时才能逐字对齐；合并显示的（如"学校 - 专业 - 学位"）只描整块
     const registry = CSS.highlights;

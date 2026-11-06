@@ -71,31 +71,64 @@ pub fn secure_path(root: &Path, path: &str) -> Result<PathBuf, String> {
     }
     Ok(candidate)
 }
+/// 生成任务实际读取的版本。计划构造不再读盘，避免把生成期间的新编辑当作基准。
+#[derive(Clone)]
+pub struct PageSnapshot {
+    path: String,
+    before: Option<String>,
+    stamp: String,
+}
+impl PageSnapshot {
+    pub fn capture(root: &Path, path: &str) -> Result<Self, String> {
+        let file = secure_path(root, path)?;
+        let before = match std::fs::read_to_string(file) {
+            Ok(raw) => Some(raw),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+            Err(e) => return Err(e.to_string()),
+        };
+        Self::new(path, before)
+    }
+    pub fn new(path: &str, before: Option<String>) -> Result<Self, String> {
+        vault::validate_path(path)?;
+        if !path.starts_with("wiki/") || path.split('/').count() < 3 {
+            return Err("只能生成wiki中的内容页".into());
+        }
+        Ok(Self {
+            path: path.into(),
+            before,
+            stamp: vault::now_stamp(),
+        })
+    }
+    pub fn raw(&self) -> Option<&str> {
+        self.before.as_deref()
+    }
+    /// 多轮生成只替换正文，磁盘前置版本和渲染时间始终来自首轮快照。
+    pub fn from_plan(page: &PlannedPage) -> Self {
+        Self {
+            path: page.path.clone(),
+            before: page.before.clone(),
+            stamp: page.stamp.clone(),
+        }
+    }
+}
 pub fn plan(
-    root: &Path,
-    path: &str,
+    snapshot: &PageSnapshot,
     title: &str,
     kind: &str,
     body: &str,
     sources: Vec<String>,
 ) -> Result<PlannedPage, String> {
-    let file = secure_path(root, path)?;
     if body.trim().is_empty() || body.chars().count() > 120_000 {
         return Err("Wiki页面为空或过长".into());
     }
-    let before = if file.exists() {
-        Some(std::fs::read_to_string(file).map_err(|e| e.to_string())?)
-    } else {
-        None
-    };
     Ok(PlannedPage {
-        path: path.into(),
+        path: snapshot.path.clone(),
         title: title.into(),
         kind: kind.into(),
         body: body.into(),
-        before,
+        before: snapshot.before.clone(),
         sources,
-        stamp: vault::now_stamp(),
+        stamp: snapshot.stamp.clone(),
     })
 }
 pub fn rendered(page: &PlannedPage) -> String {
@@ -269,6 +302,76 @@ pub fn apply(
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn plan(
+        root: &Path,
+        path: &str,
+        title: &str,
+        kind: &str,
+        body: &str,
+        sources: Vec<String>,
+    ) -> Result<PlannedPage, String> {
+        super::plan(
+            &PageSnapshot::capture(root, path)?,
+            title,
+            kind,
+            body,
+            sources,
+        )
+    }
+    #[tokio::test]
+    async fn generation_keeps_the_version_read_before_await() {
+        let root = std::env::temp_dir().join(format!("wiki-generation-{}", uuid::Uuid::new_v4()));
+        vault::initialize(&root).unwrap();
+        let mut conn = Connection::open_in_memory().unwrap();
+        crate::db::migrate::run(&conn).unwrap();
+        let path = "wiki/concepts/generation.md";
+        let original = plan(&root, path, "A", "concept", "# A", vec![]).unwrap();
+        apply(&mut conn, &root, &[original]).unwrap();
+        let snapshot = PageSnapshot::capture(&root, path).unwrap();
+        let absent = PageSnapshot::capture(&root, "wiki/concepts/new.md").unwrap();
+        let (send, receive) = tokio::sync::oneshot::channel::<String>();
+        let generation = tokio::spawn(async move {
+            let body = receive.await.unwrap();
+            super::plan(&snapshot, "AI", "concept", &body, vec![]).unwrap()
+        });
+        let edited = plan(&root, path, "B", "concept", "# B 新编辑", vec![]).unwrap();
+        apply(&mut conn, &root, &[edited]).unwrap();
+        let new_page = plan(
+            &root,
+            "wiki/concepts/new.md",
+            "用户新建",
+            "concept",
+            "用户新建",
+            vec![],
+        )
+        .unwrap();
+        apply(&mut conn, &root, &[new_page]).unwrap();
+        send.send("# 基于 A 的生成正文".into()).unwrap();
+        let generated = generation.await.unwrap();
+        // 多轮综合仍继承首次磁盘版本，不将生成后的 B 偷换成 before。
+        let second = super::plan(
+            &PageSnapshot::from_plan(&generated),
+            "AI",
+            "concept",
+            "第二轮正文",
+            vec![],
+        )
+        .unwrap();
+        assert!(apply(&mut conn, &root, &[second]).is_err());
+        let created = super::plan(&absent, "AI新建", "concept", "AI正文", vec![]).unwrap();
+        assert!(apply(&mut conn, &root, &[created]).is_err());
+        assert!(vault::read(&root, path).unwrap().body.contains("B 新编辑"));
+        let indexed: String = conn
+            .query_row(
+                "SELECT body FROM knowledge_pages WHERE path=?1",
+                [path],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(indexed.contains("B 新编辑"));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn conflict_refuses_entire_batch_and_protects_raw() {
         let root = std::env::temp_dir().join(format!("wiki-plan-{}", uuid::Uuid::new_v4()));

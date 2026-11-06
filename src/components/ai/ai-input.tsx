@@ -1,9 +1,11 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
-import { SendHorizonal, ServerCog, Square, Settings2 } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
+import { Button } from '@/components/ui/button';
+import { SendHorizonal, ChevronDown, Square, Settings2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { FormEvent, ChangeEvent } from 'react';
+import { useState, type FormEvent, type ChangeEvent } from 'react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import type { AIChannel } from '@/stores/settings-store';
 
 interface AIInputProps {
@@ -42,17 +44,20 @@ export function AIInput({
   onModelChange,
   onStop,
 }: AIInputProps) {
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const t = useTranslations('ai');
+  const zh = useLocale() === 'zh';
   const isConfigured = (c: AIChannel) => !!c.apiKey.trim() && !!c.baseURL.trim();
   const hasConfiguredChannel = channels.some(isConfigured);
   const activeChannel = channels.find((c) => c.id === activeChannelId);
-  const modelValue = selectedModel || effectiveModel || undefined;
+  const modelValue = effectiveModel || selectedModel || undefined;
 
   return (
     <form onSubmit={onSubmit} className="p-3">
       <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface-muted)] transition-all focus-within:border-[var(--app-text)]/30 focus-within:bg-[var(--app-surface)] focus-within:ring-2 focus-within:ring-[var(--app-text)]/8">
         {/* Textarea */}
         <textarea
+          aria-label={zh ? '和 AI 讨论简历' : 'Discuss your resume'}
           value={input}
           onChange={onChange}
           placeholder={t('placeholder')}
@@ -69,92 +74,42 @@ export function AIInput({
 
         {/* Bottom toolbar */}
         <div className="flex items-center justify-between gap-2 px-3 pb-2.5">
-          <div className="flex min-w-0 flex-1 items-center gap-1.5">
-            {onSelectChannel && (
-              hasConfiguredChannel ? (
-                <Select
-                  value={activeChannelId ?? undefined}
-                  onValueChange={(value) => {
-                    if (value === '__channel_settings__') onOpenSettings?.();
-                    else onSelectChannel(value);
-                  }}
-                >
-                  <SelectTrigger className="h-7 max-w-[160px] gap-1 rounded-full border-[var(--app-border)] bg-[var(--app-surface)] px-2.5 text-[11px] font-medium text-[var(--app-text-secondary)] shadow-none hover:bg-[var(--app-surface-muted)]">
-                    <ServerCog className="h-3 w-3 shrink-0 text-[var(--app-text-muted)]" />
-                    <SelectValue>{activeChannel?.name || t('selectChannel')}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {channels.filter(isConfigured).map((c) => (
-                      <SelectItem key={c.id} value={c.id} className="text-xs">
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="__channel_settings__" className="text-xs">
-                      {t('channelSettingsEntry')}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => onOpenSettings?.()}
-                  className="flex h-7 shrink-0 items-center gap-1 rounded-full border border-dashed border-[var(--app-text)]/30 bg-[var(--app-surface)] px-2.5 text-[11px] font-medium text-[var(--app-text-secondary)] hover:bg-[var(--app-surface-muted)]"
-                >
-                  <Settings2 className="h-3 w-3 shrink-0 text-[var(--app-text-muted)]" />
-                  <span>{t('needChannelSetup')}</span>
-                </button>
-              )
-            )}
-
-            {needsModelSetup ? (
-              <button
-                type="button"
-                onClick={() => onOpenSettings?.()}
-                className="flex h-7 shrink-0 items-center gap-1 rounded-full border border-dashed border-[var(--app-text)]/30 bg-[var(--app-surface)] px-2.5 text-[11px] font-medium text-[var(--app-text-secondary)] hover:bg-[var(--app-surface-muted)]"
-              >
-                <Settings2 className="h-3 w-3 shrink-0 text-[var(--app-text-muted)]" />
-                <span>{t('needModelSetup')}</span>
-              </button>
+          <div className="min-w-0 flex-1">
+            {!hasConfiguredChannel && onOpenSettings ? (
+              <Button type="button" size="xs" variant="ghost" onClick={onOpenSettings}><Settings2 />{zh ? '设置 AI' : 'Set up AI'}</Button>
             ) : (
-              <Select value={modelValue} onValueChange={onModelChange}>
-                <SelectTrigger className="h-7 max-w-[190px] gap-1 rounded-full border-[var(--app-border)] bg-[var(--app-surface)] px-2.5 text-[11px] font-medium text-[var(--app-text-secondary)] shadow-none hover:bg-[var(--app-surface-muted)]">
-                  <span className="mr-0.5 inline-block h-1.5 w-1.5 rounded-full bg-[var(--app-text-muted)]" />
-                  <SelectValue placeholder={t('model')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {models.map((id) => (
-                    <SelectItem key={id} value={id} className="text-xs">
-                      {id}
-                    </SelectItem>
-                  ))}
-                  {modelValue && !models.includes(modelValue) && (
-                    <SelectItem value={modelValue} className="text-xs">
-                      {modelValue}
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
+              <Popover open={optionsOpen} onOpenChange={setOptionsOpen}>
+                <PopoverTrigger asChild>
+                  <Button type="button" size="xs" variant="ghost" className="max-w-full" disabled={isLoading} aria-label={zh ? '模型与渠道' : 'Model and channel'} title={[zh ? '模型与渠道' : 'Model and channel', activeChannel?.name, modelValue].filter(Boolean).join(' · ')}>
+                    <span className="shrink-0">{zh ? 'AI 设置' : 'AI settings'}</span><span className="truncate text-muted-foreground">{needsModelSetup ? t('needModelSetup') : modelValue || t('model')}</span><ChevronDown className="shrink-0" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" side="top" className="max-w-[calc(100vw-2rem)] space-y-3" data-ai-model-options>
+                  {onSelectChannel && <div className="space-y-1.5">
+                    <p className="text-xs text-muted-foreground">{zh ? 'AI 渠道' : 'AI channel'}</p>
+                    <Select value={activeChannelId ?? undefined} onValueChange={onSelectChannel}>
+                      <SelectTrigger className="w-full" aria-label={zh ? 'AI 渠道' : 'AI channel'}><SelectValue>{activeChannel?.name || t('selectChannel')}</SelectValue></SelectTrigger>
+                      <SelectContent>{channels.filter(isConfigured).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>}
+                  {!needsModelSetup && <div className="space-y-1.5">
+                    <p className="text-xs text-muted-foreground">{t('model')}</p>
+                    <Select value={modelValue} onValueChange={value => { onModelChange(value); setOptionsOpen(false); }}>
+                      <SelectTrigger className="w-full" aria-label={t('model')}><SelectValue placeholder={t('model')} /></SelectTrigger>
+                      <SelectContent>{[...new Set([...models, ...(modelValue ? [modelValue] : [])])].map(id => <SelectItem key={id} value={id}>{id}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>}
+                  {onOpenSettings && <Button type="button" size="xs" variant="ghost" onClick={() => { setOptionsOpen(false); onOpenSettings(); }}><Settings2 />{needsModelSetup ? t('needModelSetup') : t('channelSettingsEntry')}</Button>}
+                </PopoverContent>
+              </Popover>
             )}
           </div>
 
           {/* Send / Stop button */}
           {isLoading && onStop ? (
-            <button
-              type="button"
-              onClick={onStop}
-              title={t('stopGenerate')}
-              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md bg-[var(--app-accent)] text-white transition-all hover:opacity-90 hover:bg-red-500"
-            >
-              <Square className="h-3 w-3 fill-current" />
-            </button>
+            <Button type="button" size="icon-sm" variant="outline" onClick={onStop} aria-label={t('stopGenerate')} title={t('stopGenerate')}><Square className="h-3 w-3 fill-current" /></Button>
           ) : (
-            <button
-              type="submit"
-              disabled={isLoading || !input.trim()}
-              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md bg-[var(--app-hover)] text-[var(--app-text-muted)] transition-all hover:bg-[var(--app-hover)] disabled:cursor-not-allowed disabled:opacity-40 [&:not(:disabled)]:bg-[var(--app-accent)] [&:not(:disabled)]:text-white [&:not(:disabled)]:hover:opacity-90 [&:not(:disabled)]:hover:bg-[var(--app-text-secondary)]"
-            >
-              <SendHorizonal className="h-4 w-4" />
-            </button>
+            <Button type="submit" size="icon-sm" variant="primary" disabled={isLoading || !input.trim()} aria-label={zh ? '发送' : 'Send'} title={zh ? '发送（Enter）；Shift + Enter 换行' : 'Send (Enter); Shift + Enter for a new line'}><SendHorizonal className="h-4 w-4" /></Button>
           )}
         </div>
       </div>

@@ -127,6 +127,13 @@ export const DEFAULT_THEME: ResolvedTheme = {
   headingStyle: 'underline',
   avatarStyle: 'oneInch',
   infoLayout: 'inline',
+  headerAlign: 'center',
+  photoPosition: 'left',
+  sidebarWidth: 35,
+  sidebarColor: '#1e293b',
+  sidebarTextColor: '#ffffff',
+  headingTextColor: '#ffffff',
+  sidebarTypes: ['skills', 'languages', 'certifications', 'qr_codes'],
 };
 
 const LEGACY_FONT_SIZE_MAP: Record<'small' | 'medium' | 'large', number> = {
@@ -201,6 +208,8 @@ function resolveFonts(value: Partial<ThemeConfig>): { fontScheme: FontSchemeId; 
 
 export function resolveTheme(raw?: Partial<ThemeConfig> | null): ResolvedTheme {
   const value = raw || {};
+  const bounded = (v: unknown, fallback: number, min: number, max: number) => typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback;
+  const color = (v: unknown, fallback: string) => typeof v === 'string' && /^#[\da-f]{6}$/i.test(v) ? v : fallback;
   return {
     ...DEFAULT_THEME,
     ...value,
@@ -208,7 +217,28 @@ export function resolveTheme(raw?: Partial<ThemeConfig> | null): ResolvedTheme {
     fontSize: resolveThemeFontSize(value.fontSize),
     margin: resolveMargin(value),
     marginUnit: 'mm',
+    lineSpacing: bounded(value.lineSpacing, DEFAULT_THEME.lineSpacing, 1, 2),
+    sectionSpacing: bounded(value.sectionSpacing, DEFAULT_THEME.sectionSpacing, 0, 24),
+    primaryColor: color(value.primaryColor, DEFAULT_THEME.primaryColor),
+    accentColor: color(value.accentColor, DEFAULT_THEME.accentColor),
+    bodyColor: color(value.bodyColor, DEFAULT_THEME.bodyColor),
+    headerAlign: value.headerAlign === 'left' ? 'left' : 'center',
+    photoPosition: value.photoPosition === 'right' || value.photoPosition === 'hidden' ? value.photoPosition : 'left',
+    sidebarWidth: bounded(value.sidebarWidth, 35, 25, 45),
+    sidebarColor: color(value.sidebarColor, DEFAULT_THEME.sidebarColor),
+    sidebarTextColor: contrastTextColor(color(value.sidebarColor, DEFAULT_THEME.sidebarColor)),
+    headingTextColor: contrastTextColor(color(value.accentColor, DEFAULT_THEME.accentColor)),
+    sidebarTypes: Array.isArray(value.sidebarTypes) ? [...new Set(value.sidebarTypes.filter(v => typeof v === 'string' && /^[a-z_]+$/.test(v) && v !== 'personal_info'))] : [...DEFAULT_THEME.sidebarTypes],
   } as ResolvedTheme;
+}
+
+/** 在白色与深色文字中选择对比度较高的一种；预览/PDF/DOCX共用解析结果。 */
+export function contrastTextColor(background: string): string {
+  const components = [1, 3, 5].map(index => parseInt(background.slice(index, index + 2), 16) / 255);
+  const linear = components.map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4);
+  const luminance = linear[0] * .2126 + linear[1] * .7152 + linear[2] * .0722;
+  const darkLuminance = ((26 / 255 + .055) / 1.055) ** 2.4;
+  return (luminance + .05) / (darkLuminance + .05) >= 1.05 / (luminance + .05) ? '#1a1a1a' : '#ffffff';
 }
 
 export function resolveCssFontScale(fontSize?: ThemeFontSize) {
@@ -267,13 +297,17 @@ export function buildThemeCss(
   const m = theme.margin;
   const headingStyle =
     theme.headingStyle === 'plain'
-      ? `${scopeSelector} h2 { border-bottom: 0 !important; }`
+      ? `${scopeSelector} [data-section-heading], ${scopeSelector} [data-zone] [data-section-heading] { border-bottom: 0 !important; }`
       : theme.headingStyle === 'filled'
-        ? `${scopeSelector} h2 { border-bottom: 0 !important; background: var(--resume-accent-color) !important; ` +
-          `color: #fff !important; padding: 2px 6px !important; }`
-        : `${scopeSelector} h2 { border-bottom: 1px solid var(--resume-accent-color) !important; }`;
+        ? `${scopeSelector} [data-section-heading], ${scopeSelector} [data-zone] [data-section-heading] { border-bottom: 0 !important; background: var(--resume-accent-color) !important; ` +
+          `color: ${theme.headingTextColor} !important; padding: 2px 6px !important; }`
+        : `${scopeSelector} [data-section-heading], ${scopeSelector} [data-zone] [data-section-heading] { border-bottom: 1px solid var(--resume-accent-color) !important; }`;
   const fontFamily = options.export ? resolveExportFontStack(theme) : resolveScreenFontStack(theme);
   return [
+    `${scopeSelector} [data-personal-heading] { justify-content:${theme.headerAlign === 'left' ? (theme.photoPosition === 'right' ? 'flex-end' : 'flex-start') : 'center'}; flex-direction:${theme.photoPosition === 'right' ? 'row-reverse' : 'row'}; }`,
+    `${scopeSelector} [data-personal-heading] > div { text-align:${theme.headerAlign}; }`,
+    `${scopeSelector} [data-personal-contacts] { justify-content:${theme.headerAlign === 'left' ? 'flex-start' : 'center'}; text-align:${theme.headerAlign}; }`,
+    ...(theme.photoPosition === 'hidden' ? [`${scopeSelector} [data-personal-heading] img, ${scopeSelector} [data-personal-avatar] { display:none!important; }`] : []),
     `${scopeSelector} > div { font-family: ${fontFamily} !important; line-height: ${theme.lineSpacing} !important; ` +
       `padding: ${m.top}mm ${m.right}mm ${m.bottom}mm ${m.left}mm !important; ` +
       `--base-body-size:${fs.body}; --base-h1-size:${fs.h1}; --base-h2-size:${fs.h2}; ` +
@@ -292,7 +326,7 @@ export function buildThemeCss(
       `font-size:${fs.h2} !important; line-height:${theme.lineSpacing} !important; ` +
       `border-color:var(--resume-accent-color) !important; }`,
     `${scopeSelector} [data-section] { margin-bottom:${theme.sectionSpacing}px !important; }`,
-    `${scopeSelector} [data-zone="dark"], ${scopeSelector} [data-zone="dark"] :not([data-fmt], [data-fmt] *) { color:#fff !important; }`,
+    `${scopeSelector} [data-zone="dark"], ${scopeSelector} [data-zone="dark"] :not([data-fmt], [data-fmt] *) { color:${theme.sidebarTextColor} !important; }`,
     `${scopeSelector} [data-zone="dark"] h2 { border-color:rgba(255,255,255,.35) !important; }`,
     headingStyle,
   ].join('\n');

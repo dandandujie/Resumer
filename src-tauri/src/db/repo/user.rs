@@ -56,6 +56,10 @@ pub fn ensure_local_user(conn: &Connection) -> Result<User, rusqlite::Error> {
         "UPDATE resume_versions SET user_id = ?1 WHERE user_id <> ?1",
         params![id],
     )?;
+    conn.execute(
+        "UPDATE resume_workspace SET user_id=?1 WHERE user_id<>?1",
+        params![id],
+    )?;
     conn.execute("DELETE FROM users WHERE id <> ?1", params![id])?;
     find_by_id(conn, &id)?.ok_or(rusqlite::Error::QueryReturnedNoRows)
 }
@@ -159,5 +163,33 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM users", [], |r| r.get(0))
             .unwrap();
         assert_eq!(users, 1);
+    }
+    #[test]
+    fn local_user_merge_preserves_target_resume_relationships() {
+        let mut conn = setup();
+        conn.execute(
+            "INSERT INTO users(id,created_at) VALUES('old',100),('stray',200)",
+            [],
+        )
+        .unwrap();
+        let source =
+            crate::db::repo::resume::create(&conn, "stray", "基础", "classic", "zh", &json!({}))
+                .unwrap();
+        let request = crate::db::repo::resume_workspace::DeriveRequest {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            source_resume_id: source.clone(),
+            title: "定向".into(),
+            context: crate::db::repo::resume_workspace::Context {
+                goal: "实习目标".into(),
+                ..Default::default()
+            },
+        };
+        let target =
+            crate::db::repo::resume_workspace::derive(&mut conn, "stray", &request).unwrap();
+        assert_eq!(ensure_local_user(&conn).unwrap().id, "old");
+        let detail = crate::db::repo::resume_workspace::get(&conn, "old", &target).unwrap();
+        assert_eq!(detail.metadata.base_resume_id, source);
+        assert_eq!(detail.metadata.context.unwrap().goal, "实习目标");
+        assert!(detail.source_snapshot.is_some());
     }
 }

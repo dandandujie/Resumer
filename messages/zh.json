@@ -319,19 +319,25 @@
       "untitled": "未命名条目"
     },
     "aiRewrite": {
-      "menu": "AI 改写这一条",
-      "hint": "改写结果会以提案卡出现在右侧助手，采纳后才生效",
+      "menu": "这段的改写与练习",
+      "hint": "建议先审阅，采纳后才生效",
       "quantify": {
-        "label": "量化改写",
-        "description": "动词开头 + 方法 + 可衡量结果"
+        "label": "让结果更具体",
+        "description": "沿用已有数字，缺少数据也能写"
       },
       "star": {
-        "label": "STAR 化",
-        "description": "情境-任务-行动-结果压成 1–2 句"
+        "label": "讲清做了什么",
+        "description": "理清背景、行动和真实结果"
       },
       "jd": {
-        "label": "换用 JD 原词",
-        "description": "对照关联投递的 JD 替换同义词"
+        "label": "贴近目标岗位",
+        "description": "对照岗位需求，突出已有证据"
+      },
+      "trigger": "这段",
+      "practice": "练习怎么讲这段经历",
+      "clear": {
+        "label": "写得更顺",
+        "description": "保留事实，表达清楚自然"
       }
     },
     "selectionFormat": {
@@ -371,11 +377,11 @@
     }
   },
   "ai": {
-    "panelTitle": "AI 助手",
-    "placeholder": "描述你想优化的内容...",
+    "panelTitle": "一起改简历",
+    "placeholder": "哪里写着别扭？也可以直接说说你做过什么。",
     "thinking": "AI 思考中...",
     "suggestion": "AI 建议",
-    "defaultGreeting": "你好！我可以直接修改这份简历、检查表达、做定向优化。粘贴一段 JD，我会分析匹配度并给出改法；「投递记录」里关联的岗位我也看得到。",
+    "defaultGreeting": "我们从你最想改的地方开始。说得零碎也没关系，或者贴一段目标岗位描述。改稿会先放在这里给你看，采纳后才进入简历。",
     "errorMessage": "出错了，请稍后重试",
     "newChat": "新对话",
     "toolCalling": "调用:",
@@ -597,7 +603,7 @@
       "arial": "Arial"
     },
     "fontHint": "预览与 PDF 使用相同的字体顺序；系统字体缺失时使用内置字体。DOCX 在其他设备上的显示取决于字体可用性。",
-    "panelHint": "修改后即时更新左侧预览；可通过工具栏撤销。",
+    "panelHint": "修改后即时更新预览；窄窗口可切换“预览”查看，通过工具栏撤销。",
     "custom": {
       "add": "将当前样式存为预设",
       "name": "预设名称",

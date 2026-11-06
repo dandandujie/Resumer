@@ -1,5 +1,6 @@
 'use client';
 
+import { useEditorStore } from '@/stores/editor-store';
 import { useId } from 'react';
 import type { Resume, ResumeSection } from '@/types/resume';
 import { buildThemeCss, resolveTheme } from '@/lib/theme-config';
@@ -24,6 +25,13 @@ export function ResumePreview({ resume, interactive, exportMode, onReorderSectio
   return (
     <div
       data-theme-scope={scopeId}
+      onClickCapture={interactive ? event => {
+        if (!useEditorStore.getState().showThemeEditor) return;
+        const target = event.target as HTMLElement;
+        const templatePart = target.closest('[data-personal-heading], [data-personal-contacts], [data-modern-heading], [data-modern-contacts]') ? 'header' : target.closest('h2,h3') ? 'headings' : 'body';
+        useEditorStore.setState({templatePart, mobileActiveTab: 'edit'});
+        event.stopPropagation();
+      } : undefined}
       data-avatar-style={theme.avatarStyle}
       // 文档是独立的浅色画布，不能继承工作区深色的默认文本/原生控件颜色。
       style={{ colorScheme: 'only light', color: theme.bodyColor, backgroundColor: '#fff' }}

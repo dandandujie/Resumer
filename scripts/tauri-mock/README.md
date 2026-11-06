@@ -66,7 +66,9 @@ MOCK_BUILD=1 MOCK_ORIGIN=http://127.0.0.1:4174 node scripts/tauri-mock/test-orig
 
 `node scripts/tauri-mock/test-workspace-assistant.mjs` 验证缺失信息追问、后续上下文、预览后采纳、过期投递提案、50个分类检索与键盘操作、混合音频/文档导入、提炼草稿稍后找回、摘要入库、Wiki编译、引用问答保存、维护与窄窗口。服务均为隔离 mock；不代表真实模型输出质量。
 
-`pnpm test` 的 `test-workspace-plan.ts` 验证字段保留、多个新投递别名关联、轮次/目标合法性、真实日历日期与过期保护。
+`pnpm test` 的 `test-workspace-plan.ts` 验证字段保留、多个新投递别名关联、轮次/目标合法性、真实日历日期与过期保护。`test-journal-commit.ts` 执行真实 store 与编排、注入 IPC 故障，覆盖稳定请求重试、失败不改内存、批次前后保存队列及提交期间的新输入。Rust `db::repo::journal_plan` 测试用 SQLite 故障验证事务回滚、整批前置内容比较和持久化回执；不能用 mock 成功替代这些数据库测试。
+
+Wiki 编译器测试以暂停生成模拟“读取 A → 生成等待时改成 B → 返回 A 的提案”，验证整批拒绝且磁盘/索引保留 B；旧导入测试覆盖索引重建后的去重、升级恢复、同名原件保留与删除来源页后重新导入。
 
 Rust 库测试使用本机 HTTP 服务验证全文末段被发送、完成段缓存及服务隔离；另检查录音原件保留且仅提炼内容入索引、来源变更保护、整批Wiki冲突拒绝、写入失败回滚、重试幂等、符号链接越界拒绝、Obsidian属性保留与问答回链。原生验收使用独立数据标识和本机假AI/语音服务，退出重开核对持久化，不操作真实用户资料。
 
@@ -76,3 +78,36 @@ Rust 库测试使用本机 HTTP 服务验证全文末段被发送、完成段缓
 `node scripts/tauri-mock/test-wiki-tags.mjs` 覆盖一集多标签、交集/并集/未打标签筛选、增删标签、目录树、多笔记标签、前后导航、收藏、全文摘要/高亮、跨标签草稿、外部编辑冲突选择、新建文件夹/笔记、标题式双链、属性保存、辅助栏、大纲、快速打开以及1200/900/390px边界。
 
 `test-knowledge-navigation.ts` 验证标签含义、旧分类兼容、大小写、实际目录层级、标题歧义、Markdown大纲、搜索上下文和原件路径。Rust测试另覆盖14→15迁移、标签交集/并集SQL、原有数据完整性、合法Markdown属性、标题链接、全文后段摘要及直接搜索/AI一跳扩展的区别。
+
+
+## 自定义模板与结构化练习（2026-11-01）
+
+打开 `/zh/editor/r-demo?ai_review=1` 使用隔离示例与假AI响应。模板/练习/笔记放在当前隔离浏览器的sessionStorage；真实应用仍使用SQLite和既有备份，不依赖浏览器示例存储。
+
+手工交互验收覆盖1200/900/390px和深色：版式与侧栏、浅色对比、模板保存/撤销/刷新、跨简历新建空内容、单条定位、回答/解释/跳题、关闭恢复、改写过期拒绝、模型设置往返、复习笔记/状态/来源筛选、Wiki提案全文审阅及采纳。
+
+一次性故障入口：`?ai_review=1&practice_fail_step=1&practice_fail_summary=1`。首次提交应保留输入且不追加轮次，重试只新增一轮；总结失败保留问答并允许重试。mock成功只证明前端交互，真实SQLite原子性/并发保护和DOCX结构由Rust测试验证，不代表已用真实AI或Office全流程联调。
+
+`pnpm test` 包含模板内容隔离、稳定定位、过期改写及纯规则依赖守卫；`cargo test --lib` 包含原文引用过滤、澄清不计掌握、版本保护、事务失败回滚、完整长回答留存和自定义DOCX几何/文字色检查。
+
+## 工作随记
+
+`/zh/work-notes?ai_review=1` 使用隔离假 AI。一次性故障入口追加 `&note_fail_save=1&note_fail_analysis=1&note_fail_compose=1`。覆盖本机先保存、失败保留、后台接话、刷新、关键词/经历筛选、原话修改、来源过期、素材审阅与编辑器采纳/撤销。随记和提案保存在隔离 sessionStorage；正式应用使用 SQLite。`pnpm test` 与 `cargo test --lib` 分别覆盖采纳规则及真实数据库的并发/失败边界。
+
+随记自动回归：`BASE=http://127.0.0.1:5174 node scripts/tauri-mock/test-work-notes.mjs`。覆盖失败恢复、来源与采纳、默认单任务界面、按需展开、隐藏筛选提示、模型浮层与键盘焦点，截图默认输出到 `/tmp/resumer-work-notes`。
+
+
+## 桌面随记提醒
+
+`BASE=http://127.0.0.1:5175 node scripts/tauri-mock/test-desktop-reminder.mjs` 覆盖默认关闭/设置保存失败/刷新、桌面与主窗草稿隔离、IME、Esc、落盘失败不收起、先保存再收起、AI失败回到主界面重试、320/390/400宽度浅深色及逐条改写/练习入口。Mock只记录预览和收起调用，不能证明原生窗口显隐、焦点或系统调度。
+
+`cargo test --lib db::repo::note_reminder` 覆盖真实SQLite提醒回执：启用/星期/时间/休眠宽限、重启/时钟回拨去重、延后过期与关闭、非法设置保护、写盘失败回滚重试。原生窗口必须另用独立identifier构建并人工验收，不访问真实应用数据。
+
+
+## v2经历归属与视觉迭代
+
+`BASE=http://127.0.0.1:5175 node scripts/tauri-mock/test-experience-capture.mjs`验证无经历引导、创建、稳定归属、跨经历隔离、独立草稿及旧原话归组。`test-work-notes.mjs`继续保留40项回归。`test-desktop-reminder.mjs`已升级为38项，包含360/390/320px浅深色、动态高度请求/上限和无经历引导。`?no_experiences=1`为空经历隔离场景。模拟经历不代表用户真实工作事实。
+
+## 基础简历与定向空间（2026-11-04）
+
+`BASE=http://127.0.0.1:5177 node scripts/tauri-mock/test-resume-workspaces.mjs`覆盖基础/全部、多个场景、创建失败/响应丢失/刷新幂等、需求保存与来源快照、目标AI请求、独立编辑、源更新/删除、浅深窄窗。Mock存储关系和简历于隔离sessionStorage；正式使用SQLite022迁移。故障开关：`window.__TAURI_MOCK__.workspaceDeriveError`、`workspaceDeriveResponseError`、`workspaceContextError`一次性。真实原子性、所有权、DOCX冻结保留和非法输入由Rust工作空间测试验证。

@@ -36,6 +36,7 @@ export function UnsavedChangesGuard() {
     let stop: (() => void) | undefined;
     if (isTauri())
       void listen("app-close-requested", () => {
+        if (hasUnsaved()) void invoke("show_main_window");
         useUnsavedStore.getState().ask(async () => {
           await invoke("finish_app_exit");
         });

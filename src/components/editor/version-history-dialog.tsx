@@ -1,5 +1,6 @@
 'use client';
 
+import { ChoiceSelect } from '@/components/ui/choice-select';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { toast } from 'sonner';
@@ -23,7 +24,7 @@ interface VersionHistoryDialogProps {
   onRestored: () => Promise<void> | void;
 }
 const OriginalDocumentCanvas = lazy(() => import('./original-document-canvas').then(module => ({ default: module.OriginalDocumentCanvas })));
-const events = new Set(['save', 'manual', 'import', 'export', 'apply', 'ai_accept', 'restore']);
+const events = new Set(['save', 'manual', 'import', 'export', 'apply', 'interview', 'ai_accept', 'restore']);
 
 export function VersionHistoryDialog({ open, onOpenChange, resumeId, onRestored }: VersionHistoryDialogProps) {
   const t = useTranslations('versionHistory');
@@ -49,7 +50,7 @@ export function VersionHistoryDialog({ open, onOpenChange, resumeId, onRestored 
   const generation = useRef(0);
   const selectionRequest = useRef(0);
   const formatTime = (seconds: number) => new Date(seconds * 1000).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  const eventLabel = (event: string) => events.has(event) ? t(`event.${event}`) : t('event.other');
+  const eventLabel = (event: string) => event === 'interview' ? (locale === 'zh' ? '面试练习' : 'Interview practice') : events.has(event) ? t(`event.${event}`) : t('event.other');
   const contextOf = (version: api.ResumeVersionSummary) => {
     if (version.event === 'apply') {
       const application = applications.find(a => a.resumeVersionId === version.id);
@@ -172,7 +173,7 @@ export function VersionHistoryDialog({ open, onOpenChange, resumeId, onRestored 
             </button>
             <div className="flex gap-2 px-3 pb-2">
               <label className="flex min-w-0 flex-1 items-center gap-1 rounded-md border bg-[var(--app-surface)] px-2"><Search className="h-3.5 w-3.5 shrink-0" /><input aria-label={t('search')} placeholder={t('search')} value={query} onChange={event => setQuery(event.target.value)} className="h-8 min-w-0 w-full bg-transparent text-xs outline-none" /></label>
-              <select aria-label={t('filterLabel')} value={filter} onChange={event => setFilter(event.target.value)} className="min-w-0 max-w-28 rounded-md border bg-[var(--app-surface)] px-1 text-xs">{['all', 'named', 'save', 'import', 'export', 'apply', 'ai_accept', 'restore'].map(value => <option key={value} value={value}>{value === 'all' || value === 'named' ? t(`filter.${value}`) : eventLabel(value)}</option>)}</select>
+              <ChoiceSelect aria-label={t('filterLabel')} value={filter} onChange={event => setFilter(event.target.value)} className="min-w-0 max-w-28 rounded-md border bg-[var(--app-surface)] px-1 text-xs">{['all', 'named', 'save', 'import', 'export', 'apply', 'interview', 'ai_accept', 'restore'].map(value => <option key={value} value={value}>{value === 'all' || value === 'named' ? t(`filter.${value}`) : eventLabel(value)}</option>)}</ChoiceSelect>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
               {loading ? <p role="status" className="flex items-center gap-2 p-4 text-xs"><Loader2 className="h-4 w-4 animate-spin" />{t('loading')}</p> : !visible.length ? <p className="p-4 text-xs leading-6 text-[var(--app-text-muted)]">{versions.length ? t('noResults') : t('empty')}</p> : <ol className="space-y-1">{visible.map(version => <li key={version.id}>

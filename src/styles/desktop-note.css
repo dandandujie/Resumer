@@ -1,0 +1,57 @@
+/* The native webview and its document are transparent, including the rounded corners. */
+html:has([data-desktop-note]), body:has([data-desktop-note]), #root:has([data-desktop-note]) {
+  background: transparent;
+  overflow: hidden;
+}
+.desktop-note {
+  height: 100dvh;
+  padding: 10px;
+  color: var(--app-text);
+  transform-origin: bottom right;
+  animation: note-arrive 160ms cubic-bezier(.2,.7,.3,1) both;
+}
+.desktop-note[data-closing="true"] { opacity: 0; transform: translateY(3px) scale(.97); transition: opacity 110ms ease, transform 110ms ease; }
+.desktop-note-surface {
+  overflow: hidden;
+  max-height: calc(100dvh - 20px);
+  border: 1px solid var(--app-border);
+  border-radius: 35px 32px 36px 26px;
+  background: var(--app-surface);
+  box-shadow: 0 3px 9px color-mix(in srgb, var(--app-text) 10%, transparent);
+}
+.desktop-note-header { display: flex; align-items: center; justify-content: space-between; padding: 13px 17px 0 19px; gap: 8px; }
+.desktop-note-identity { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; cursor: default; }
+.desktop-note-friend { position: relative; width: 25px; height: 20px; border-radius: 50% 45% 45% 38%; background: var(--app-summary); color: var(--app-text-muted); }
+.desktop-note-friend::before { content: ''; position: absolute; width: 16px; height: 13px; top: -3px; left: 5px; border-radius: 50%; background: inherit; }
+.desktop-note-friend::after { content: ''; width: 2.5px; height: 2.5px; border-radius: 50%; background: currentColor; position: absolute; top: 7px; left: 7px; box-shadow: 7px 0 currentColor; }
+.desktop-note-mouth { position: absolute; left: 9px; top: 10px; width: 6px; height: 4px; border-bottom: 1px solid currentColor; border-radius: 0 0 7px 7px; }
+.desktop-note-identity strong { font-size: 12px; font-weight: 500; }
+.desktop-note-header > button { border-radius: 50%; color: var(--app-text-muted); }
+.desktop-note-body { max-height: calc(100dvh - 63px); overflow-y: auto; padding: 7px 17px 13px; }
+.desktop-note-composer #work-note-body { min-height: 68px; height: 68px; resize: none; border: 0; border-radius: 13px; box-shadow: none; background: transparent; font-size: 13px; line-height: 1.7; padding: 7px 3px; }
+.desktop-note-composer #work-note-body::placeholder { color: var(--app-text-muted); }
+.desktop-note-composer #work-note-body:focus-visible { outline: 0; box-shadow: inset 0 0 0 1px var(--app-border); }
+.desktop-note-actions { display: flex; align-items: center; gap: 5px; margin-top: 3px; }
+.desktop-note-actions > button:first-child { color: var(--app-text-muted); border-radius: 50%; }
+.desktop-note-context { font-size: 10px; color: var(--app-text-muted); }
+.desktop-note-send { margin-left: auto; border-radius: 50%; }
+.desktop-note-options { border-top: 1px solid var(--app-border); padding: 11px 2px 1px; margin-top: 10px; font-size: 11px; display: grid; gap: 9px; }
+.desktop-note-option-context { color: var(--app-text-secondary); overflow-wrap: anywhere; }
+.desktop-note-options input { height: 31px; font-size: 12px; }
+.desktop-note-ai-option { display: flex; align-items: center; gap: 7px; }
+.desktop-note-option-hint { color: var(--app-text-muted); line-height: 1.6; font-size: 10px; }
+.desktop-note-experience { display: flex; align-items: center; gap: 4px; }
+.desktop-note-experience [role="combobox"] { min-width: 0; flex: 1; background: transparent; }
+.desktop-note-later { display: flex; justify-content: flex-end; gap: 3px; }
+.desktop-note-status { color: var(--app-text-muted); font-size: 11px; margin-top: 6px; }
+.desktop-note-error { color: var(--destructive); font-size: 11px; line-height: 1.6; margin-top: 8px; overflow-wrap: anywhere; }
+.desktop-note-empty { padding: 5px 2px 2px; }
+.desktop-note-empty h1 { font-size: 13px; font-weight: 500; }
+.desktop-note-empty p { color: var(--app-text-muted); font-size: 11px; line-height: 1.7; margin: 5px 0 12px; }
+@keyframes note-arrive { from { opacity: 0; transform: translateY(4px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .desktop-note { animation: none; } .desktop-note[data-closing="true"] { transform: none; transition: none; } }
+/* Shared button geometry must not square off the bubble's circular controls. */
+[data-desktop-note] [data-ui-button].desktop-note-send,
+[data-desktop-note] .desktop-note-header > [data-ui-button],
+[data-desktop-note] .desktop-note-actions > [data-ui-button]:first-child { border-radius: 50%; }
+.desktop-note-composer #work-note-body:focus-visible { box-shadow: inset 0 0 0 1px var(--app-accent); }

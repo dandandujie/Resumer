@@ -1,3 +1,4 @@
+import { EditorWorkspaceContext } from '@/components/resume-workspace/editor-workspace-context';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { logError } from '@/stores/error-log-store';
@@ -86,6 +87,7 @@ export default function EditorPage() {
       if (snapshot) {
         resumeStore.reorderSections(snapshot.sections);
         if (snapshot.themeConfig) resumeStore.updateThemeConfig(snapshot.themeConfig);
+        if (snapshot.template) useResumeStore.getState().setTemplate(snapshot.template);
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -117,12 +119,13 @@ export default function EditorPage() {
   }
 
   if (resume.template === 'original-docx') {
-    return <Suspense fallback={<div className="p-20">正在打开原文档…</div>}><OriginalDocumentEditor resume={resume} onRestored={loadResume} /></Suspense>;
+    return <div className="flex h-screen flex-col"><EditorWorkspaceContext key={id} resumeId={id!} originalDocument /><div className="min-h-0 flex-1 [&>div]:h-full"><Suspense fallback={<div className="p-20">正在打开原文档…</div>}><OriginalDocumentEditor resume={resume} onRestored={loadResume} /></Suspense></div></div>;
   }
 
   return (
     <div className="flex h-screen min-w-0 flex-col">
       <EditorToolbar />
+      <EditorWorkspaceContext key={id} resumeId={id!} />
       <EditorMobileTabBar onOpenSections={() => setSidebarOpen(true)} />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">

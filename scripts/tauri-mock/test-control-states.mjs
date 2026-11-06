@@ -27,7 +27,7 @@ try {
  check(focused,'keyboard focus visibly distinguishes the active button');
  await b.navigate(base+'/zh/knowledge');
  check(await b.evaluate(`!document.querySelector('input[aria-label="检索知识原文"]') && [...document.querySelectorAll('button')].filter(b=>b.textContent==='新建资料集').length===1`),'empty library has one creation action and no idle search form');
- await b.navigate(base+'/zh/insights');await b.waitFor("!!document.querySelector('.journal-application-row')");await b.click('.journal-application-row');await b.waitFor("!!document.querySelector('[data-application-detail]')");
+ await b.navigate(base+'/zh/insights');await b.waitFor("!!document.querySelector('.journal-application-row')");await b.click('.journal-application-row .application-company-cell');await b.waitFor("!!document.querySelector('[data-application-detail]')");
  await b.click('[aria-label="投递操作"]');
  check(await b.evaluate(`!![...document.querySelectorAll('[role="menuitem"]')].find(b=>b.textContent.includes('删除投递')&&b.dataset.variant==='destructive')`),'dangerous operation is explicitly named in the record menu');
  await b.key('Escape');

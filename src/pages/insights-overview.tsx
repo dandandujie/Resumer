@@ -60,6 +60,8 @@ import * as api from '@/lib/tauri-api';
 import { KnowledgeGraph } from '@/components/graph/knowledge-graph';
 import { ApplicationKanban } from '@/components/journal/application-kanban';
 import { mergeKnowledgeGraph } from '@/lib/knowledge-graph';
+import { applicationStatusSummary } from '@/lib/application-status-summary';
+import '@/styles/applications.css';
 
 type FilterKey = 'all' | 'open' | 'interview' | 'offer' | 'closed' | 'overdue';
 type SortMode = 'updated' | 'applied';
@@ -200,171 +202,84 @@ export default function InsightsOverviewPage() {
     return <div className="application-workspace" data-application-workspace>
       <header className="application-workspace-header"><Button variant="ghost" size="sm" data-application-back onClick={() => { setSelectedId(null); setSelectedRoundId(null); }}><ArrowLeft />{locale === 'zh' ? '返回投递列表' : 'All applications'}</Button><span className="text-[11px] text-muted-foreground">{selected.company || tJournal('untitledCompany')}</span></header>
       <div className="application-workspace-columns">
-        <aside className="application-record-list"><div className="flex items-center justify-between border-b p-3"><span className="text-[11px] font-medium text-muted-foreground">{tJournal('applicationsHeading')} · {detailApps.length}</span><Button variant="ghost" size="icon-xs" onClick={() => void handleCreate()} aria-label={tJournal('addApplication')}><Plus /></Button></div><div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">{detailApps.map(application => <button type="button" key={application.id} aria-current={selected.id === application.id ? 'page' : undefined} className="application-record-item" onClick={() => { setSelectedId(application.id); setSelectedRoundId(null); }}><strong className="block truncate text-xs font-medium">{application.company || tJournal('untitledCompany')}</strong><span className="mt-1 block truncate text-[11px] text-muted-foreground">{application.role || '—'}</span><span className="mt-1.5 block text-[10px] text-muted-foreground">{tJournal(STATUS_KEY[application.status])}</span></button>)}</div></aside>
-        <main className="application-record-detail" data-application-detail><div className="mb-4"><p className="app-eyebrow">APPLICATION</p><h1 className="text-xl font-semibold tracking-tight">{[selected.company,selected.role].filter(Boolean).join(' · ') || tJournal('untitledCompany')}</h1></div><ApplicationEditor key={selected.id} app={selected} initialRoundId={selectedRoundId} resumes={resumeOptions} onDelete={() => setPendingDelete(selected)} onBeforeLaunchTool={() => setSelectedId(null)} /></main>
+        <aside className="application-record-list"><div className="flex items-center justify-between border-b p-3"><span className="text-[11px] font-medium text-muted-foreground">{tJournal('applicationsHeading')} · {detailApps.length}</span><Button variant="ghost" size="icon-xs" onClick={() => void handleCreate()} aria-label={tJournal('addApplication')}><Plus /></Button></div><div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">{detailApps.map(application => <button type="button" key={application.id} aria-current={selected.id === application.id ? 'page' : undefined} className="application-record-item" onClick={() => { setSelectedId(application.id); setSelectedRoundId(null); }}><strong className="block truncate text-xs font-medium">{application.company || tJournal('untitledCompany')}</strong><span className="mt-1 block truncate text-[11px] text-muted-foreground">{application.role || '—'}</span><span className={cn("mt-1.5 block text-[10px]", statusTone(application.status))}>{tJournal(STATUS_KEY[application.status])}</span></button>)}</div></aside>
+        <main className="application-record-detail" data-application-detail><div className="mb-5"><h1 className="text-xl font-semibold tracking-tight">{[selected.company,selected.role].filter(Boolean).join(' · ') || tJournal('untitledCompany')}</h1></div><ApplicationEditor key={selected.id} app={selected} initialRoundId={selectedRoundId} resumes={resumeOptions} onDelete={() => setPendingDelete(selected)} onBeforeLaunchTool={() => setSelectedId(null)} /></main>
       </div>{deleteDialog}
     </div>;
   }
 
   return (
     <div className="app-page" data-workspace="applications">
-      <header className="app-page-header">
+      <header className="app-page-header applications-heading">
         <div>
-          <p className="app-eyebrow">APPLICATIONS</p>
           <h1 className="app-page-title">{t('journalTitle')}</h1>
-          <p className="app-page-description">{t('insightsHeroSubtitle')}</p>
+          <div className="applications-summary" aria-label={t('funnelTitle')}>
+            {[
+              { key: 'open' as const, label: t('funnelInProgress'), count: agg.pendingCount },
+              { key: 'offer' as const, label: t('funnelOffers'), count: agg.offerCount },
+              { key: 'overdue' as const, label: t('funnelOverdue'), count: agg.overdueFollowUps },
+            ].map(metric => <button key={metric.key} type="button" aria-pressed={filter === metric.key} onClick={() => { setFilter(metric.key); if (view === 'graph') setView('list'); }}>
+              {metric.label}<strong data-tone={metric.count === 0 ? 'neutral' : metric.key === 'offer' ? 'success' : metric.key === 'overdue' ? 'danger' : 'neutral'}>{metric.count}</strong>
+            </button>)}
+          </div>
         </div>
-        {finishedCount >= 5 && (
-          <button
-            type="button"
-            onClick={() => void api.knowledgeStrategyReview().catch((error) => logError(tJournal('strategyReview'), String(error)))}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[var(--app-border)] px-4 py-2 text-[13px] font-semibold text-[var(--app-text)]"
-          >{tJournal('strategyReview')}</button>
-        )}
-        <Button variant="primary" size="sm" onClick={() => void handleCreate()}>
-          <Plus className="h-3.5 w-3.5" />
-          {tJournal('addApplication')}
-        </Button>
+        <div className="app-actions">
+          {finishedCount >= 5 && <Button variant="ghost" size="sm" onClick={() => void api.knowledgeStrategyReview().catch((error) => logError(tJournal('strategyReview'), String(error)))}>{tJournal('strategyReview')}</Button>}
+          <Button variant="primary" size="sm" onClick={() => void handleCreate()}><Plus />{tJournal('addApplication')}</Button>
+        </div>
       </header>
 
-      <ApplicationAssistant onCreated={setSelectedId} />
-      <section className="app-metrics" aria-label={t('funnelTitle')}>
-        {[
-          { key: 'all' as const, label: t('funnelApplied'), count: applications.length, detail: tJournal('metricTotal') },
-          { key: 'open' as const, label: t('funnelInProgress'), count: agg.pendingCount, detail: tJournal('metricActive') },
-          { key: 'offer' as const, label: t('funnelOffers'), count: agg.offerCount, detail: tJournal('metricOffer') },
-          { key: 'overdue' as const, label: t('funnelOverdue'), count: agg.overdueFollowUps, detail: tJournal('metricFollowUp') },
-        ].map((metric) => (
-          <button key={metric.key} type="button" aria-pressed={filter === metric.key} onClick={() => { setFilter(metric.key); if (view === 'graph') setView('list'); }}
-            className="app-metric cursor-pointer" data-selected={filter === metric.key}>
-            <span className="app-metric-label">{metric.label}</span>
-            <span className="app-metric-value">{metric.count}</span>
-            <span className="sr-only">{metric.detail}</span>
-          </button>
-        ))}
-      </section>
-      <div className={cn("grid min-w-0 items-start gap-5", view === 'list' && "xl:grid-cols-[minmax(0,1fr)_280px]")}>
-      <div className="min-w-0 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-base font-semibold">{tJournal('applicationsHeading')}</h2>
-        <div className="app-segments" role="tablist" aria-label={tJournal('viewLabel')}>
-          {(['list', 'kanban', 'graph'] as const).map((item) => {
-            const Icon = item === 'list' ? LayoutList : item === 'kanban' ? Columns3 : Network;
-            return <button key={item} type="button" role="tab" aria-selected={view === item} onClick={() => setView(item)} className={cn('inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs transition-colors', view === item ? 'bg-[var(--app-surface)] text-[var(--app-text)] shadow-sm' : 'text-[var(--app-text-muted)]')}>
-              <Icon className="h-3.5 w-3.5" />{item === 'list' ? tJournal('viewList') : item === 'kanban' ? tJournal('viewKanban') : tJournal('viewGraph')}
-            </button>;
-          })}
-        </div>
-      </div>
-      {/* 筛选 */}
-      <section className={cn("flex flex-wrap items-center gap-2", view === 'graph' && "hidden")}>
-        {filterDefs.map((item) => (
-          <FilterPill
-            key={item.key}
-            label={item.label}
-            count={item.count}
-            active={filter === item.key}
-            onClick={() => setFilter(item.key)}
-          />
-        ))}
-        <span className="h-4 w-px shrink-0 bg-[var(--app-border)]" />
-        <Select value={resumeFilter} onValueChange={setResumeFilter}>
-          <SelectTrigger className="h-8 w-auto max-w-[220px] gap-1 rounded-md border-[var(--app-border)] bg-[var(--app-bg)] px-3 text-[12px] font-medium text-[var(--app-text-secondary)] shadow-none hover:bg-[var(--app-surface-muted)]">
-            <FileText className="h-3.5 w-3.5 text-[var(--app-text-muted)]" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_RESUMES} className="text-xs">{t('insightsAllResumes')}</SelectItem>
-            {resumes.map((r) => (
-              <SelectItem key={r.id} value={r.id} className="text-xs">{r.title}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </section>
+      {loaded && applications.length > 0 && <ApplicationStatusChart applications={applications} locale={locale} />}
 
-        <div className={cn("flex flex-wrap items-center justify-between gap-3", view === 'graph' && "hidden")}>
-          <label className="relative w-full max-w-[300px]">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--app-text-muted)]" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t('insightsSearchPlaceholder')}
-              aria-label={t('insightsSearchPlaceholder')}
-              className="h-8 w-full rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] pl-9 pr-3 text-[12px] outline-none transition-colors placeholder:text-[var(--app-text-muted)] focus:border-[var(--app-text-muted)]"
-            />
-          </label>
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-[var(--app-text-muted)]">{t('insightsTotal', { count: filtered.length })}</span>
-            <Select value={sortMode} onValueChange={(v) => setSortMode(v as SortMode)}>
-              <SelectTrigger className="h-8 w-auto shrink-0 gap-1 rounded-lg border-[var(--app-border)] bg-[var(--app-surface)] px-3 text-[12px] font-medium text-[var(--app-text-secondary)] shadow-none hover:bg-[var(--app-surface-muted)]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="updated" className="text-xs">{t('insightsSortUpdated')}</SelectItem>
-                <SelectItem value="applied" className="text-xs">{t('insightsSortApplied')}</SelectItem>
-              </SelectContent>
+      <section className="applications-surface" aria-label={tJournal('applicationsHeading')}>
+        <div className="applications-list-heading">
+          <h2>{tJournal('applicationsHeading')}<span>{t('insightsTotal', { count: filtered.length })}</span></h2>
+          {view !== 'graph' && <label className="applications-search">
+              <Search aria-hidden="true" />
+              <input value={query} onChange={event => setQuery(event.target.value)} placeholder={t('insightsSearchPlaceholder')} aria-label={t('insightsSearchPlaceholder')} />
+            </label>}
+          <div className="app-segments" role="tablist" aria-label={tJournal('viewLabel')}>
+            {(['list', 'kanban', 'graph'] as const).map((item) => {
+              const Icon = item === 'list' ? LayoutList : item === 'kanban' ? Columns3 : Network;
+              return <button key={item} type="button" role="tab" aria-selected={view === item} onClick={() => setView(item)} onKeyDown={event => {
+                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                event.preventDefault();
+                const tabs = ['list', 'kanban', 'graph'] as const;
+                const index = event.key === 'Home' ? 0 : event.key === 'End' ? 2 : (tabs.indexOf(view) + (event.key === 'ArrowRight' ? 1 : 2)) % 3;
+                setView(tabs[index]);
+                (event.currentTarget.parentElement?.children[index] as HTMLButtonElement)?.focus();
+              }}><Icon className="h-3.5 w-3.5" />{item === 'list' ? tJournal('viewList') : item === 'kanban' ? tJournal('viewKanban') : tJournal('viewGraph')}</button>;
+            })}
+          </div>
+        </div>
+        {view !== 'graph' && <div className="applications-toolbar">
+          <div className="applications-filter-tabs" aria-label={tJournal('fieldStatus')}>
+            {filterDefs.map(item => <FilterPill key={item.key} label={item.label} count={item.count} active={filter === item.key} onClick={() => setFilter(item.key)} />)}
+          </div>
+          <div className="applications-search-controls">
+            <Select value={resumeFilter} onValueChange={setResumeFilter}>
+              <SelectTrigger className="applications-resume-filter" aria-label={t('insightsAllResumes')}><FileText className="h-3.5 w-3.5 shrink-0" /><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value={ALL_RESUMES}>{t('insightsAllResumes')}</SelectItem>{resumes.map(resume => <SelectItem key={resume.id} value={resume.id}>{resume.title}</SelectItem>)}</SelectContent>
+            </Select>
+            <Select value={sortMode} onValueChange={value => setSortMode(value as SortMode)}>
+              <SelectTrigger className="applications-sort" aria-label={locale === 'zh' ? '投递排序' : 'Sort applications'}><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="updated">{t('insightsSortUpdated')}</SelectItem><SelectItem value="applied">{t('insightsSortApplied')}</SelectItem></SelectContent>
             </Select>
           </div>
-        </div>
-      {view === 'graph' ? (
-        <KnowledgeGraph
-          nodes={mergedGraph.nodes}
-          edges={mergedGraph.edges}
-          onNodeClick={(node) => node.id.startsWith('application:') && setSelectedId(node.id.slice('application:'.length))}
-        />
-      ) : view === 'kanban' ? (
-        <div className="overflow-x-auto rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-3">
-          <p className="mb-3 text-xs text-[var(--app-text-muted)]">{tJournal('kanbanHint')}</p>
-          <ApplicationKanban
-            applications={filtered}
-            onOpen={setSelectedId}
-            onStatusChange={(id, status) => void updateApplication(id, { status })}
-          />
-        </div>
-      ) : <section className="overflow-hidden rounded-[10px] bg-[var(--app-surface)] shadow-[0_0_0_1px_var(--app-border)]">
-
-
-        {!loaded ? (
-          <div className="py-16 text-center text-[13px] text-[var(--app-text-muted)]">{tCommon('loading')}</div>
-        ) : applications.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 py-16 text-center">
-            <p className="text-[13px] text-[var(--app-text-muted)]">{t('journalEmpty')}</p>
-            <button
-              type="button"
-              onClick={() => void handleCreate()}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-[var(--app-border)] bg-[var(--app-surface-muted)] px-3.5 py-1.5 text-[12px] font-medium text-[var(--app-text)] hover:border-[var(--app-text)]/30"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {tJournal('addApplication')}
-            </button>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="py-16 text-center text-[13px] text-[var(--app-text-muted)]">{t('insightsNoFilteredActivity')}</div>
-        ) : (
-          <ul>
-            {filtered.map((app) => (
-              <ApplicationRow
-                key={app.id}
-                app={app}
-                resumeTitle={app.resumeId ? resumeMap.get(app.resumeId) : undefined}
-                resumeDeleted={!!app.resumeId && !resumeMap.has(app.resumeId)}
-                locale={locale}
-                onOpen={() => setSelectedId(app.id)}
-                onStatusChange={(status) => updateApplication(app.id, { status })}
-                onOpenResume={() => app.resumeId && router.push(`/editor/${app.resumeId}`)}
-                onDelete={() => setPendingDelete(app)}
-                onReflect={() => void reflectApplication(app.id)}
-              />
-            ))}
-          </ul>
-        )}
-      </section>}
-
-      </div>
-      <aside className={cn("grid min-w-0 gap-4 lg:grid-cols-2", view === 'list' && 'xl:grid-cols-1')}>
+        </div>}
+        {view === 'graph' ? <KnowledgeGraph nodes={mergedGraph.nodes} edges={mergedGraph.edges} onNodeClick={node => node.id.startsWith('application:') && setSelectedId(node.id.slice('application:'.length))} /> : view === 'kanban' ? (
+          <div className="applications-kanban"><p>{tJournal('kanbanHint')}</p><ApplicationKanban applications={filtered} onOpen={setSelectedId} onStatusChange={(id, status) => void updateApplication(id, { status })} /></div>
+        ) : !loaded ? <div className="app-empty">{tCommon('loading')}</div> : applications.length === 0 ? (
+          <div className="app-empty"><Briefcase className="h-7 w-7" /><p>{t('journalEmpty')}</p><Button variant="outline" size="sm" onClick={() => void handleCreate()}><Plus />{tJournal('addApplication')}</Button></div>
+        ) : filtered.length === 0 ? <div className="app-empty"><p>{t('insightsNoFilteredActivity')}</p><Button size="sm" variant="ghost" onClick={() => { setQuery(''); setFilter('all'); setResumeFilter(ALL_RESUMES); }}>{locale === 'zh' ? '清除筛选' : 'Clear filters'}</Button></div> : <>
+          <div className="applications-table-heading" aria-hidden="true"><span>{tJournal('fieldCompany')} / {tJournal('fieldRole')}</span><span>{tJournal('fieldStatus')}</span><span>{tJournal('fieldResume')}</span><span>{locale === 'zh' ? '下一步' : 'Next step'}</span><span /></div>
+          <ul className="applications-list">{filtered.map(app => <ApplicationRow key={app.id} app={app} resumeTitle={app.resumeId ? resumeMap.get(app.resumeId) : undefined} resumeDeleted={!!app.resumeId && !resumeMap.has(app.resumeId)} locale={locale} onOpen={() => setSelectedId(app.id)} onStatusChange={status => updateApplication(app.id, { status })} onOpenResume={() => app.resumeId && router.push(`/editor/${app.resumeId}`)} onDelete={() => setPendingDelete(app)} onReflect={() => void reflectApplication(app.id)} />)}</ul>
+        </>}
+        <div className="applications-assistant"><ApplicationAssistant onCreated={setSelectedId} /></div>
+      </section>
+      <div className="applications-secondary">
         <AgendaCard items={agenda} locale={locale} onOpen={(id, roundId) => { setSelectedRoundId(roundId ?? null); setSelectedId(id); }} />
-        <PipelineFunnel agg={agg} />
-      </aside>
+        <details className="applications-funnel"><summary>{t('funnelTitle')}<span>{t('funnelOfferRate')} {applications.length ? `${Math.round(agg.offerCount / applications.length * 100)}%` : '—'}</span></summary><PipelineFunnel agg={agg} /></details>
       </div>
 
       {deleteDialog}
@@ -378,17 +293,10 @@ function FilterPill({ label, count, active, onClick }: { label: string; count: n
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={cn(
-        'inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors',
-        active
-          ? 'bg-[var(--app-accent-soft)] text-[var(--app-accent)]'
-          : 'bg-[var(--app-surface)] text-[var(--app-text-secondary)] ring-1 ring-inset ring-[var(--app-border)] hover:bg-[var(--app-surface-muted)]'
-      )}
+      className="applications-filter-tab"
     >
       <span>{label}</span>
-      <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] tabular-nums', active ? 'bg-[var(--app-bg)]/14' : 'bg-[var(--app-hover)] text-[var(--app-text-muted)]')}>
-        {count}
-      </span>
+      <span>{count}</span>
     </button>
   );
 }
@@ -400,15 +308,15 @@ function AgendaCard({ items, locale, onOpen }: { items: AgendaItem[]; locale: st
   const [expanded, setExpanded] = useState(false);
   const shown = expanded ? items : items.slice(0, 4);
   return (
-    <section className="flex flex-col rounded-[10px] border border-[var(--app-border)] bg-[var(--app-surface)] p-4 shadow-sm">
+    <section className="applications-secondary-section">
       <div className="mb-3 flex items-baseline justify-between">
         <h3 className="text-[13px] font-semibold text-[var(--app-text)]">{t('agendaTitle')}</h3>
         <span className="text-[11px] text-[var(--app-text-muted)]">{t('agendaRange')}</span>
       </div>
       {shown.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center py-8 text-center text-[13px] text-[var(--app-text-muted)]">{t('agendaEmpty')}</div>
+        <div className="py-1 text-xs text-[var(--app-text-muted)]">{t('agendaEmpty')}</div>
       ) : (
-        <ul className="flex flex-1 flex-col gap-1.5">
+        <ul className="applications-agenda-items">
           {shown.map((item) => {
             const title = [item.app.company, item.app.role].filter(Boolean).join(' · ') || tJournal('untitledCompany');
             const isInterview = item.kind === 'interview';
@@ -424,7 +332,7 @@ function AgendaCard({ items, locale, onOpen }: { items: AgendaItem[]; locale: st
                   <span
                     className={cn(
                       'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg',
-                      isInterview ? 'bg-amber-50 text-amber-700' : overdue ? 'bg-red-50 text-red-600' : 'bg-[var(--app-accent-soft)]/40 text-[var(--app-text)]'
+                      isInterview ? 'bg-[var(--app-hover)] text-[var(--app-status-warning)]' : overdue ? 'bg-[var(--app-hover)] text-[var(--app-status-danger)]' : 'bg-[var(--app-accent-soft)]/40 text-[var(--app-text)]'
                     )}
                   >
                     {isInterview ? <CalendarClock className="h-3.5 w-3.5" /> : <AlarmClock className="h-3.5 w-3.5" />}
@@ -445,7 +353,7 @@ function AgendaCard({ items, locale, onOpen }: { items: AgendaItem[]; locale: st
                           : t('agendaFollowUpToday')}
                     </span>
                   </span>
-                  <span className={cn('ml-9 w-full text-[11px] font-medium tabular-nums', overdue ? 'text-red-600' : 'text-[var(--app-text-secondary)]')}>
+                  <span className={cn('applications-agenda-date text-[11px] font-medium tabular-nums', overdue ? 'text-[var(--app-status-danger)]' : 'text-[var(--app-text-secondary)]')}>
                     {isInterview ? formatDateTime(item.round?.scheduledAt, locale) : item.app.nextFollowUp}
                   </span>
                 </button>
@@ -461,14 +369,31 @@ function AgendaCard({ items, locale, onOpen }: { items: AgendaItem[]; locale: st
   );
 }
 
+function ApplicationStatusChart({ applications, locale }: { applications: Application[]; locale: string }) {
+  const counts = applicationStatusSummary(applications);
+  const groups = [
+    { key: 'waiting', count: counts.waiting, label: locale === 'zh' ? '已投递 / 筛选中' : 'Submitted / screening', tone: 'neutral' },
+    { key: 'interview', count: counts.interview, label: locale === 'zh' ? '面试中' : 'Interviewing', tone: 'warning' },
+    { key: 'offer', count: counts.offer, label: 'Offer', tone: 'success' },
+    { key: 'closed', count: counts.closed, label: locale === 'zh' ? '已结束' : 'Closed', tone: 'neutral' },
+  ];
+  return <figure className="applications-status-chart" aria-label={locale === 'zh' ? '全部投递的当前状态分布' : 'Current status of all applications'}>
+    <figcaption>{locale === 'zh' ? '当前状态' : 'Current status'}<span>{locale === 'zh' ? `全部 ${applications.length} 条投递 · 每条只计一次` : `All ${applications.length} applications · counted once`}</span></figcaption>
+    <dl>{groups.map(group => <div key={group.key} data-tone={group.count ? group.tone : 'neutral'}>
+      <dt>{group.label}</dt><dd>{group.count}</dd>
+      <div className="applications-status-track" aria-hidden="true"><span style={{ width: `${group.count / applications.length * 100}%` }} /></div>
+    </div>)}</dl>
+  </figure>;
+}
+
 function PipelineFunnel({ agg }: { agg: JournalAggregate }) {
   const t = useTranslations('dashboard');
   const f = agg.funnel;
   const stages: Array<{ key: string; label: string; count: number; tone: string }> = [
     { key: 'applied', label: t('funnelApplied'), count: f.applied, tone: 'bg-[var(--app-text)]' },
     { key: 'screening', label: t('funnelScreening'), count: f.screening, tone: 'bg-[var(--app-text-secondary)]' },
-    { key: 'interview', label: t('funnelInterview'), count: f.interview, tone: 'bg-amber-500' },
-    { key: 'offer', label: t('funnelOffer'), count: f.offer, tone: 'bg-[var(--app-text-secondary)]' },
+    { key: 'interview', label: t('funnelInterview'), count: f.interview, tone: 'bg-[var(--app-status-warning)]' },
+    { key: 'offer', label: t('funnelOffer'), count: f.offer, tone: 'bg-[var(--app-status-success)]' },
     { key: 'closed', label: t('funnelClosed'), count: f.closed, tone: 'bg-[var(--app-text-muted)]' },
   ];
   const max = Math.max(1, ...stages.map((s) => s.count));
@@ -477,14 +402,7 @@ function PipelineFunnel({ agg }: { agg: JournalAggregate }) {
   const isEmpty = f.applied === 0;
 
   return (
-    <section className="flex flex-col rounded-[10px] border border-[var(--app-border)] bg-[var(--app-surface)] p-4 shadow-sm">
-      <div className="mb-3 flex items-baseline justify-between">
-        <h3 className="text-[13px] font-semibold text-[var(--app-text)]">{t('funnelTitle')}</h3>
-        <span className="text-[11px] text-[var(--app-text-muted)]">
-          {t('funnelOfferRate')} {pct(f.offer, f.applied)}
-        </span>
-      </div>
-
+    <section className="applications-secondary-section">
       {isEmpty ? (
         <div className="flex flex-1 items-center justify-center py-8 text-[13px] text-[var(--app-text-muted)]">{t('funnelEmpty')}</div>
       ) : (
@@ -505,14 +423,6 @@ function PipelineFunnel({ agg }: { agg: JournalAggregate }) {
         </div>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[var(--app-border)] pt-3 text-[11px]">
-        <span className={cn('flex items-center gap-1', agg.overdueFollowUps > 0 ? 'text-red-600' : 'text-[var(--app-text-muted)]')}>
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-current" />
-          {t('funnelOverdue')} {agg.overdueFollowUps}
-        </span>
-        <span className="text-[var(--app-text-muted)]">{t('funnelInProgress')} {agg.pendingCount}</span>
-        <span className="ml-auto text-[var(--app-text-muted)]">{t('funnelOffers')} {agg.offerCount}</span>
-      </div>
     </section>
   );
 }
@@ -547,22 +457,22 @@ function ApplicationRow({
   const overdue = isOverdue(app);
 
   return (
-    <li className="journal-application-row grid grid-cols-[minmax(0,1fr)_110px_28px] items-center gap-x-3 gap-y-3 border-b border-[var(--app-border)] p-4 text-[13px] transition-colors hover:bg-[var(--app-surface-muted)] last:border-b-0">
-      <button type="button" onClick={onOpen} className="flex min-w-0 cursor-pointer items-center gap-2.5 text-left">
+    <li className="journal-application-row applications-table-row">
+      <button type="button" onClick={onOpen} className="application-company-cell">
         <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)]">
           <Briefcase className="h-4 w-4 text-[var(--app-text-secondary)]" />
         </span>
         <span className="min-w-0">
           <span className="block truncate font-semibold text-[var(--app-text)]">{app.company || tJournal('untitledCompany')}</span>
-          <span className="mt-1 block break-words text-[12px] leading-relaxed text-[var(--app-text-muted)]">
+          <span className="mt-1 block truncate text-xs text-[var(--app-text-muted)]">
             {[app.role || '—', app.channel, app.appliedDate].filter(Boolean).join(' · ')}
           </span>
         </span>
       </button>
 
       <Select value={app.status} onValueChange={(v) => onStatusChange(v as ApplicationStatus)}>
-        <SelectTrigger aria-label={`${app.company} ${tJournal('fieldStatus')}`} size="sm" className={cn('h-8 w-full gap-1 rounded-full border-0 px-2.5 text-[11px] font-medium shadow-none', statusTone(app.status))}>
-          <SelectValue />
+        <SelectTrigger aria-label={`${app.company} ${tJournal('fieldStatus')}`} size="sm" className="application-status-cell h-7 w-full gap-1 rounded-md border-0 px-2 text-[11px] font-medium shadow-none">
+          <span className={statusTone(app.status)}><SelectValue /></span>
         </SelectTrigger>
         <SelectContent>
           {STATUS_OPTIONS.map((s) => (
@@ -571,22 +481,21 @@ function ApplicationRow({
         </SelectContent>
       </Select>
 
-      <div className="col-span-3 row-start-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-      <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-[var(--app-text-muted)]">
+      <span className="application-resume-cell flex min-w-0 items-center gap-1.5 text-xs text-[var(--app-text-muted)]">
         <FileText className="h-3.5 w-3.5 shrink-0" />
-        <span className={cn('truncate', resumeDeleted && 'text-red-600')}>
+        <span className={cn('truncate', resumeDeleted && 'text-[var(--app-status-danger)]')}>
           {resumeTitle || (resumeDeleted ? tJournal('resumeDeleted') : tJournal('resumeNone'))}
         </span>
       </span>
 
       {/* 下一步：最近一场面试，或到期/逾期的跟进 */}
-      <span className="flex min-w-0 items-center gap-1.5 text-[11px]">
+      <span className="application-next-cell flex min-w-0 items-center gap-1.5 text-xs">
         {upcoming ? (
           <>
             {upcoming.format === 'onsite' ? (
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-[var(--app-status-warning)]" />
             ) : (
-              <Video className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+              <Video className="h-3.5 w-3.5 shrink-0 text-[var(--app-status-warning)]" />
             )}
             <span className="break-words text-[var(--app-text-secondary)]">
               {[upcoming.round || tJournal('stageInterview'), formatDateTime(upcoming.scheduledAt, locale), upcoming.location].filter(Boolean).join(' · ')}
@@ -594,8 +503,8 @@ function ApplicationRow({
           </>
         ) : app.nextFollowUp && (app.status === 'submitted' || app.status === 'screening' || app.status === 'interview') ? (
           <>
-            <AlarmClock className={cn('h-3.5 w-3.5 shrink-0', overdue ? 'text-red-600' : 'text-[var(--app-text-muted)]')} />
-            <span className={cn('break-words', overdue ? 'font-medium text-red-600' : 'text-[var(--app-text-secondary)]')}>
+            <AlarmClock className={cn('h-3.5 w-3.5 shrink-0', overdue ? 'text-[var(--app-status-danger)]' : 'text-[var(--app-text-muted)]')} />
+            <span className={cn('break-words', overdue ? 'font-medium text-[var(--app-status-danger)]' : 'text-[var(--app-text-secondary)]')}>
               {overdue ? t('agendaFollowUpOverdue', { date: app.nextFollowUp }) : `${tJournal('followUpDue')} ${app.nextFollowUp}`}
             </span>
           </>
@@ -606,11 +515,9 @@ function ApplicationRow({
         )}
       </span>
 
-      </div>
-
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button type="button" aria-label={t('insightsRowDetail')} className="col-start-3 row-start-1 inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--app-text-muted)] hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]">
+          <button type="button" aria-label={locale === 'zh' ? '投递操作' : 'Application actions'} className="application-row-menu inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[var(--app-text-muted)] hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]">
             <MoreVertical className="h-4 w-4" />
           </button>
         </DropdownMenuTrigger>
@@ -624,10 +531,10 @@ function ApplicationRow({
             {t('insightsRowOpenResume')}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={onReflect} disabled={reflection?.status === 'running'} className="cursor-pointer">
-            <FileText className="mr-2 h-4 w-4" />{tJournal('reflectAction')}
+            <FileText className="mr-2 h-4 w-4" />{locale === 'zh' ? '复盘并沉淀' : 'Reflect and save insights'}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={onDelete} className="cursor-pointer text-red-600 focus:text-red-600">
+          <DropdownMenuItem onClick={onDelete} className="cursor-pointer text-[var(--app-status-danger)] focus:text-[var(--app-status-danger)]">
             <Trash2 className="mr-2 h-4 w-4" />
             {tCommon('delete')}
           </DropdownMenuItem>

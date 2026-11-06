@@ -1,3 +1,4 @@
+import { PracticeReviewBoard } from '@/components/practice/review-board';
 import { listen } from "@tauri-apps/api/event";
 import { KnowledgeDraftDialog } from "@/components/knowledge/draft-dialog";
 import { KnowledgeDraftMenu } from "@/components/knowledge/draft-menu";
@@ -69,7 +70,7 @@ const caption: Record<api.LibraryAsset["status"], string> = {
   archived_transcript: "历史素材（不参与检索）",
 };
 export default function KnowledgePage() {
-  const [view, setView] = useState<"library" | "wiki">(() =>
+  const [view, setView] = useState<"library" | "wiki" | "review">(() =>
     useKnowledgeStore.getState().pendingOpen ? "wiki" : "library",
   );
   const [kind, setKind] = useState<Kind>("document");
@@ -286,6 +287,7 @@ export default function KnowledgePage() {
           >
             求职 Wiki
           </button>
+          <button type="button" role="tab" aria-selected={view === "review"} onClick={() => useUnsavedStore.getState().ask(() => setView("review"))}>待复习</button>
         </div>
         {view === "library" && (
           <div className="app-segments" role="tablist" aria-label="资料类型">
@@ -316,7 +318,7 @@ export default function KnowledgePage() {
           <KnowledgeDraftMenu revision={revision} onSelect={setDraft} />
         )}
       </div>
-      {view === "wiki" ? (
+      {view === "review" ? <PracticeReviewBoard /> : view === "wiki" ? (
         <div className="min-h-0 flex-1">
           <KnowledgeWiki
             onChange={() => setRevision((r) => r + 1)}
@@ -346,7 +348,7 @@ export default function KnowledgePage() {
               </Button>
             </div>
           )}
-          <div className="mb-3 max-h-[45vh] shrink-0 overflow-y-auto">
+          {collections.some(c => c.kind === kind) && <div className="mb-3 max-h-[45vh] shrink-0 overflow-y-auto">
             <WorkspaceAssistant
               scope="library"
               title="与资料库对话"
@@ -424,7 +426,7 @@ export default function KnowledgePage() {
                 await refresh();
               }}
             />
-          </div>
+          </div>}
           {!loading && !hasCollections ? (
             <section className="app-empty flex-1 rounded-[10px] bg-[var(--app-surface)]">
               <FolderOpen className="size-8" />

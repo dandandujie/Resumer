@@ -75,7 +75,7 @@ export function EditableList({
               </div>
               {aiContext && (
                 <div className="pt-1">
-                  <AiRewriteMenu text={values[index]} context={{ ...aiContext, field: label }} />
+                  <AiRewriteMenu text={values[index]} context={{ ...aiContext, field: label, fieldPath: field && `${field}.${index}` }} />
                 </div>
               )}
               <Button

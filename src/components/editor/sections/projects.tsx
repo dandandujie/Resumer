@@ -90,14 +90,14 @@ export function ProjectsSection({ section, onUpdate }: Props) {
               label={t('description')}
               value={item.description}
               onChange={(v) => updateItem(index, { description: v })}
-              aiContext={{ sectionId: section.id, sectionTitle: section.title, item: item.name }}
+              aiContext={{ sectionId: section.id, sectionTitle: section.title, itemId: item.id, item: item.name }}
             />
             <TagListInput field="technologies" label={t('technologies')} items={item.technologies} onChange={(v) => updateItem(index, { technologies: v })} />
             <EditableList field="highlights"
               label={t('highlights')}
               items={item.highlights}
               onChange={(v) => updateItem(index, { highlights: v })}
-              aiContext={{ sectionId: section.id, sectionTitle: section.title, item: item.name }}
+              aiContext={{ sectionId: section.id, sectionTitle: section.title, itemId: item.id, item: item.name }}
             />
             </ItemCard>
           );

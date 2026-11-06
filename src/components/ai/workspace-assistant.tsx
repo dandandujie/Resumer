@@ -33,6 +33,7 @@ type Props = {
   onRead?: (source: api.WorkspaceCitation) => void;
   onSaveAnswer?: (answer: api.WorkspaceAnswer) => Promise<void>;
   title?: string;
+  inputKey?: string;
 };
 export function WorkspaceAssistant({
   scope,
@@ -45,12 +46,24 @@ export function WorkspaceAssistant({
   onRead,
   onSaveAnswer,
   title = "用一句话整理",
+  inputKey,
 }: Props) {
-  const [text, setText] = useState(""),
+  const [text, setInput] = useState(() => {
+      try { return inputKey ? localStorage.getItem(`resumer_assistant_input:${inputKey}`) || "" : ""; } catch { return ""; }
+    }),
     [open, setOpen] = useState(false),
     [busy, setBusy] = useState(false),
     [applying, setApplying] = useState(false),
     [error, setError] = useState("");
+  const [engaged, setEngaged] = useState(scope === "upload" || scope === "wiki");
+  const [draftError, setDraftError] = useState("");
+  const setText = (value: string) => {
+    setInput(value);
+    if (inputKey) {
+      try { localStorage.setItem(`resumer_assistant_input:${inputKey}`, value); setDraftError(""); }
+      catch { setDraftError("这段输入暂时没能暂存，请在离开前复制保留。"); }
+    }
+  };
   const [proposal, setProposal] = useState<{
       answer: api.WorkspaceAnswer;
       base: unknown;
@@ -109,7 +122,6 @@ export function WorkspaceAssistant({
     }
     setBusy(true);
     setError("");
-    setApplied(false);
     setOpen(true);
     try {
       const question = text.trim();
@@ -123,6 +135,7 @@ export function WorkspaceAssistant({
       });
       answer.question = answer.question || question;
       setProposal({ answer, base });
+      setApplied(false);
       setHistory((previous) => [
         ...previous,
         {
@@ -139,6 +152,7 @@ export function WorkspaceAssistant({
       setBusy(false);
     }
   };
+  if (!engaged && !text && !proposal && !error && !draftError) return <div data-workspace-assistant={scope} className="flex items-center"><Button variant="ghost" size="sm" data-assistant-invitation onClick={() => { setEngaged(true); setOpen(true); }}><Sparkles className="size-3.5" />{scope === 'activity' ? '说一句，记下投递进展' : scope === 'application' ? '补充进展，或一起准备面试' : scope === 'library' ? '问问这些资料' : title}</Button></div>;
   return (
     <section
       data-workspace-assistant={scope}
@@ -157,12 +171,10 @@ export function WorkspaceAssistant({
             value={text}
             onChange={(e) => {
               setText(e.target.value);
-              setProposal(null);
-              setApplied(false);
             }}
             onFocus={() => setOpen(true)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 void ask();
               }
@@ -175,7 +187,7 @@ export function WorkspaceAssistant({
             <span className="text-[10px] text-muted-foreground">
               {busy
                 ? "正在读取相关资料并整理…"
-                : "描述目标即可；有误可继续补一句修正。"}
+                : "想到哪儿说到哪儿，建议看过再采纳。"}
             </span>
             <Button
               size="xs"
@@ -192,11 +204,13 @@ export function WorkspaceAssistant({
           variant="ghost"
           size="icon-xs"
           aria-label={open ? "收起自然语言助手" : "展开自然语言助手"}
-          onClick={() => setOpen(!open)}
+          onClick={() => { setOpen(!open); if (open && !text && !proposal && !error) setEngaged(false); }}
         >
           <ChevronDown className={open ? "rotate-180" : ""} />
         </Button>
       </div>
+      {(error || draftError) && <p role="alert" className="px-3 pb-3 text-xs text-destructive">{error || draftError}</p>}
+      {!open && proposal && <Button variant="ghost" size="xs" className="mx-3 mb-3" onClick={() => setOpen(true)}>{applied ? "查看已采纳的建议" : "继续查看上次建议"}</Button>}
       {open && (
         <div className="space-y-3 border-t p-3">
           {!proposal && !busy && !!examples.length && (
@@ -235,17 +249,13 @@ export function WorkspaceAssistant({
               </div>
             </details>
           )}
-          {error && (
-            <p role="alert" className="text-xs text-destructive">
-              {error}
-            </p>
-          )}
           {proposal && (
             <>
               <p className="text-[11px] font-medium text-muted-foreground">
                 {proposal.answer.question}
               </p>
               <div
+                data-app-reveal
                 data-assistant-answer
                 className="whitespace-pre-wrap text-xs leading-6"
               >
@@ -254,6 +264,7 @@ export function WorkspaceAssistant({
               {proposal.answer.actions.map((action, i) => (
                 <div
                   key={i}
+                  data-app-reveal
                   data-assistant-change
                   className="rounded-md border bg-background p-3"
                 >

@@ -27,6 +27,8 @@ export function ApplicationAssistant({
           ];
   return (
     <WorkspaceAssistant
+      key={application?.id || "activity"}
+      inputKey={application ? `application:${application.id}` : "activity"}
       scope={application ? "application" : "activity"}
       title="自然语言管理求职记录"
       placeholder={

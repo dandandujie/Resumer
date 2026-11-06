@@ -1,3 +1,4 @@
+import { ChoiceSelect } from '@/components/ui/choice-select';
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -115,7 +116,7 @@ export function WikiCreateDialog({
           </label>
           <label className="block space-y-2 text-xs">
             保存位置
-            <select
+            <ChoiceSelect
               aria-label="Wiki保存位置"
               className="app-select w-full"
               value={parent}
@@ -127,7 +128,7 @@ export function WikiCreateDialog({
                   {path}
                 </option>
               ))}
-            </select>
+            </ChoiceSelect>
           </label>
           {error && (
             <p role="alert" className="text-xs text-destructive">

@@ -1,5 +1,6 @@
 'use client';
 
+import { ApplicationPractices } from '@/components/practice/application-practices';
 import { useSettingsStore } from '@/stores/settings-store';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -152,7 +153,7 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool, 
   const hasResume = !!app.resumeId && !resumeMissing;
 
   return (
-    <div className="space-y-4">
+    <div className="application-editor space-y-4">
       <AlertDialog open={confirmReflect} onOpenChange={setConfirmReflect}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -179,7 +180,7 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool, 
           onResolved={() => resolveKnowledgeProposal(proposal.id)}
         />
       ))}
-      <div className="sticky -top-4 z-10 flex items-center gap-2 bg-background py-1">
+      <div className="application-detail-tabs">
       <div role="tablist" aria-label={t('detailsOverview')} className="app-segments flex min-w-0 flex-1">
         {(['overview', 'interviews', 'outcome'] as const).map((tab) => <button key={tab} type="button" role="tab" aria-selected={detailTab === tab} onClick={() => setDetailTab(tab)} className={`flex-1 cursor-pointer rounded-lg px-2 py-2 text-xs font-medium ${detailTab === tab ? 'bg-[var(--app-field)] text-[var(--app-text)]' : 'text-[var(--app-text-muted)] hover:bg-[var(--app-surface-muted)]'}`}>
           {t(tab === 'overview' ? 'detailsOverview' : tab === 'interviews' ? 'detailsInterviews' : 'detailsOutcome')}{tab === 'interviews' && ` · ${app.interviews.length}`}
@@ -189,11 +190,32 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool, 
       </div>
       <ApplicationAssistant application={app} view={detailTab} />
       <div hidden={detailTab !== 'overview'} className="space-y-5">
-      <p className="text-xs leading-6 text-muted-foreground">这是一条持续补充的记录，不必一次填完。粘贴招聘信息，或只记公司、岗位，就可以开始。</p>
+
+      <div className="application-core-fields">
+        <div className="application-company-fields">
+          <Field label={t('fieldCompany')}>
+            <Input value={app.company} onChange={(e) => set({ company: e.target.value })} placeholder={t('fieldCompany')} />
+          </Field>
+          <Field label={t('fieldRole')}>
+            <Input value={app.role} onChange={(e) => set({ role: e.target.value })} placeholder={t('fieldRole')} />
+          </Field>
+        </div>
+      <div className="application-core-status">
+        <Field label={t('fieldStatus')}>
+          <Select value={app.status} onValueChange={(v) => set({ status: v as ApplicationStatus })}>
+            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {APPLICATION_STATUSES.map((s) => <SelectItem key={s} value={s} className="text-xs">{t(STATUS_KEY[s])}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Field>
+      </div>
+      </div>
+
       {/* JD：AI 动作都围着它转 */}
       <section className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label className="text-[13px] font-semibold">招聘信息 · 粘贴即可</Label>
+          <Label className="text-[13px] font-semibold">招聘信息</Label>
           <button
             type="button"
             onClick={() => setJdExpanded((v) => !v)}
@@ -204,7 +226,7 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool, 
           </button>
         </div>
         <Textarea
-          rows={jdExpanded ? 14 : 4}
+          rows={jdExpanded ? 14 : 3}
           value={app.jd}
           onChange={(e) => set({ jd: e.target.value })}
           placeholder="直接粘贴招聘信息、JD 或与 HR 的沟通片段，不必先拆分整理。可由 AI 提取公司和岗位，也可以只保留原文。"
@@ -216,7 +238,7 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool, 
             try { setExtracted(await api.intakeExtract(app.jd)); } catch (error) { setExtractError(String((error as Error)?.message || error)); } finally { setExtracting(false); }
           }}>{extracting ? <Loader2 className="animate-spin" /> : <ClipboardList />}{extracting ? '正在提取' : '提取公司与岗位'}</Button>
           {!aiConfigured && <button type="button" className="cursor-pointer text-xs underline" onClick={() => { useUIStore.getState().setSettingsTab('ai'); useUIStore.getState().openModal('settings'); }}>配置 AI 后可自动提取</button>}
-          <span className="text-[11px] text-muted-foreground">先预览再应用；未提及的信息保持原样。</span>
+
         </div>
         {extractError && <p role="alert" className="text-xs text-destructive">{extractError}</p>}
         {extracted && <div className="space-y-3 rounded-xl border bg-muted p-3" data-intake-preview>
@@ -225,7 +247,7 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool, 
           <p className="max-h-32 overflow-y-auto whitespace-pre-wrap text-xs leading-6">{extracted.jd || '原始招聘信息保持不变'}</p>
           <div className="flex gap-2"><Button size="sm" onClick={() => { set({ ...(extracted.company.trim() ? { company: extracted.company.trim() } : {}), ...(extracted.role.trim() ? { role: extracted.role.trim() } : {}) }); setExtracted(null); }}>应用公司与岗位</Button><Button size="sm" variant="ghost" onClick={() => setExtracted(null)}>放弃</Button></div>
         </div>}
-        <div className="flex flex-wrap items-center gap-1.5">
+        <details className="application-preparation"><summary>{locale === 'zh' ? '针对这个岗位准备' : 'Prepare for this role'}</summary><div className="mt-3 flex flex-wrap items-center gap-2">
           <ToolButton
             icon={FileSearch}
             label={t('actionJdAnalysis')}
@@ -254,33 +276,11 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool, 
             title={!hasResume ? t('actionNeedsResume') : !aiConfigured ? t('actionNeedsAi') : undefined}
             onClick={() => void runInterviewPrep()}
           />
-        </div>
+        </div></details>
       </section>
 
-
-      <div className="flex items-start gap-2">
-        <div className="grid min-w-0 flex-1 grid-cols-2 gap-3">
-          <Field label={t('fieldCompany')}>
-            <Input value={app.company} onChange={(e) => set({ company: e.target.value })} placeholder={t('fieldCompany')} />
-          </Field>
-          <Field label={t('fieldRole')}>
-            <Input value={app.role} onChange={(e) => set({ role: e.target.value })} placeholder={t('fieldRole')} />
-          </Field>
-        </div>
-      </div>
-
-      <div className="max-w-56">
-        <Field label={t('fieldStatus')}>
-          <Select value={app.status} onValueChange={(v) => set({ status: v as ApplicationStatus })}>
-            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {APPLICATION_STATUSES.map((s) => <SelectItem key={s} value={s} className="text-xs">{t(STATUS_KEY[s])}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </Field>
-      </div>
       <details className="rounded-xl border p-3"><summary className="cursor-pointer text-xs font-medium">更多投递信息 · 简历、渠道、跟进与联系人（选填）</summary>
-      <div className="mt-3 grid min-w-0 grid-cols-2 gap-3">
+      <div className="application-optional-fields mt-3">
         {resumes && (
           <Field label={t('fieldResume')}>
             <Select
@@ -401,6 +401,11 @@ export function ApplicationEditor({ app, resumes, onDelete, onBeforeLaunchTool, 
 
       </div>
       <div hidden={detailTab !== 'interviews'}>
+      <ApplicationPractices applicationId={app.id} onOpen={session => {
+        if (!app.resumeId) { toast.info('原简历已删除，仍可展开查看完整问答和复盘'); return; }
+        launch(app, 'interview');
+        useEditorStore.getState().setToolPrefill({...session.context, applicationId: app.id, practiceSessionId: session.id});
+      }} />
       {/* 这条投递上做过的模拟面试 */}
       {linkedMocks.length > 0 && (
         <section className="space-y-2">

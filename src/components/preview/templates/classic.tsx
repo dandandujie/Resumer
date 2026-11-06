@@ -161,7 +161,7 @@ export function ClassicTemplate({ resume, interactive, onReorderSections }: { re
               {pi.jobTitle && <p className="mt-1 text-lg text-[var(--resume-body-color)]" data-field="jobTitle"><InlineText>{pi.jobTitle}</InlineText></p>}
             </div>
           </div>
-          <div className={cn('mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1 text-center text-sm text-[var(--resume-body-color)]', theme.infoLayout === 'grid' ? 'grid grid-cols-2' : 'items-center')}>
+          <div data-personal-contacts className={cn('mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1 text-center text-sm text-[var(--resume-body-color)]', theme.infoLayout === 'grid' ? 'grid grid-cols-2' : 'items-center')}>
             {pi.age && <span data-field="age"><InlineText>{pi.age}</InlineText></span>}
             {pi.politicalStatus && <span data-field="politicalStatus"><InlineText>{pi.politicalStatus}</InlineText></span>}
             {pi.gender && <span data-field="gender"><InlineText>{pi.gender}</InlineText></span>}
@@ -254,7 +254,7 @@ function PreviewSection({
           <GripVertical className="h-4 w-4" />
         </button>
       )}
-      <h2 className="mb-2 border-b border-zinc-300 pb-1 text-sm font-bold text-[var(--resume-body-color)]">
+      <h2 data-section-heading className="mb-2 border-b border-zinc-300 pb-1 text-sm font-bold text-[var(--resume-body-color)]">
         {section.title}
       </h2>
       <SectionContent section={section} lang={lang} interactive={interactive} theme={theme} />

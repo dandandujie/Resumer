@@ -213,6 +213,8 @@ pub fn prune_unreferenced(conn: &Connection) -> rusqlite::Result<()> {
         SELECT current_hash FROM resume_documents UNION SELECT original_hash FROM resume_documents
         UNION SELECT json_extract(snapshot,'$.originalDocument.currentHash') FROM resume_versions WHERE json_extract(snapshot,'$.originalDocument.currentHash') IS NOT NULL
         UNION SELECT json_extract(snapshot,'$.originalDocument.originalHash') FROM resume_versions WHERE json_extract(snapshot,'$.originalDocument.originalHash') IS NOT NULL
+        UNION SELECT json_extract(source_snapshot,'$.originalDocument.currentHash') FROM resume_workspace WHERE json_extract(source_snapshot,'$.originalDocument.currentHash') IS NOT NULL
+        UNION SELECT json_extract(source_snapshot,'$.originalDocument.originalHash') FROM resume_workspace WHERE json_extract(source_snapshot,'$.originalDocument.originalHash') IS NOT NULL
     )", [])?;
     Ok(())
 }

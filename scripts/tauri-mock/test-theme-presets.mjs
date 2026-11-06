@@ -13,9 +13,10 @@ try {
  await check("!!window.__TAURI_INTERNALS__ && document.documentElement.outerHTML.includes('Tauri 假后端')",'使用隔离存储');
  await check(`(()=>{const i=document.querySelector('[data-item-id="we-1"]'),c=i.querySelector('[data-field="company"]').getBoundingClientRect(),l=i.querySelector('[data-field="location"]').getBoundingClientRect();return l.left>=c.right && l.top<c.bottom && l.bottom>c.top})()`,'地点显示在公司右侧同一行');
  await openStyle();
- await check("[...document.querySelectorAll('[role=region] section:first-of-type button')].map(b=>b.textContent).join(',')==='标准,将当前样式存为预设'",'仅标准内置预设');
+ await check("document.querySelectorAll('[data-theme-preset]').length===1 && document.querySelector('[data-theme-preset]').textContent==='标准' && !!document.querySelector('[aria-label=可视化模板设计]')",'保留标准主题并提供独立的可视化版式入口');
+ await click('text:精细调整（字体、页边距与更多）');
  await click('text:小四 12pt');
- await click('text:将当前样式存为预设');
+ await click('text:保存为我的模板');
  await check("[...document.querySelectorAll('form button')].find(e=>e.textContent==='保存').disabled",'空名称不能保存');
  await click('input[placeholder="例如：我的求职简历"]'); await send('Input.insertText',{text:'标准'});
  await check("[...document.querySelectorAll('form button')].find(e=>e.textContent==='保存').disabled",'不能覆盖标准');
@@ -25,7 +26,7 @@ try {
  await click('text:标准'); assert.equal(await font(),14); checks++;
  await click('text:我的投递样式'); assert.equal(await font(),16); checks++;
  await click('button[title="撤销"]'); assert.equal(await font(),14); checks++;
- await click('text:将当前样式存为预设');await click('input[placeholder="例如：我的求职简历"]');await send('Input.insertText',{text:' 我的投递样式 '});
+ await click('text:保存为我的模板');await click('input[placeholder="例如：我的求职简历"]');await send('Input.insertText',{text:' 我的投递样式 '});
  await check("[...document.querySelectorAll('form button')].find(e=>e.textContent==='保存').disabled",'忽略首尾空格拒绝重名');
  await key('Meta+a'); await send('Input.insertText',{text:'失败测试'});
  await evaluate(`window.__settingsInvoke=window.__TAURI_INTERNALS__.invoke;window.__TAURI_INTERNALS__.invoke=(cmd,args)=>cmd==='update_settings'?Promise.reject(new Error('模拟写入失败')):window.__settingsInvoke(cmd,args)`);

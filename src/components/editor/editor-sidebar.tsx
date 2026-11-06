@@ -1,5 +1,6 @@
 'use client';
 
+import { appScrollBehavior } from '@/lib/motion';
 import { useCallback, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Plus, GripVertical, User, FileText, Briefcase, GraduationCap, Wrench, FolderKanban, Award, Languages, LayoutList, Pencil, Github, QrCode, ArrowUp, ArrowDown, Trash2 } from 'lucide-react';
@@ -79,7 +80,7 @@ export function EditorSidebar({ sections, onAddSection, onReorderSections, onRem
     onSectionSelect?.();
     requestAnimationFrame(() => {
       const el = document.querySelector(`[data-section-id="${id}"]`);
-      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      el?.scrollIntoView({ behavior: appScrollBehavior(), block: 'start' });
     });
   }, [selectSection, onSectionSelect]);
 

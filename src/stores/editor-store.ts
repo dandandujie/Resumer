@@ -23,6 +23,9 @@ export interface PendingAiMessage {
 /** 从某条投递记录发起 AI 动作（JD 匹配 / 求职文案 / 模拟面试）时带过来的上下文。
  *  对话框打开时读取它预填 JD、公司、岗位；关闭时清空。 */
 export interface ToolPrefill {
+  focus?: string;
+  practiceTarget?: import('@/types/practice').PracticeTarget;
+  practiceSessionId?: string;
   applicationId?: string;
   company?: string;
   role?: string;
@@ -58,6 +61,7 @@ interface EditorStore {
   activeField: ActiveField | null;
   showAiChat: boolean;
   showThemeEditor: boolean;
+  templatePart: "all" | "header" | "headings" | "body" | "sections";
   undoStack: ResumeSnapshot[];
   redoStack: ResumeSnapshot[];
   pendingAiMessage: PendingAiMessage | null;
@@ -93,6 +97,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   activeField: null,
   showAiChat: false,
   showThemeEditor: false,
+  templatePart: "all",
   undoStack: [],
   redoStack: [],
   pendingAiMessage: null,
@@ -114,7 +119,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     set((state) => ({
       undoStack: [
         ...state.undoStack.slice(-MAX_UNDO_STACK + 1),
-        { sections, themeConfig, timestamp: Date.now() },
+        { sections, themeConfig, template: useResumeStore.getState().currentResume?.template, timestamp: Date.now() },
       ],
       redoStack: [],
     }));
@@ -130,7 +135,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const themeConfig = currentThemeConfig();
     set((state) => ({
       undoStack: state.undoStack.slice(0, -1),
-      redoStack: [...state.redoStack, { sections: current, themeConfig, timestamp: Date.now() }],
+      redoStack: [...state.redoStack, { sections: current, themeConfig, template: useResumeStore.getState().currentResume?.template, timestamp: Date.now() }],
     }));
     return snapshot;
   },
@@ -142,7 +147,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const themeConfig = currentThemeConfig();
     set((state) => ({
       redoStack: state.redoStack.slice(0, -1),
-      undoStack: [...state.undoStack, { sections: current, themeConfig, timestamp: Date.now() }],
+      undoStack: [...state.undoStack, { sections: current, themeConfig, template: useResumeStore.getState().currentResume?.template, timestamp: Date.now() }],
     }));
     return snapshot;
   },
